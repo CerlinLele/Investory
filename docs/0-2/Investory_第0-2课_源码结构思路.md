@@ -4,13 +4,14 @@
 
 ```text
 investory/
-  app/
-    main.py
-    config.py
-    gateway/
-    runtime/
-    memory/
-    eval/
+  src/
+    investory/
+      main.py
+      config.py
+      gateway/
+      runtime/
+      memory/
+      eval/
   .env.example
   config.example.yaml
   tests/
@@ -26,10 +27,10 @@ investory/
 - `config.example.yaml`
   - 放默认模型、任务开关、日志目录、data 目录、mock tool 开关
 
-- `app/main.py`
+- `src/investory/main.py`
   - 定义最小运行入口
 
-- `app/config.py`
+- `src/investory/config.py`
   - 统一解析配置，不让代码到处 `os.getenv`
 
 - `logs/`
@@ -53,8 +54,16 @@ investory/
 - 运行入口在哪里
 - 日志和数据放在哪里
 - 测试将来放在哪里
-- 后续章节往哪个目录里继续长
+- 后续章节往哪个源码目录里继续长
+
+这里对 `Investory` 来说，建议采用：
+
+- `src/`
+  - 作为仓库级源码根目录
+
+- `src/investory/`
+  - 作为项目主包目录，后续章节里的模块都往这里继续长
 
 ## 一句话结论
 
-`Investory` 在第 `0-2` 课的重点，是先定义一个最小但可继续扩展的运行底座，而不是急着堆功能代码。
+`Investory` 在第 `0-2` 课的重点，是先定义一个最小但可继续扩展的运行底座，而不是急着堆功能代码；在目录命名上，优先用 `src/investory/`，而不是根级 `app/`。
