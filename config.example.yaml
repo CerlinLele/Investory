@@ -1,0 +1,13 @@
+app:
+  name: Investory
+  env: dev
+
+runtime:
+  logs_dir: logs
+  data_dir: data
+
+models:
+  default: gpt-5.4-mini
+
+features:
+  mock_tools_enabled: true
