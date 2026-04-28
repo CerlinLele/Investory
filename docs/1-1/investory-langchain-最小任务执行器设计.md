@@ -60,8 +60,10 @@ src/investory/
   eval/
   agent_core/
     __init__.py
-    task_spec.py
-    result_types.py
+    contracts/
+      __init__.py
+      task_spec.py
+      result_types.py
     schemas.py
     runtime/
       __init__.py
@@ -80,11 +82,13 @@ src/investory/
 
 注意目录名建议使用 `agent_core`，不要使用 `agent-core`。Python package 目录不能稳定地用连字符做 import 路径。
 
+`contracts/` 用来放 agent 执行链路的通用契约，例如 `TaskSpec`、`TaskResult`、`TaskError` 和错误归一化函数。它和 `schemas.py` 分开：`contracts/` 是框架层契约，`schemas.py` 是具体任务的输入和输出模型。等任务 schema 变多后，再把 `schemas.py` 拆成 `schemas/` 目录。
+
 ## 文件职责
 
-- `agent_core/task_spec.py`
+- `agent_core/contracts/task_spec.py`
   定义任务元数据，例如任务名、prompt 名、输出 schema。
-- `agent_core/result_types.py`
+- `agent_core/contracts/result_types.py`
   定义统一返回结构，例如 `TaskResult`、`TaskError`。
 - `agent_core/schemas.py`
   放 Pydantic 输入和输出模型，例如 `PolicyQAInput`、`PolicyQAResult`、`MeetingMinutesInput`、`MeetingMinutesResult`。
@@ -401,7 +405,7 @@ if __name__ == "__main__":
 
 这个脚本只用于本地 smoke test，不承担任务执行器职责。它的验收标准和 Implementation Steps 的 Step 6 保持一致：能完成一次最小模型调用，并且错误信息能定位到缺 key、base url 错误、模型名错误或 provider 包未安装。
 
-### Step 4：新增 `agent_core/task_spec.py`
+### Step 4：新增 `agent_core/contracts/task_spec.py`
 
 目的：定义一个任务的最小元数据。正式实现里同时规定 `input_model` 和 `output_model`，让任务输入和模型输出都有明确契约。
 
@@ -419,7 +423,7 @@ class TaskSpec:
     output_model: type[BaseModel]
 ```
 
-### Step 5：新增 `agent_core/result_types.py`
+### Step 5：新增 `agent_core/contracts/result_types.py`
 
 目的：统一任务成功和失败时的返回形状。
 
@@ -680,10 +684,10 @@ import json
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import ValidationError
 
-from investory.agent_core.result_types import TaskResult, normalize_task_error
+from investory.agent_core.contracts.result_types import TaskResult, normalize_task_error
 from investory.agent_core.runtime.prompt_loader import load_prompt_text
 from investory.agent_core.runtime.request_runner import RequestRunner
-from investory.agent_core.task_spec import TaskSpec
+from investory.agent_core.contracts.task_spec import TaskSpec
 
 
 class TaskExecutor:
@@ -839,7 +843,7 @@ from investory.agent_core.schemas import (
     PolicyQAInput,
     PolicyQAResult,
 )
-from investory.agent_core.task_spec import TaskSpec
+from investory.agent_core.contracts.task_spec import TaskSpec
 
 
 POLICY_QA_TASK = TaskSpec(
