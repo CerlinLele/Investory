@@ -47,9 +47,13 @@ def _load_prompt_text(*parts: str) -> str:
         ("base", "system.md"): "You are an investment learning assistant.",
         ("base", "common_rules.md"): "Answer only from the input data.",
         (
+            "base",
+            "input_data_block.md",
+        ): "Input data only:\n<input_json>\n{input_json}\n</input_json>",
+        (
             "tasks",
             "finance_qa.md",
-        ): "Rules:\n{common_rules}\n\nInput data (JSON):\n{input_json}",
+        ): "Rules:\n{common_rules}\n\n{input_data_block}",
     }
     return prompts[parts]
 
