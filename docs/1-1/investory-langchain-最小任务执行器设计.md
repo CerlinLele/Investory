@@ -509,7 +509,7 @@ def normalize_task_error(
         return TaskError(
             error_type="input_validation_failed",
             stage=stage,
-            user_safe_message="输入不符合任务要求，请检查后重试。",
+            user_safe_message="The input does not match the task requirements. Please check it and try again.",
             retryable=False,
             request_id=request_id,
             provider=provider,
@@ -524,7 +524,7 @@ def normalize_task_error(
         return TaskError(
             error_type="prompt_load_failed",
             stage=stage,
-            user_safe_message="任务配置暂时不可用，请稍后再试。",
+            user_safe_message="The task configuration is temporarily unavailable. Please try again later.",
             retryable=False,
             request_id=request_id,
             provider=provider,
@@ -539,7 +539,7 @@ def normalize_task_error(
         return TaskError(
             error_type="structured_output_failed",
             stage=stage,
-            user_safe_message="AI 返回结果格式不符合要求，请稍后重试。",
+            user_safe_message="The AI response did not match the required format. Please try again later.",
             retryable=True,
             request_id=request_id,
             provider=provider,
@@ -552,27 +552,27 @@ def normalize_task_error(
 
     if status_code in {401, 403}:
         error_type: TaskErrorType = "provider_auth_error"
-        user_safe_message = "AI 服务配置不可用，请联系维护者检查权限。"
+        user_safe_message = "The AI service configuration is unavailable. Please contact the maintainer to check access permissions."
         retryable = False
     elif status_code == 429:
         error_type = "rate_limited"
-        user_safe_message = "AI 服务暂时繁忙，请稍后重试。"
+        user_safe_message = "The AI service is temporarily busy. Please try again later."
         retryable = True
     elif status_code is not None and status_code >= 500:
         error_type = "provider_unavailable"
-        user_safe_message = "AI 服务暂时不可用，请稍后重试。"
+        user_safe_message = "The AI service is temporarily unavailable. Please try again later."
         retryable = True
     elif isinstance(exc, TimeoutError) or "timeout" in normalized_message:
         error_type = "timeout"
-        user_safe_message = "AI 服务响应超时，请稍后重试。"
+        user_safe_message = "The AI service timed out. Please try again later."
         retryable = True
     elif isinstance(exc, (ImportError, ValueError)):
         error_type = "model_config_error"
-        user_safe_message = "AI 服务配置不可用，请联系维护者检查配置。"
+        user_safe_message = "The AI service configuration is unavailable. Please contact the maintainer to check the configuration."
         retryable = False
     else:
         error_type = "unknown_error"
-        user_safe_message = "任务执行失败，请稍后重试。"
+        user_safe_message = "The task failed to run. Please try again later."
         retryable = False
 
     return TaskError(
