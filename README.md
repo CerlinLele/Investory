@@ -46,3 +46,23 @@ The existing task runtime smoke command is still available:
 ```powershell
 .\.venv\Scripts\python.exe -m investory.agent_core.runtime.smoke.cli
 ```
+
+## Run Tests
+
+Run the full test suite:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+```
+
+Run one test file:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_config.py
+```
+
+Run one test case:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_config.py::test_load_config_uses_openai_as_default_provider
+```
