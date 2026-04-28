@@ -18,6 +18,7 @@ class AppConfig:
     app_env: str = "dev"
     logs_dir: Path = PROJECT_ROOT / "logs"
     data_dir: Path = PROJECT_ROOT / "data"
+    llm_provider: str = "openai"
     default_model: str = "gpt-5.4-mini"
     mock_tools_enabled: bool = True
 
@@ -38,6 +39,7 @@ def load_config() -> AppConfig:
         app_env=getenv("INVESTORY_APP_ENV", "dev"),
         logs_dir=Path(getenv("INVESTORY_LOGS_DIR", str(PROJECT_ROOT / "logs"))),
         data_dir=Path(getenv("INVESTORY_DATA_DIR", str(PROJECT_ROOT / "data"))),
+        llm_provider=getenv("INVESTORY_LLM_PROVIDER", "openai"),
         default_model=getenv("INVESTORY_DEFAULT_MODEL", "gpt-5.4-mini"),
         mock_tools_enabled=_as_bool(
             getenv("INVESTORY_MOCK_TOOLS_ENABLED"),
