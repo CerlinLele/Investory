@@ -74,6 +74,12 @@ src/investory/
       request_runner.py
       task_executor.py
       prompt_loader.py
+      smoke/
+        __init__.py
+        cli.py
+        provider.py
+        task.py
+        README.md
     prompts/
       base/
         system.md
@@ -104,6 +110,8 @@ src/investory/
   只负责“给定 TaskSpec + payload，校验输入，加载 prompt，调用 runner，做错误收口”。
 - `agent_core/runtime/prompt_loader.py`
   只负责从 `agent_core/prompts/` 读取 `.md` prompt 文件。
+- `agent_core/runtime/smoke/`
+  保存本地人工 smoke test 入口。`cli.py` 是统一命令入口，`provider.py` 验证 provider 配置和最小模型调用，`task.py` 验证已注册任务的完整执行链路，`README.md` 说明怎么运行 smoke test。
 - `agent_core/prompts/base/`
   保存共享系统提示和通用规则。
 - `agent_core/prompts/tasks/`
@@ -389,25 +397,39 @@ def create_chat_model():
 
 实现时要以实际安装版本的 LangChain provider 参数名为准。不同 provider 的 `base_url` 参数名可能不同，所以 `model_factory.py` 是最适合集中处理差异的地方。
 
-### Step 3：新增 `agent_core/runtime/provider_smoke.py`
+### Step 3：新增 `agent_core/runtime/smoke/`
 
 目的：先验证配置和模型接入，不让任务执行器问题和 provider 接入问题混在一起。
 
-```python
-from investory.agent_core.runtime.model_factory import create_chat_model
-
-
-def main() -> None:
-    model = create_chat_model()
-    response = model.invoke("Answer in one sentence: What is Investory?")
-    print(response.content)
-
-
-if __name__ == "__main__":
-    main()
+```text
+src/investory/agent_core/runtime/smoke/
+  __init__.py
+  cli.py
+  provider.py
+  task.py
+  README.md
 ```
 
-这个脚本只用于本地 smoke test，不承担任务执行器职责。它的验收标准和 Implementation Steps 的 Step 6 保持一致：能完成一次最小模型调用，并且错误信息能定位到缺 key、base url 错误、模型名错误或 provider 包未安装。
+只在 `pyproject.toml` 里保留一个统一入口，避免后续每新增一个 smoke 文件都要新增一个 script：
+
+```toml
+[project.scripts]
+investory-smoke = "investory.agent_core.runtime.smoke.cli:main"
+```
+
+`smoke/provider.py` 只用于本地 provider smoke test，不承担任务执行器职责。它的验收标准和 Implementation Steps 的 Step 6 保持一致：能完成一次最小模型调用，并且错误信息能定位到缺 key、base url 错误、模型名错误或 provider 包未安装。
+
+`smoke/cli.py` 负责统一分发 smoke 子命令：
+
+```powershell
+investory-smoke provider --check-config-only
+investory-smoke provider
+investory-smoke provider --prompt "Answer in one sentence: What is Investory?"
+investory-smoke task --task finance_qa
+investory-smoke task --task learning_material_summary
+```
+
+`smoke/README.md` 记录本地 smoke test 的运行方式、前置配置、退出码和注意事项。
 
 ### Step 4：新增 `agent_core/contracts/task_spec.py`
 
@@ -952,23 +974,21 @@ TASKS = {
 
 目的：验证完整链路能先校验 payload，再从 `TaskSpec + payload` 返回结构化 `TaskResult`。
 
-```python
-from investory.agent_core.runtime.task_executor import TaskExecutor
-from investory.agent_core.tasks import FINANCE_QA_TASK
+新增 `agent_core/runtime/smoke/task.py`，并通过统一 smoke CLI 运行：
 
-
-executor = TaskExecutor()
-
-result = executor.run(
-    FINANCE_QA_TASK,
-    {
-        "material_text": "Maximum drawdown is the largest decline from a peak to a trough over a period of time.",
-        "question": "What does maximum drawdown mean, and why is it important?",
-    },
-)
-
-print(result.model_dump())
+```powershell
+investory-smoke task
+investory-smoke task --task finance_qa
+investory-smoke task --task learning_material_summary
 ```
+
+如果还没有安装 editable package，可以从仓库根目录用模块方式运行：
+
+```powershell
+.\.venv\Scripts\python.exe -m investory.agent_core.runtime.smoke.cli task --task finance_qa
+```
+
+任务 smoke test 的默认 payload 放在 `smoke/task.py` 里。它会走完整执行链路：输入校验、prompt 加载、messages 构造、结构化模型调用和 `TaskResult` 输出。smoke test 可能调用真实 LLM provider，所以不作为每次本地编辑都必须运行的单元测试。
 
 ## 为什么这套适合 Investory
 
