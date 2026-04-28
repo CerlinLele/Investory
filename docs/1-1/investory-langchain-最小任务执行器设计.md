@@ -222,107 +222,21 @@ models:
 
 当前项目的 `config.py` 先只从环境变量读配置也可以，不急着实现 YAML loader。第 1-1 课建议保持简单。
 
-### Step 5：扩展 `AppConfig`
+### Step 5：按最小实现顺序落代码
 
-后续实现时，可以让 `src/investory/config.py` 至少读这些字段：
+前四步只解决“用哪个 provider、从哪里读配置”。从这一步开始进入正式实现。
 
-```python
-@dataclass(slots=True)
-class AppConfig:
-    app_name: str = "Investory"
-    app_env: str = "dev"
-    logs_dir: Path = PROJECT_ROOT / "logs"
-    data_dir: Path = PROJECT_ROOT / "data"
-    llm_provider: str = "openai"
-    default_model: str = "gpt-5.4-mini"
-    llm_base_url: str | None = None
-    llm_api_key: str | None = None
-    llm_temperature: float = 0
-    llm_max_retries: int = 2
-    mock_tools_enabled: bool = True
-```
+不要在多个章节重复展开同一段代码。下面的“最小实现步骤与代码骨架”就是第 1-1 课的实现准绳：按顺序创建文件、跑 provider smoke test，再跑任务 smoke test。
 
-`load_config()` 的最小读取逻辑：
+### Step 6：先做 provider smoke test
 
-```python
-provider = getenv("INVESTORY_LLM_PROVIDER", "openai")
-base_url_env = f"{provider.upper()}_BASE_URL"
-api_key_env = f"{provider.upper()}_API_KEY"
+在真正跑 `TaskExecutor` 前，先验证这条链路：
 
-return AppConfig(
-    llm_provider=provider,
-    default_model=getenv("INVESTORY_DEFAULT_MODEL", "gpt-5.4-mini"),
-    llm_base_url=getenv(base_url_env),
-    llm_api_key=getenv(api_key_env),
-    llm_temperature=float(getenv("INVESTORY_LLM_TEMPERATURE", "0")),
-    llm_max_retries=int(getenv("INVESTORY_LLM_MAX_RETRIES", "2")),
-)
-```
-
-如果后续 provider 名和 env 前缀不一致，就不要用自动拼接，改成显式映射表。
-
-### Step 6：实现 `model_factory.py`
-
-`agent_core/runtime/model_factory.py` 建议先写成显式分支，不要做动态 import 魔法：
-
-```python
-from langchain.chat_models import init_chat_model
-from langchain_openai import ChatOpenAI
-
-from investory.config import load_config
-
-
-def create_chat_model():
-    config = load_config()
-
-    common = {
-        "temperature": config.llm_temperature,
-        "max_retries": config.llm_max_retries,
-    }
-
-    if config.llm_provider == "openai":
-        return ChatOpenAI(
-            model=config.default_model,
-            api_key=config.llm_api_key,
-            base_url=config.llm_base_url,
-            **common,
-        )
-
-    if config.llm_provider == "anthropic":
-        from langchain_anthropic import ChatAnthropic
-
-        return ChatAnthropic(
-            model=config.default_model,
-            api_key=config.llm_api_key,
-            base_url=config.llm_base_url,
-            **common,
-        )
-
-    if config.llm_provider == "google_genai":
-        from langchain_google_genai import ChatGoogleGenerativeAI
-
-        return ChatGoogleGenerativeAI(
-            model=config.default_model,
-            google_api_key=config.llm_api_key,
-            **common,
-        )
-
-    return init_chat_model(config.default_model, **common)
-```
-
-实现时要以实际安装版本的 LangChain provider 参数名为准。不同 provider 的 `base_url` 参数名可能不同，所以 `model_factory.py` 是最适合集中处理差异的地方。
-
-### Step 7：先写 provider smoke test
-
-在真正跑 `TaskExecutor` 前，先写一个最小检查脚本：
-
-```python
-from investory.agent_core.runtime.model_factory import create_chat_model
-
-
-model = create_chat_model()
-response = model.invoke("用一句话回答：Investory 是什么？")
-print(response.content)
+```text
+load_config
+-> model_factory
+-> LangChain provider wrapper
+-> model.invoke
 ```
 
 验收标准：
@@ -334,30 +248,28 @@ print(response.content)
 5. 能完成一次最小调用。
 6. 错误时能明确看到是缺 key、base url 错误、模型名错误，还是 provider 包未安装。
 
-## 最小代码骨架
+### Step 7：再做任务 smoke test
 
-这一节不是另一套独立方案，而是把上面的 Implementation Steps 落成最小代码。每个文件都应该能回答两个问题：
+provider smoke test 通过后，再验证完整最小执行器链路：
 
-1. 它对应哪一步 implementation step。
-2. 它存在的目的是什么。
+```text
+TaskSpec + payload
+-> prompt_loader
+-> task_executor
+-> request_runner
+-> model.with_structured_output
+-> TaskResult
+```
 
-最小落地顺序建议如下：
+第 1-1 课只需要先跑通 `policy_qa` 和 `meeting_minutes`，不要在这一步引入工具调用、LangGraph、复杂 registry 或长期 memory。
 
-| 顺序 | 文件 | 对应步骤 | 目的 |
-|---|---|---|---|
-| 1 | `config.py` | Step 1 到 Step 5 | 把 provider、model、base url、api key 和重试参数统一收口。 |
-| 2 | `agent_core/runtime/model_factory.py` | Step 6 | 根据配置创建 LangChain chat model，隔离 provider 差异。 |
-| 3 | `agent_core/runtime/provider_smoke.py` | Step 7 | 在接入任务执行器前，先验证模型调用链路可用。 |
-| 4 | `agent_core/task_spec.py` | 执行器输入定义 | 定义一个任务需要的最小元数据。 |
-| 5 | `agent_core/result_types.py` | 执行器输出定义 | 统一成功结果和错误结果的返回形状。 |
-| 6 | `agent_core/schemas.py` | 结构化输出定义 | 定义模型必须返回的 Pydantic schema。 |
-| 7 | `agent_core/runtime/prompt_loader.py` | prompt 加载 | 从 `agent_core/prompts/` 读取任务 prompt。 |
-| 8 | `agent_core/runtime/request_runner.py` | 模型请求 | 执行一次 messages + schema 的结构化模型调用。 |
-| 9 | `agent_core/runtime/task_executor.py` | 最小执行器 | 串起 TaskSpec、payload、prompt、runner 和错误收口。 |
+## 最小实现步骤与代码骨架
 
-### Step 5：`config.py`
+这一节按正式实现顺序组织。每一步只说明目的和对应代码，避免和上面的设计说明重复。
 
-目的：把 Step 1 到 Step 4 里的 provider 选择、默认模型、环境变量读取和运行参数统一收口。后续业务代码只依赖 `load_config()`，不直接读取 provider key。
+### Step 1：扩展 `config.py`
+
+目的：统一读取 provider、model、base url、api key、temperature 和 retry 配置。
 
 ```python
 from dataclasses import dataclass
@@ -414,9 +326,9 @@ def load_config() -> AppConfig:
 
 这里用显式 `PROVIDER_ENV`，目的是避免 `google_genai` 自动拼接成 `GOOGLE_GENAI_API_KEY` 这类不符合实际习惯的环境变量名。
 
-### Step 6：`agent_core/runtime/model_factory.py`
+### Step 2：实现 `agent_core/runtime/model_factory.py`
 
-目的：把 LangChain provider 的创建细节集中在 runtime 里。`TaskExecutor`、任务定义和业务代码不应该直接知道 OpenAI、Anthropic 或 Gemini 的构造参数差异。
+目的：根据 `load_config()` 创建 LangChain chat model，并把 provider 差异隔离在 runtime。
 
 ```python
 from langchain.chat_models import init_chat_model
@@ -465,9 +377,9 @@ def create_chat_model():
 
 实现时要以实际安装版本的 LangChain provider 参数名为准。不同 provider 的 `base_url` 参数名可能不同，所以 `model_factory.py` 是最适合集中处理差异的地方。
 
-### Step 7：`agent_core/runtime/provider_smoke.py`
+### Step 3：新增 `agent_core/runtime/provider_smoke.py`
 
-目的：在实现完整 `TaskExecutor` 前，先确认 Step 1 到 Step 6 的 provider、model、base url、api key 和依赖包都能正常工作。
+目的：先验证配置和模型接入，不让任务执行器问题和 provider 接入问题混在一起。
 
 ```python
 from investory.agent_core.runtime.model_factory import create_chat_model
@@ -483,11 +395,11 @@ if __name__ == "__main__":
     main()
 ```
 
-这个脚本只用于本地 smoke test，不承担任务执行器职责。它的验收标准和 Step 7 保持一致：能完成一次最小模型调用，并且错误信息能定位到缺 key、base url 错误、模型名错误或 provider 包未安装。
+这个脚本只用于本地 smoke test，不承担任务执行器职责。它的验收标准和 Implementation Steps 的 Step 6 保持一致：能完成一次最小模型调用，并且错误信息能定位到缺 key、base url 错误、模型名错误或 provider 包未安装。
 
-### 执行器输入：`agent_core/task_spec.py`
+### Step 4：新增 `agent_core/task_spec.py`
 
-目的：定义一个任务的最小元数据。`TaskExecutor` 只需要知道任务名、prompt 名和输出 schema，就可以执行任务。
+目的：定义一个任务的最小元数据。
 
 ```python
 from dataclasses import dataclass
@@ -502,9 +414,9 @@ class TaskSpec:
     output_model: type[BaseModel]
 ```
 
-### 执行器输出：`agent_core/result_types.py`
+### Step 5：新增 `agent_core/result_types.py`
 
-目的：统一任务结果形状。调用方只需要判断 `ok`，不需要捕获 runtime 内部所有异常类型。
+目的：统一任务成功和失败时的返回形状。
 
 ```python
 from pydantic import BaseModel
@@ -522,9 +434,9 @@ class TaskResult(BaseModel):
     error: TaskError | None = None
 ```
 
-### 结构化输出：`agent_core/schemas.py`
+### Step 6：新增 `agent_core/schemas.py`
 
-目的：定义模型最终必须返回的数据结构。`with_structured_output` 会围绕这些 Pydantic schema 工作。
+目的：定义 `policy_qa` 和 `meeting_minutes` 的结构化输出 schema。
 
 ```python
 from pydantic import BaseModel, Field
@@ -548,9 +460,9 @@ class MeetingMinutesResult(BaseModel):
     risks: list[str] = Field(description="风险或阻塞点")
 ```
 
-### Prompt 加载：`agent_core/runtime/prompt_loader.py`
+### Step 7：新增 `agent_core/runtime/prompt_loader.py`
 
-目的：让 runtime 从固定目录读取 prompt 文件。这样 prompt 可以独立调优、评测和版本对比，不和 Python 逻辑混在一起。
+目的：从 `agent_core/prompts/` 读取 `.md` prompt 文件。
 
 ```python
 from pathlib import Path
@@ -565,9 +477,9 @@ def load_prompt_text(*parts: str) -> str:
 
 这里 `prompt_loader.py` 位于 `agent_core/runtime/`，所以 `parents[1]` 指向 `agent_core/`。
 
-### 模型请求：`agent_core/runtime/request_runner.py`
+### Step 8：新增 `agent_core/runtime/request_runner.py`
 
-目的：执行一次“messages + output schema”的结构化模型调用。它不关心具体任务，也不读取 prompt。
+目的：执行一次 `messages + output schema` 的结构化模型调用。
 
 ```python
 from langchain_core.messages import BaseMessage
@@ -589,9 +501,9 @@ class RequestRunner:
         return structured_model.invoke(messages)
 ```
 
-### 最小执行器：`agent_core/runtime/task_executor.py`
+### Step 9：新增 `agent_core/runtime/task_executor.py`
 
-目的：串起任务元数据、payload、prompt、模型请求和错误收口。它是第 1-1 课真正要跑通的最小任务执行入口。
+目的：串起 `TaskSpec`、payload、prompt、runner 和错误收口。
 
 ```python
 import json
@@ -646,9 +558,11 @@ class TaskExecutor:
 
 `task_executor.py` 是最小执行器本体。它可以知道任务、prompt、runner 和错误收口，但不应该直接知道模型 provider 的具体调用细节。
 
-## Prompt 文件示例
+### Step 10：新增 prompt 文件
 
-### `agent_core/prompts/base/system.md`
+目的：给最小执行器提供可加载的 `.md` prompt，先只放两个共享 prompt 和两个任务 prompt。
+
+#### `agent_core/prompts/base/system.md`
 
 ```md
 你是一个严格按要求执行任务的投资学习助手。
@@ -656,7 +570,7 @@ class TaskExecutor:
 你的输出仅用于学习、理解、整理和复盘，不构成投资建议。
 ```
 
-### `agent_core/prompts/base/common_rules.md`
+#### `agent_core/prompts/base/common_rules.md`
 
 ```md
 1. 只能根据输入数据作答，不要补造事实。
@@ -666,7 +580,7 @@ class TaskExecutor:
 5. 必须输出符合指定 schema 的结构化结果。
 ```
 
-### `agent_core/prompts/tasks/policy_qa.md`
+#### `agent_core/prompts/tasks/policy_qa.md`
 
 ```md
 请根据提供的制度文本回答问题。
@@ -678,7 +592,7 @@ class TaskExecutor:
 {input_json}
 ```
 
-### `agent_core/prompts/tasks/meeting_minutes.md`
+#### `agent_core/prompts/tasks/meeting_minutes.md`
 
 ```md
 请根据输入内容整理会议纪要。
@@ -695,15 +609,13 @@ class TaskExecutor:
 {input_json}
 ```
 
-## 任务注册建议
+### Step 11：新增 `agent_core/tasks.py`
 
-第一版可以先用一个简单模块注册任务，例如后续新增：
+目的：用一个简单模块注册第 1-1 课要跑通的两个任务。
 
 ```text
 src/investory/agent_core/tasks.py
 ```
-
-内容可以是：
 
 ```python
 from investory.agent_core.schemas import MeetingMinutesResult, PolicyQAResult
@@ -730,7 +642,9 @@ TASKS = {
 
 不要一开始做复杂 registry。两个任务跑通后，再根据重复模式决定是否抽象。
 
-## 最小调用示例
+### Step 12：跑任务 smoke test
+
+目的：验证完整链路能从 `TaskSpec + payload` 返回结构化 `TaskResult`。
 
 ```python
 from investory.agent_core.runtime.task_executor import TaskExecutor
