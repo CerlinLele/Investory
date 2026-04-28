@@ -336,7 +336,158 @@ print(response.content)
 
 ## 最小代码骨架
 
-### `agent_core/task_spec.py`
+这一节不是另一套独立方案，而是把上面的 Implementation Steps 落成最小代码。每个文件都应该能回答两个问题：
+
+1. 它对应哪一步 implementation step。
+2. 它存在的目的是什么。
+
+最小落地顺序建议如下：
+
+| 顺序 | 文件 | 对应步骤 | 目的 |
+|---|---|---|---|
+| 1 | `config.py` | Step 1 到 Step 5 | 把 provider、model、base url、api key 和重试参数统一收口。 |
+| 2 | `agent_core/runtime/model_factory.py` | Step 6 | 根据配置创建 LangChain chat model，隔离 provider 差异。 |
+| 3 | `agent_core/runtime/provider_smoke.py` | Step 7 | 在接入任务执行器前，先验证模型调用链路可用。 |
+| 4 | `agent_core/task_spec.py` | 执行器输入定义 | 定义一个任务需要的最小元数据。 |
+| 5 | `agent_core/result_types.py` | 执行器输出定义 | 统一成功结果和错误结果的返回形状。 |
+| 6 | `agent_core/schemas.py` | 结构化输出定义 | 定义模型必须返回的 Pydantic schema。 |
+| 7 | `agent_core/runtime/prompt_loader.py` | prompt 加载 | 从 `agent_core/prompts/` 读取任务 prompt。 |
+| 8 | `agent_core/runtime/request_runner.py` | 模型请求 | 执行一次 messages + schema 的结构化模型调用。 |
+| 9 | `agent_core/runtime/task_executor.py` | 最小执行器 | 串起 TaskSpec、payload、prompt、runner 和错误收口。 |
+
+### Step 5：`config.py`
+
+目的：把 Step 1 到 Step 4 里的 provider 选择、默认模型、环境变量读取和运行参数统一收口。后续业务代码只依赖 `load_config()`，不直接读取 provider key。
+
+```python
+from dataclasses import dataclass
+from os import getenv
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+PROVIDER_ENV = {
+    "openai": {
+        "base_url": "OPENAI_BASE_URL",
+        "api_key": "OPENAI_API_KEY",
+    },
+    "anthropic": {
+        "base_url": "ANTHROPIC_BASE_URL",
+        "api_key": "ANTHROPIC_API_KEY",
+    },
+    "google_genai": {
+        "base_url": "GOOGLE_BASE_URL",
+        "api_key": "GOOGLE_API_KEY",
+    },
+}
+
+
+@dataclass(slots=True)
+class AppConfig:
+    app_name: str = "Investory"
+    app_env: str = "dev"
+    logs_dir: Path = PROJECT_ROOT / "logs"
+    data_dir: Path = PROJECT_ROOT / "data"
+    llm_provider: str = "openai"
+    default_model: str = "gpt-5.4-mini"
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    llm_temperature: float = 0
+    llm_max_retries: int = 2
+    mock_tools_enabled: bool = True
+
+
+def load_config() -> AppConfig:
+    provider = getenv("INVESTORY_LLM_PROVIDER", "openai")
+    provider_env = PROVIDER_ENV.get(provider, PROVIDER_ENV["openai"])
+
+    return AppConfig(
+        llm_provider=provider,
+        default_model=getenv("INVESTORY_DEFAULT_MODEL", "gpt-5.4-mini"),
+        llm_base_url=getenv(provider_env["base_url"]),
+        llm_api_key=getenv(provider_env["api_key"]),
+        llm_temperature=float(getenv("INVESTORY_LLM_TEMPERATURE", "0")),
+        llm_max_retries=int(getenv("INVESTORY_LLM_MAX_RETRIES", "2")),
+    )
+```
+
+这里用显式 `PROVIDER_ENV`，目的是避免 `google_genai` 自动拼接成 `GOOGLE_GENAI_API_KEY` 这类不符合实际习惯的环境变量名。
+
+### Step 6：`agent_core/runtime/model_factory.py`
+
+目的：把 LangChain provider 的创建细节集中在 runtime 里。`TaskExecutor`、任务定义和业务代码不应该直接知道 OpenAI、Anthropic 或 Gemini 的构造参数差异。
+
+```python
+from langchain.chat_models import init_chat_model
+from langchain_openai import ChatOpenAI
+
+from investory.config import load_config
+
+
+def create_chat_model():
+    config = load_config()
+
+    common = {
+        "temperature": config.llm_temperature,
+        "max_retries": config.llm_max_retries,
+    }
+
+    if config.llm_provider == "openai":
+        return ChatOpenAI(
+            model=config.default_model,
+            api_key=config.llm_api_key,
+            base_url=config.llm_base_url,
+            **common,
+        )
+
+    if config.llm_provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+
+        return ChatAnthropic(
+            model=config.default_model,
+            api_key=config.llm_api_key,
+            base_url=config.llm_base_url,
+            **common,
+        )
+
+    if config.llm_provider == "google_genai":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        return ChatGoogleGenerativeAI(
+            model=config.default_model,
+            google_api_key=config.llm_api_key,
+            **common,
+        )
+
+    return init_chat_model(config.default_model, **common)
+```
+
+实现时要以实际安装版本的 LangChain provider 参数名为准。不同 provider 的 `base_url` 参数名可能不同，所以 `model_factory.py` 是最适合集中处理差异的地方。
+
+### Step 7：`agent_core/runtime/provider_smoke.py`
+
+目的：在实现完整 `TaskExecutor` 前，先确认 Step 1 到 Step 6 的 provider、model、base url、api key 和依赖包都能正常工作。
+
+```python
+from investory.agent_core.runtime.model_factory import create_chat_model
+
+
+def main() -> None:
+    model = create_chat_model()
+    response = model.invoke("用一句话回答：Investory 是什么？")
+    print(response.content)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+这个脚本只用于本地 smoke test，不承担任务执行器职责。它的验收标准和 Step 7 保持一致：能完成一次最小模型调用，并且错误信息能定位到缺 key、base url 错误、模型名错误或 provider 包未安装。
+
+### 执行器输入：`agent_core/task_spec.py`
+
+目的：定义一个任务的最小元数据。`TaskExecutor` 只需要知道任务名、prompt 名和输出 schema，就可以执行任务。
 
 ```python
 from dataclasses import dataclass
@@ -351,7 +502,9 @@ class TaskSpec:
     output_model: type[BaseModel]
 ```
 
-### `agent_core/result_types.py`
+### 执行器输出：`agent_core/result_types.py`
+
+目的：统一任务结果形状。调用方只需要判断 `ok`，不需要捕获 runtime 内部所有异常类型。
 
 ```python
 from pydantic import BaseModel
@@ -369,7 +522,9 @@ class TaskResult(BaseModel):
     error: TaskError | None = None
 ```
 
-### `agent_core/schemas.py`
+### 结构化输出：`agent_core/schemas.py`
+
+目的：定义模型最终必须返回的数据结构。`with_structured_output` 会围绕这些 Pydantic schema 工作。
 
 ```python
 from pydantic import BaseModel, Field
@@ -393,32 +548,9 @@ class MeetingMinutesResult(BaseModel):
     risks: list[str] = Field(description="风险或阻塞点")
 ```
 
-### `agent_core/runtime/model_factory.py`
+### Prompt 加载：`agent_core/runtime/prompt_loader.py`
 
-```python
-from langchain.chat_models import init_chat_model
-
-from investory.config import load_config
-
-
-def create_chat_model():
-    config = load_config()
-    return init_chat_model(
-        config.default_model,
-        temperature=0,
-        max_retries=2,
-    )
-```
-
-这里先假设 `load_config()` 能提供 `default_model`。例如：
-
-```text
-gpt-5.4-mini
-```
-
-如果后面要切换 provider，也应该先通过 `config` 和 `model_factory.py` 收口，不要让业务代码直接知道 provider 细节。
-
-### `agent_core/runtime/prompt_loader.py`
+目的：让 runtime 从固定目录读取 prompt 文件。这样 prompt 可以独立调优、评测和版本对比，不和 Python 逻辑混在一起。
 
 ```python
 from pathlib import Path
@@ -433,7 +565,9 @@ def load_prompt_text(*parts: str) -> str:
 
 这里 `prompt_loader.py` 位于 `agent_core/runtime/`，所以 `parents[1]` 指向 `agent_core/`。
 
-### `agent_core/runtime/request_runner.py`
+### 模型请求：`agent_core/runtime/request_runner.py`
+
+目的：执行一次“messages + output schema”的结构化模型调用。它不关心具体任务，也不读取 prompt。
 
 ```python
 from langchain_core.messages import BaseMessage
@@ -455,9 +589,9 @@ class RequestRunner:
         return structured_model.invoke(messages)
 ```
 
-`request_runner.py` 不关心具体任务，也不读取 prompt。它只做一次模型请求。
+### 最小执行器：`agent_core/runtime/task_executor.py`
 
-### `agent_core/runtime/task_executor.py`
+目的：串起任务元数据、payload、prompt、模型请求和错误收口。它是第 1-1 课真正要跑通的最小任务执行入口。
 
 ```python
 import json
