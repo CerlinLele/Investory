@@ -1,0 +1,660 @@
+# Investory 第 1-1 课：基于 LangChain 的最小任务执行器
+
+这版设计参考 `investory-最小任务执行器目录建议.md`，采用 `agent_core/runtime` 作为最小任务执行器的位置。
+
+结论先放前面：
+
+> Investory 可以使用 LangChain，但不要把 Investory 做成一个 LangChain 项目。更合适的做法是：Investory 自己定义任务、prompt、结果结构和执行边界；LangChain 只作为 `agent_core/runtime` 里的模型调用实现层。
+
+当前阶段最适合使用 LangChain 的三个能力：
+
+- `init_chat_model`
+  统一创建 chat model。
+- `ChatPromptTemplate`
+  统一组装 system prompt、任务 prompt 和输入 payload。
+- `with_structured_output`
+  让模型输出符合 Pydantic schema 的结构化结果。
+
+当前阶段不要一上来使用完整 LangChain agent、LangGraph、多工具循环或复杂 memory。你现在要做的是“最小任务执行器”，不是完整 agent 系统。
+
+## 为什么放在 agent_core/runtime
+
+`agent_core/` 表示 Investory 的 agent 核心能力，包括任务定义、prompt、结果结构和执行入口。
+
+`agent_core/runtime/` 表示 agent core 内部真正把一次任务跑起来的运行层。它不是 Python 解释器运行环境，也不是单纯的模型 API 封装，而是负责：
+
+- 接收 `TaskSpec` 和 payload
+- 加载并组装 prompt
+- 调用 LangChain model wrapper
+- 获取结构化输出
+- 把成功结果或错误统一收口
+
+所以这一层的职责关系是：
+
+```text
+TaskSpec + payload
+-> task_executor
+-> prompt_loader
+-> request_runner
+-> LangChain chat model
+-> structured result
+```
+
+这里的关键点是：
+
+- Investory 拥有任务边界。
+- Investory 拥有 prompt 文件。
+- Investory 拥有结果结构。
+- LangChain 只是 runtime 里的实现细节。
+
+## 推荐目录
+
+```text
+src/investory/
+  config.py
+  main.py
+  gateway/
+  memory/
+  eval/
+  agent_core/
+    __init__.py
+    task_spec.py
+    result_types.py
+    schemas.py
+    runtime/
+      __init__.py
+      model_factory.py
+      request_runner.py
+      task_executor.py
+      prompt_loader.py
+    prompts/
+      base/
+        system.md
+        common_rules.md
+      tasks/
+        meeting_minutes.md
+        policy_qa.md
+```
+
+注意目录名建议使用 `agent_core`，不要使用 `agent-core`。Python package 目录不能稳定地用连字符做 import 路径。
+
+## 文件职责
+
+- `agent_core/task_spec.py`
+  定义任务元数据，例如任务名、prompt 名、输出 schema。
+- `agent_core/result_types.py`
+  定义统一返回结构，例如 `TaskResult`、`TaskError`。
+- `agent_core/schemas.py`
+  放 Pydantic 输出模型，例如 `PolicyQAResult`、`MeetingMinutesResult`。
+- `agent_core/runtime/model_factory.py`
+  只负责创建 LangChain chat model。
+- `agent_core/runtime/request_runner.py`
+  只负责“给定 messages + output schema，调用模型并拿回结构化结果”。
+- `agent_core/runtime/task_executor.py`
+  只负责“给定 TaskSpec + payload，加载 prompt，调用 runner，做错误收口”。
+- `agent_core/runtime/prompt_loader.py`
+  只负责从 `agent_core/prompts/` 读取 `.md` prompt 文件。
+- `agent_core/prompts/base/`
+  保存共享系统提示和通用规则。
+- `agent_core/prompts/tasks/`
+  保存每个任务自己的 prompt 模板。
+
+## 依赖建议
+
+如果第一版只接 OpenAI，可以先安装：
+
+```bash
+pip install langchain langchain-openai pydantic
+```
+
+如果要预留三家主流 LLM provider，可以安装：
+
+```bash
+pip install langchain langchain-openai langchain-anthropic langchain-google-genai pydantic
+```
+
+后续写入 `pyproject.toml` 时，可以放到项目依赖里：
+
+```toml
+dependencies = [
+    "langchain>=0.3",
+    "langchain-openai>=0.2",
+    "langchain-anthropic>=0.2",
+    "langchain-google-genai>=2.0",
+    "pydantic>=2",
+]
+```
+
+版本号后面可以根据实际安装环境再锁定。第 1-1 课真正运行时建议先启用一家 provider，其他 provider 只保留配置占位。
+
+## Implementation Steps
+
+### Step 1：先定默认 provider
+
+第一版建议默认用 OpenAI：
+
+```env
+INVESTORY_LLM_PROVIDER=openai
+INVESTORY_DEFAULT_MODEL=gpt-5.4-mini
+```
+
+这样最小执行器先只验证一条主链路：
+
+```text
+TaskSpec
+-> prompt_loader
+-> task_executor
+-> request_runner
+-> OpenAI model
+-> structured result
+```
+
+等 `policy_qa` 和 `meeting_minutes` 跑通后，再打开 Anthropic 或 Gemini 做效果对照。
+
+### Step 2：配置 provider 列表
+
+不要把 API key 写进代码或 Git 仓库。配置文件只保存环境变量名，真实 key 放在本地 `.env` 或部署平台 secret manager。
+
+推荐先支持这几类：
+
+| provider | 用途 | package | default model | base url | api key env |
+|---|---|---|---|---|---|
+| `openai` | 默认主链路 | `langchain-openai` | `gpt-5.4-mini` | `https://api.openai.com/v1` | `OPENAI_API_KEY` |
+| `anthropic` | 长文本、总结对照 | `langchain-anthropic` | `claude-sonnet-4-20250514` | `https://api.anthropic.com` | `ANTHROPIC_API_KEY` |
+| `google_genai` | Gemini 原生接入 | `langchain-google-genai` | `gemini-2.5-flash` | `https://generativelanguage.googleapis.com` | `GOOGLE_API_KEY` |
+
+说明：
+
+- `google_genai` 是 LangChain 的 Gemini 原生集成，第一版先用原生接入即可。
+- OpenAI、Anthropic、Google Gemini 三家已经足够覆盖第 1-1 课的开发、对照和 smoke test。
+- model 名称会随 provider 迭代，生产环境应该固定到明确模型 ID，并用 eval 对比后再升级。
+
+### Step 3：本地 `.env` 示例
+
+本地新建 `.env`，只填写你要启用的 provider。第一版只填 OpenAI 也可以。
+
+```env
+# Investory active LLM
+INVESTORY_LLM_PROVIDER=openai
+INVESTORY_DEFAULT_MODEL=gpt-5.4-mini
+INVESTORY_LLM_TEMPERATURE=0
+INVESTORY_LLM_MAX_RETRIES=2
+
+# OpenAI
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-your-openai-key
+
+# Anthropic
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
+
+# Google Gemini native
+GOOGLE_BASE_URL=https://generativelanguage.googleapis.com
+GOOGLE_API_KEY=your-google-api-key
+```
+
+不要提交 `.env`。仓库里只提交 `.env.example`。
+
+### Step 4：配置文件结构
+
+`config.example.yaml` 可以用这种结构：
+
+```yaml
+models:
+  active_provider: openai
+  default_model: gpt-5.4-mini
+  temperature: 0
+  max_retries: 2
+  providers:
+    openai:
+      model: gpt-5.4-mini
+      base_url_env: OPENAI_BASE_URL
+      api_key_env: OPENAI_API_KEY
+    anthropic:
+      model: claude-sonnet-4-20250514
+      base_url_env: ANTHROPIC_BASE_URL
+      api_key_env: ANTHROPIC_API_KEY
+    google_genai:
+      model: gemini-2.5-flash
+      base_url_env: GOOGLE_BASE_URL
+      api_key_env: GOOGLE_API_KEY
+```
+
+当前项目的 `config.py` 先只从环境变量读配置也可以，不急着实现 YAML loader。第 1-1 课建议保持简单。
+
+### Step 5：扩展 `AppConfig`
+
+后续实现时，可以让 `src/investory/config.py` 至少读这些字段：
+
+```python
+@dataclass(slots=True)
+class AppConfig:
+    app_name: str = "Investory"
+    app_env: str = "dev"
+    logs_dir: Path = PROJECT_ROOT / "logs"
+    data_dir: Path = PROJECT_ROOT / "data"
+    llm_provider: str = "openai"
+    default_model: str = "gpt-5.4-mini"
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    llm_temperature: float = 0
+    llm_max_retries: int = 2
+    mock_tools_enabled: bool = True
+```
+
+`load_config()` 的最小读取逻辑：
+
+```python
+provider = getenv("INVESTORY_LLM_PROVIDER", "openai")
+base_url_env = f"{provider.upper()}_BASE_URL"
+api_key_env = f"{provider.upper()}_API_KEY"
+
+return AppConfig(
+    llm_provider=provider,
+    default_model=getenv("INVESTORY_DEFAULT_MODEL", "gpt-5.4-mini"),
+    llm_base_url=getenv(base_url_env),
+    llm_api_key=getenv(api_key_env),
+    llm_temperature=float(getenv("INVESTORY_LLM_TEMPERATURE", "0")),
+    llm_max_retries=int(getenv("INVESTORY_LLM_MAX_RETRIES", "2")),
+)
+```
+
+如果后续 provider 名和 env 前缀不一致，就不要用自动拼接，改成显式映射表。
+
+### Step 6：实现 `model_factory.py`
+
+`agent_core/runtime/model_factory.py` 建议先写成显式分支，不要做动态 import 魔法：
+
+```python
+from langchain.chat_models import init_chat_model
+from langchain_openai import ChatOpenAI
+
+from investory.config import load_config
+
+
+def create_chat_model():
+    config = load_config()
+
+    common = {
+        "temperature": config.llm_temperature,
+        "max_retries": config.llm_max_retries,
+    }
+
+    if config.llm_provider == "openai":
+        return ChatOpenAI(
+            model=config.default_model,
+            api_key=config.llm_api_key,
+            base_url=config.llm_base_url,
+            **common,
+        )
+
+    if config.llm_provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+
+        return ChatAnthropic(
+            model=config.default_model,
+            api_key=config.llm_api_key,
+            base_url=config.llm_base_url,
+            **common,
+        )
+
+    if config.llm_provider == "google_genai":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        return ChatGoogleGenerativeAI(
+            model=config.default_model,
+            google_api_key=config.llm_api_key,
+            **common,
+        )
+
+    return init_chat_model(config.default_model, **common)
+```
+
+实现时要以实际安装版本的 LangChain provider 参数名为准。不同 provider 的 `base_url` 参数名可能不同，所以 `model_factory.py` 是最适合集中处理差异的地方。
+
+### Step 7：先写 provider smoke test
+
+在真正跑 `TaskExecutor` 前，先写一个最小检查脚本：
+
+```python
+from investory.agent_core.runtime.model_factory import create_chat_model
+
+
+model = create_chat_model()
+response = model.invoke("用一句话回答：Investory 是什么？")
+print(response.content)
+```
+
+验收标准：
+
+1. 能读取正确 provider。
+2. 能读取正确 model。
+3. 能读取 base url。
+4. 能读取 api key。
+5. 能完成一次最小调用。
+6. 错误时能明确看到是缺 key、base url 错误、模型名错误，还是 provider 包未安装。
+
+## 最小代码骨架
+
+### `agent_core/task_spec.py`
+
+```python
+from dataclasses import dataclass
+
+from pydantic import BaseModel
+
+
+@dataclass(slots=True)
+class TaskSpec:
+    name: str
+    prompt_name: str
+    output_model: type[BaseModel]
+```
+
+### `agent_core/result_types.py`
+
+```python
+from pydantic import BaseModel
+
+
+class TaskError(BaseModel):
+    type: str
+    message: str
+
+
+class TaskResult(BaseModel):
+    ok: bool
+    task_name: str
+    result: dict | None = None
+    error: TaskError | None = None
+```
+
+### `agent_core/schemas.py`
+
+```python
+from pydantic import BaseModel, Field
+
+
+class PolicyQAResult(BaseModel):
+    answer: str = Field(description="简明结论")
+    evidence: list[str] = Field(description="依据要点")
+    uncertainty: str = Field(description="不确定性说明")
+
+
+class MeetingTodo(BaseModel):
+    title: str = Field(description="待办标题")
+    owner: str = Field(description="负责人；未知时写'未指定'")
+    deadline: str = Field(description="截止时间；未知时写'未指定'")
+
+
+class MeetingMinutesResult(BaseModel):
+    summary: str = Field(description="会议摘要")
+    todos: list[MeetingTodo] = Field(description="待办事项")
+    risks: list[str] = Field(description="风险或阻塞点")
+```
+
+### `agent_core/runtime/model_factory.py`
+
+```python
+from langchain.chat_models import init_chat_model
+
+from investory.config import load_config
+
+
+def create_chat_model():
+    config = load_config()
+    return init_chat_model(
+        config.default_model,
+        temperature=0,
+        max_retries=2,
+    )
+```
+
+这里先假设 `load_config()` 能提供 `default_model`。例如：
+
+```text
+gpt-5.4-mini
+```
+
+如果后面要切换 provider，也应该先通过 `config` 和 `model_factory.py` 收口，不要让业务代码直接知道 provider 细节。
+
+### `agent_core/runtime/prompt_loader.py`
+
+```python
+from pathlib import Path
+
+
+PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
+
+
+def load_prompt_text(*parts: str) -> str:
+    return PROMPTS_DIR.joinpath(*parts).read_text(encoding="utf-8")
+```
+
+这里 `prompt_loader.py` 位于 `agent_core/runtime/`，所以 `parents[1]` 指向 `agent_core/`。
+
+### `agent_core/runtime/request_runner.py`
+
+```python
+from langchain_core.messages import BaseMessage
+from pydantic import BaseModel
+
+from investory.agent_core.runtime.model_factory import create_chat_model
+
+
+class RequestRunner:
+    def __init__(self, model=None) -> None:
+        self.model = model or create_chat_model()
+
+    def run(
+        self,
+        messages: list[BaseMessage],
+        output_model: type[BaseModel],
+    ) -> BaseModel:
+        structured_model = self.model.with_structured_output(output_model)
+        return structured_model.invoke(messages)
+```
+
+`request_runner.py` 不关心具体任务，也不读取 prompt。它只做一次模型请求。
+
+### `agent_core/runtime/task_executor.py`
+
+```python
+import json
+
+from langchain_core.prompts import ChatPromptTemplate
+
+from investory.agent_core.result_types import TaskError, TaskResult
+from investory.agent_core.runtime.prompt_loader import load_prompt_text
+from investory.agent_core.runtime.request_runner import RequestRunner
+from investory.agent_core.task_spec import TaskSpec
+
+
+class TaskExecutor:
+    def __init__(self, runner: RequestRunner | None = None) -> None:
+        self.runner = runner or RequestRunner()
+
+    def build_messages(self, spec: TaskSpec, payload: dict):
+        system_prompt = load_prompt_text("base", "system.md")
+        common_rules = load_prompt_text("base", "common_rules.md")
+        task_prompt = load_prompt_text("tasks", f"{spec.prompt_name}.md")
+
+        prompt = ChatPromptTemplate(
+            [
+                ("system", system_prompt),
+                ("human", task_prompt),
+            ]
+        )
+
+        return prompt.invoke(
+            {
+                "common_rules": common_rules,
+                "input_json": json.dumps(payload, ensure_ascii=False, indent=2),
+            }
+        ).messages
+
+    def run(self, spec: TaskSpec, payload: dict) -> TaskResult:
+        try:
+            messages = self.build_messages(spec, payload)
+            parsed = self.runner.run(messages, spec.output_model)
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result=parsed.model_dump(),
+            )
+        except Exception as exc:
+            return TaskResult(
+                ok=False,
+                task_name=spec.name,
+                error=TaskError(type=type(exc).__name__, message=str(exc)),
+            )
+```
+
+`task_executor.py` 是最小执行器本体。它可以知道任务、prompt、runner 和错误收口，但不应该直接知道模型 provider 的具体调用细节。
+
+## Prompt 文件示例
+
+### `agent_core/prompts/base/system.md`
+
+```md
+你是一个严格按要求执行任务的投资学习助手。
+
+你的输出仅用于学习、理解、整理和复盘，不构成投资建议。
+```
+
+### `agent_core/prompts/base/common_rules.md`
+
+```md
+1. 只能根据输入数据作答，不要补造事实。
+2. 信息不足时必须明确说明不确定性。
+3. 对投资、理财、基金、证券相关内容，必须保持学习辅助定位。
+4. 不直接给出买入、卖出、择时、仓位建议。
+5. 必须输出符合指定 schema 的结构化结果。
+```
+
+### `agent_core/prompts/tasks/policy_qa.md`
+
+```md
+请根据提供的制度文本回答问题。
+
+执行要求：
+{common_rules}
+
+输入数据（JSON）：
+{input_json}
+```
+
+### `agent_core/prompts/tasks/meeting_minutes.md`
+
+```md
+请根据输入内容整理会议纪要。
+
+执行要求：
+{common_rules}
+
+你需要提取：
+1. 会议摘要
+2. 待办事项
+3. 风险或阻塞点
+
+输入数据（JSON）：
+{input_json}
+```
+
+## 任务注册建议
+
+第一版可以先用一个简单模块注册任务，例如后续新增：
+
+```text
+src/investory/agent_core/tasks.py
+```
+
+内容可以是：
+
+```python
+from investory.agent_core.schemas import MeetingMinutesResult, PolicyQAResult
+from investory.agent_core.task_spec import TaskSpec
+
+
+POLICY_QA_TASK = TaskSpec(
+    name="policy_qa",
+    prompt_name="policy_qa",
+    output_model=PolicyQAResult,
+)
+
+MEETING_MINUTES_TASK = TaskSpec(
+    name="meeting_minutes",
+    prompt_name="meeting_minutes",
+    output_model=MeetingMinutesResult,
+)
+
+TASKS = {
+    POLICY_QA_TASK.name: POLICY_QA_TASK,
+    MEETING_MINUTES_TASK.name: MEETING_MINUTES_TASK,
+}
+```
+
+不要一开始做复杂 registry。两个任务跑通后，再根据重复模式决定是否抽象。
+
+## 最小调用示例
+
+```python
+from investory.agent_core.runtime.task_executor import TaskExecutor
+from investory.agent_core.tasks import POLICY_QA_TASK
+
+
+executor = TaskExecutor()
+
+result = executor.run(
+    POLICY_QA_TASK,
+    {
+        "policy_text": "赎回申请通常在交易日提交，具体到账时间以基金公司规则为准。",
+        "question": "基金赎回多久到账？",
+    },
+)
+
+print(result.model_dump())
+```
+
+## 为什么这套适合 Investory
+
+- 目录边界和 `investory-最小任务执行器目录建议.md` 保持一致。
+- `agent_core` 保存 Investory 自己的任务核心，不把项目结构交给 LangChain。
+- `runtime` 表示一次任务真正跑起来的执行层，语义清楚。
+- prompt 放在 `.md` 文件里，后续调优、评测和版本对照更方便。
+- LangChain 只负责模型接入、prompt 组装和结构化输出，替换成本较低。
+- 后续可以自然升级到 tools、workflow、LangGraph 或 OpenAI Agents SDK，但现在不用提前引入复杂度。
+
+## 当前阶段不建议做的事
+
+现在先不要直接做这些：
+
+- 新建顶层 `agents/` 大目录
+- 新建顶层 `llm/` 大目录
+- 把 prompt 写成 Python 大字符串常量
+- 做复杂 prompt fragments
+- 做多级 prompt 继承
+- 做通用 prompt registry
+- 一上来使用 LangChain agent
+- 一上来使用 LangGraph
+- 一上来混入工具调用循环
+
+第 1-1 课最重要的是：
+
+1. 先有一个清楚的 `agent_core/runtime/task_executor.py`
+2. 先有一个清楚的 `agent_core/prompts/`
+3. 先把 `policy_qa` 和 `meeting_minutes` 跑通
+4. 统一结构化结果和错误收口
+
+## 一句话结论
+
+Investory 可以用 LangChain，但最合适的方式不是“把 Investory 做成 LangChain 项目”，而是“让 LangChain 成为 `agent_core/runtime` 里的薄实现层”。
+
+## 参考资料
+
+- LangChain Overview: https://docs.langchain.com/oss/python/langchain/overview
+- LangChain Install: https://docs.langchain.com/oss/python/langchain/install
+- LangChain Structured Output: https://docs.langchain.com/oss/python/langchain/structured-output
+- LangChain Models: https://docs.langchain.com/oss/python/langchain/models
+- `init_chat_model`: https://reference.langchain.com/python/langchain/chat_models/base/init_chat_model
+- `ChatPromptTemplate`: https://reference.langchain.com/python/langchain-core/prompts/chat/ChatPromptTemplate
