@@ -24,6 +24,7 @@
 `agent_core/runtime/` 表示 agent core 内部真正把一次任务跑起来的运行层。它不是 Python 解释器运行环境，也不是单纯的模型 API 封装，而是负责：
 
 - 接收 `TaskSpec` 和 payload
+- 使用 `input_model` 校验 payload
 - 加载并组装 prompt
 - 调用 LangChain model wrapper
 - 获取结构化输出
@@ -34,6 +35,7 @@
 ```text
 TaskSpec + payload
 -> task_executor
+-> input_model validation
 -> prompt_loader
 -> request_runner
 -> LangChain chat model
@@ -85,13 +87,13 @@ src/investory/
 - `agent_core/result_types.py`
   定义统一返回结构，例如 `TaskResult`、`TaskError`。
 - `agent_core/schemas.py`
-  放 Pydantic 输出模型，例如 `PolicyQAResult`、`MeetingMinutesResult`。
+  放 Pydantic 输入和输出模型，例如 `PolicyQAInput`、`PolicyQAResult`、`MeetingMinutesInput`、`MeetingMinutesResult`。
 - `agent_core/runtime/model_factory.py`
   只负责创建 LangChain chat model。
 - `agent_core/runtime/request_runner.py`
   只负责“给定 messages + output schema，调用模型并拿回结构化结果”。
 - `agent_core/runtime/task_executor.py`
-  只负责“给定 TaskSpec + payload，加载 prompt，调用 runner，做错误收口”。
+  只负责“给定 TaskSpec + payload，校验输入，加载 prompt，调用 runner，做错误收口”。
 - `agent_core/runtime/prompt_loader.py`
   只负责从 `agent_core/prompts/` 读取 `.md` prompt 文件。
 - `agent_core/prompts/base/`
@@ -141,9 +143,10 @@ INVESTORY_DEFAULT_MODEL=gpt-5.4-mini
 这样最小执行器先只验证一条主链路：
 
 ```text
-TaskSpec
--> prompt_loader
+TaskSpec + payload
 -> task_executor
+-> input_model validation
+-> prompt_loader
 -> request_runner
 -> OpenAI model
 -> structured result
@@ -254,8 +257,9 @@ provider smoke test 通过后，再验证完整最小执行器链路：
 
 ```text
 TaskSpec + payload
--> prompt_loader
 -> task_executor
+-> input_model validation
+-> prompt_loader
 -> request_runner
 -> model.with_structured_output
 -> TaskResult
@@ -399,7 +403,7 @@ if __name__ == "__main__":
 
 ### Step 4：新增 `agent_core/task_spec.py`
 
-目的：定义一个任务的最小元数据。
+目的：定义一个任务的最小元数据。正式实现里同时规定 `input_model` 和 `output_model`，让任务输入和模型输出都有明确契约。
 
 ```python
 from dataclasses import dataclass
@@ -411,6 +415,7 @@ from pydantic import BaseModel
 class TaskSpec:
     name: str
     prompt_name: str
+    input_model: type[BaseModel]
     output_model: type[BaseModel]
 ```
 
@@ -436,16 +441,25 @@ class TaskResult(BaseModel):
 
 ### Step 6：新增 `agent_core/schemas.py`
 
-目的：定义 `policy_qa` 和 `meeting_minutes` 的结构化输出 schema。
+目的：定义 `policy_qa` 和 `meeting_minutes` 的输入 schema 与结构化输出 schema。
 
 ```python
 from pydantic import BaseModel, Field
+
+
+class PolicyQAInput(BaseModel):
+    policy_text: str = Field(description="制度、规则或说明文本")
+    question: str = Field(description="需要根据制度文本回答的问题")
 
 
 class PolicyQAResult(BaseModel):
     answer: str = Field(description="简明结论")
     evidence: list[str] = Field(description="依据要点")
     uncertainty: str = Field(description="不确定性说明")
+
+
+class MeetingMinutesInput(BaseModel):
+    transcript: str = Field(description="会议记录、转写文本或会议原始内容")
 
 
 class MeetingTodo(BaseModel):
@@ -503,7 +517,7 @@ class RequestRunner:
 
 ### Step 9：新增 `agent_core/runtime/task_executor.py`
 
-目的：串起 `TaskSpec`、payload、prompt、runner 和错误收口。
+目的：串起 `TaskSpec`、输入校验、prompt、runner 和错误收口。
 
 ```python
 import json
@@ -541,7 +555,8 @@ class TaskExecutor:
 
     def run(self, spec: TaskSpec, payload: dict) -> TaskResult:
         try:
-            messages = self.build_messages(spec, payload)
+            validated_input = spec.input_model.model_validate(payload)
+            messages = self.build_messages(spec, validated_input.model_dump())
             parsed = self.runner.run(messages, spec.output_model)
             return TaskResult(
                 ok=True,
@@ -556,7 +571,7 @@ class TaskExecutor:
             )
 ```
 
-`task_executor.py` 是最小执行器本体。它可以知道任务、prompt、runner 和错误收口，但不应该直接知道模型 provider 的具体调用细节。
+`task_executor.py` 是最小执行器本体。它可以知道任务、输入 schema、prompt、runner 和错误收口，但不应该直接知道模型 provider 的具体调用细节。
 
 ### Step 10：新增 prompt 文件
 
@@ -618,19 +633,26 @@ src/investory/agent_core/tasks.py
 ```
 
 ```python
-from investory.agent_core.schemas import MeetingMinutesResult, PolicyQAResult
+from investory.agent_core.schemas import (
+    MeetingMinutesInput,
+    MeetingMinutesResult,
+    PolicyQAInput,
+    PolicyQAResult,
+)
 from investory.agent_core.task_spec import TaskSpec
 
 
 POLICY_QA_TASK = TaskSpec(
     name="policy_qa",
     prompt_name="policy_qa",
+    input_model=PolicyQAInput,
     output_model=PolicyQAResult,
 )
 
 MEETING_MINUTES_TASK = TaskSpec(
     name="meeting_minutes",
     prompt_name="meeting_minutes",
+    input_model=MeetingMinutesInput,
     output_model=MeetingMinutesResult,
 )
 
@@ -644,7 +666,7 @@ TASKS = {
 
 ### Step 12：跑任务 smoke test
 
-目的：验证完整链路能从 `TaskSpec + payload` 返回结构化 `TaskResult`。
+目的：验证完整链路能先校验 payload，再从 `TaskSpec + payload` 返回结构化 `TaskResult`。
 
 ```python
 from investory.agent_core.runtime.task_executor import TaskExecutor
