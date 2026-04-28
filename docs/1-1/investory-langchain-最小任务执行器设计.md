@@ -852,11 +852,8 @@ Rules:
 #### `agent_core/prompts/base/common_rules.md`
 
 ```md
-1. Ground every answer in the provided input data.
-2. Explain uncertainty when the input does not support a confident answer.
-3. Keep the response concise and learner-friendly.
-4. Separate evidence, concepts, risks, and uncertainty clearly.
-5. Do not provide personalized investment advice.
+1. Keep the response concise and learner-friendly.
+2. Separate concepts, evidence, risks, and uncertainty clearly.
 ```
 
 #### `agent_core/prompts/tasks/finance_qa.md`
