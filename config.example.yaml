@@ -7,7 +7,23 @@ runtime:
   data_dir: data
 
 models:
-  default: gpt-5.4-mini
+  active_provider: openai
+  default_model: gpt-5.4-mini
+  temperature: 0
+  max_retries: 2
+  providers:
+    openai:
+      model: gpt-5.4-mini
+      base_url_env: OPENAI_BASE_URL
+      api_key_env: OPENAI_API_KEY
+    anthropic:
+      model: claude-sonnet-4-20250514
+      base_url_env: ANTHROPIC_BASE_URL
+      api_key_env: ANTHROPIC_API_KEY
+    google_genai:
+      model: gemini-2.5-flash
+      base_url_env: GOOGLE_BASE_URL
+      api_key_env: GOOGLE_API_KEY
 
 features:
   mock_tools_enabled: true
