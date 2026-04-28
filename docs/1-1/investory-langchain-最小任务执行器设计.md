@@ -64,7 +64,7 @@ src/investory/
       __init__.py
       task_spec.py
       result_types.py
-    schemas.py
+    task_models.py
     runtime/
       __init__.py
       model_factory.py
@@ -76,13 +76,13 @@ src/investory/
         system.md
         common_rules.md
       tasks/
-        meeting_minutes.md
-        policy_qa.md
+        finance_qa.md
+        learning_material_summary.md
 ```
 
 注意目录名建议使用 `agent_core`，不要使用 `agent-core`。Python package 目录不能稳定地用连字符做 import 路径。
 
-`contracts/` 用来放 agent 执行链路的通用契约，例如 `TaskSpec`、`TaskResult`、`TaskError` 和错误归一化函数。它和 `schemas.py` 分开：`contracts/` 是框架层契约，`schemas.py` 是具体任务的输入和输出模型。等任务 schema 变多后，再把 `schemas.py` 拆成 `schemas/` 目录。
+`contracts/` 用来放 agent 执行链路的通用契约，例如 `TaskSpec`、`TaskResult`、`TaskError` 和错误归一化函数。它和 `task_models.py` 分开：`contracts/` 是框架层契约，`task_models.py` 是具体任务的输入和输出模型。等任务模型变多后，再把 `task_models.py` 拆成 `task_models/` 目录。
 
 ## 文件职责
 
@@ -90,8 +90,8 @@ src/investory/
   定义任务元数据，例如任务名、prompt 名、输出 schema。
 - `agent_core/contracts/result_types.py`
   定义统一返回结构，例如 `TaskResult`、`TaskError`。
-- `agent_core/schemas.py`
-  放 Pydantic 输入和输出模型，例如 `PolicyQAInput`、`PolicyQAResult`、`MeetingMinutesInput`、`MeetingMinutesResult`。
+- `agent_core/task_models.py`
+  放具体任务的 Pydantic 输入和输出模型，例如 `FinanceQAInput`、`FinanceQAResult`、`LearningMaterialSummaryInput`、`LearningMaterialSummaryResult`。
 - `agent_core/runtime/model_factory.py`
   只负责创建 LangChain chat model。
 - `agent_core/runtime/request_runner.py`
@@ -156,7 +156,7 @@ TaskSpec + payload
 -> structured result
 ```
 
-等 `policy_qa` 和 `meeting_minutes` 跑通后，再打开 Anthropic 或 Gemini 做效果对照。
+等 `finance_qa` 和 `learning_material_summary` 跑通后，再打开 Anthropic 或 Gemini 做效果对照。
 
 ### Step 2：配置 provider 列表
 
@@ -269,7 +269,7 @@ TaskSpec + payload
 -> TaskResult
 ```
 
-第 1-1 课只需要先跑通 `policy_qa` 和 `meeting_minutes`，不要在这一步引入工具调用、LangGraph、复杂 registry 或长期 memory。
+第 1-1 课只需要先跑通 `finance_qa` 和 `learning_material_summary`，不要在这一步引入工具调用、LangGraph、复杂 registry 或长期 memory。
 
 ## 最小实现步骤与代码骨架
 
@@ -598,39 +598,44 @@ def normalize_task_error(
 - `user_safe_message` 可以返回给用户；`debug_message` 只用于日志或本地调试。
 - `provider/model/status_code/retry_count/fallback_used` 用于可观测性和后续 fallback，但第一版可以先不填满。
 
-### Step 6：新增 `agent_core/schemas.py`
+### Step 6：新增 `agent_core/task_models.py`
 
-目的：定义 `policy_qa` 和 `meeting_minutes` 的输入 schema 与结构化输出 schema。
+目的：定义 `finance_qa` 和 `learning_material_summary` 的任务输入模型与结构化输出模型。
 
 ```python
 from pydantic import BaseModel, Field
 
 
-class PolicyQAInput(BaseModel):
-    policy_text: str = Field(description="制度、规则或说明文本")
-    question: str = Field(description="需要根据制度文本回答的问题")
+class FinanceQAInput(BaseModel):
+    material_text: str = Field(description="财经文章、基金说明或投资学习材料")
+    question: str = Field(description="用户想理解的投资理财问题")
 
 
-class PolicyQAResult(BaseModel):
+class FinanceQAResult(BaseModel):
     answer: str = Field(description="简明结论")
-    evidence: list[str] = Field(description="依据要点")
+    concept_explanation: str = Field(description="面向学习者的概念解释")
+    evidence: list[str] = Field(description="来自输入材料的依据要点")
+    common_misunderstandings: list[str] = Field(description="常见误区")
+    risk_notice: str = Field(description="风险提示，不构成投资建议")
     uncertainty: str = Field(description="不确定性说明")
 
 
-class MeetingMinutesInput(BaseModel):
-    transcript: str = Field(description="会议记录、转写文本或会议原始内容")
+class LearningMaterialSummaryInput(BaseModel):
+    material_text: str = Field(description="财经文章、基金说明或投资学习材料")
 
 
-class MeetingTodo(BaseModel):
-    title: str = Field(description="待办标题")
-    owner: str = Field(description="负责人；未知时写'未指定'")
-    deadline: str = Field(description="截止时间；未知时写'未指定'")
+class LearningTodo(BaseModel):
+    title: str = Field(description="后续学习事项标题")
+    reason: str = Field(description="为什么建议学习这一项")
 
 
-class MeetingMinutesResult(BaseModel):
-    summary: str = Field(description="会议摘要")
-    todos: list[MeetingTodo] = Field(description="待办事项")
-    risks: list[str] = Field(description="风险或阻塞点")
+class LearningMaterialSummaryResult(BaseModel):
+    summary: str = Field(description="核心摘要")
+    key_concepts: list[str] = Field(description="关键概念")
+    key_takeaways: list[str] = Field(description="重要结论")
+    risks: list[str] = Field(description="风险提醒或常见误区")
+    todos: list[LearningTodo] = Field(description="后续学习待办")
+    uncertainty: str = Field(description="信息不足或不确定性说明")
 ```
 
 ### Step 7：新增 `agent_core/runtime/prompt_loader.py`
@@ -799,30 +804,41 @@ error=normalize_task_error(
 5. 必须输出符合指定 schema 的结构化结果。
 ```
 
-#### `agent_core/prompts/tasks/policy_qa.md`
+#### `agent_core/prompts/tasks/finance_qa.md`
 
 ```md
-请根据提供的制度文本回答问题。
+请根据提供的财经材料回答用户问题。
 
 执行要求：
 {common_rules}
+
+你需要输出：
+1. 简明回答
+2. 概念解释
+3. 材料依据
+4. 常见误区
+5. 风险提示
+6. 不确定性说明
 
 输入数据（JSON）：
 {input_json}
 ```
 
-#### `agent_core/prompts/tasks/meeting_minutes.md`
+#### `agent_core/prompts/tasks/learning_material_summary.md`
 
 ```md
-请根据输入内容整理会议纪要。
+请根据输入的财经学习材料生成结构化学习笔记。
 
 执行要求：
 {common_rules}
 
 你需要提取：
-1. 会议摘要
-2. 待办事项
-3. 风险或阻塞点
+1. 核心摘要
+2. 关键概念
+3. 重要结论
+4. 风险提醒或常见误区
+5. 后续学习待办
+6. 信息不足或不确定性说明
 
 输入数据（JSON）：
 {input_json}
@@ -837,32 +853,32 @@ src/investory/agent_core/tasks.py
 ```
 
 ```python
-from investory.agent_core.schemas import (
-    MeetingMinutesInput,
-    MeetingMinutesResult,
-    PolicyQAInput,
-    PolicyQAResult,
+from investory.agent_core.task_models import (
+    FinanceQAInput,
+    FinanceQAResult,
+    LearningMaterialSummaryInput,
+    LearningMaterialSummaryResult,
 )
 from investory.agent_core.contracts.task_spec import TaskSpec
 
 
-POLICY_QA_TASK = TaskSpec(
-    name="policy_qa",
-    prompt_name="policy_qa",
-    input_model=PolicyQAInput,
-    output_model=PolicyQAResult,
+FINANCE_QA_TASK = TaskSpec(
+    name="finance_qa",
+    prompt_name="finance_qa",
+    input_model=FinanceQAInput,
+    output_model=FinanceQAResult,
 )
 
-MEETING_MINUTES_TASK = TaskSpec(
-    name="meeting_minutes",
-    prompt_name="meeting_minutes",
-    input_model=MeetingMinutesInput,
-    output_model=MeetingMinutesResult,
+LEARNING_MATERIAL_SUMMARY_TASK = TaskSpec(
+    name="learning_material_summary",
+    prompt_name="learning_material_summary",
+    input_model=LearningMaterialSummaryInput,
+    output_model=LearningMaterialSummaryResult,
 )
 
 TASKS = {
-    POLICY_QA_TASK.name: POLICY_QA_TASK,
-    MEETING_MINUTES_TASK.name: MEETING_MINUTES_TASK,
+    FINANCE_QA_TASK.name: FINANCE_QA_TASK,
+    LEARNING_MATERIAL_SUMMARY_TASK.name: LEARNING_MATERIAL_SUMMARY_TASK,
 }
 ```
 
@@ -874,16 +890,16 @@ TASKS = {
 
 ```python
 from investory.agent_core.runtime.task_executor import TaskExecutor
-from investory.agent_core.tasks import POLICY_QA_TASK
+from investory.agent_core.tasks import FINANCE_QA_TASK
 
 
 executor = TaskExecutor()
 
 result = executor.run(
-    POLICY_QA_TASK,
+    FINANCE_QA_TASK,
     {
-        "policy_text": "赎回申请通常在交易日提交，具体到账时间以基金公司规则为准。",
-        "question": "基金赎回多久到账？",
+        "material_text": "最大回撤表示一段时间内资产从高点下跌到低点的最大跌幅。",
+        "question": "最大回撤是什么意思？它为什么重要？",
     },
 )
 
@@ -917,7 +933,7 @@ print(result.model_dump())
 
 1. 先有一个清楚的 `agent_core/runtime/task_executor.py`
 2. 先有一个清楚的 `agent_core/prompts/`
-3. 先把 `policy_qa` 和 `meeting_minutes` 跑通
+3. 先把 `finance_qa` 和 `learning_material_summary` 跑通
 4. 统一结构化结果和错误收口
 
 ## 一句话结论
