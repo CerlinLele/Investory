@@ -398,7 +398,7 @@ from investory.agent_core.runtime.model_factory import create_chat_model
 
 def main() -> None:
     model = create_chat_model()
-    response = model.invoke("用一句话回答：Investory 是什么？")
+    response = model.invoke("Answer in one sentence: What is Investory?")
     print(response.content)
 
 
@@ -619,17 +619,31 @@ from pydantic import BaseModel, Field
 
 
 class FinanceQAInput(BaseModel):
-    material_text: str = Field(description="财经文章、基金说明或投资学习材料")
-    question: str = Field(description="用户想理解的投资理财问题")
+    material_text: str = Field(
+        description="Financial article, fund description, or investment learning material."
+    )
+    question: str = Field(
+        description="Investment or personal finance question the user wants to understand."
+    )
 
 
 class FinanceQAResult(BaseModel):
-    answer: str = Field(description="简明结论")
-    concept_explanation: str = Field(description="面向学习者的概念解释")
-    evidence: list[str] = Field(description="来自输入材料的依据要点")
-    common_misunderstandings: list[str] = Field(description="常见误区")
-    risk_notice: str = Field(description="风险提示，不构成投资建议")
-    uncertainty: str = Field(description="不确定性说明")
+    answer: str = Field(description="Concise answer to the user's question.")
+    concept_explanation: str = Field(
+        description="Learner-friendly explanation of the relevant financial concept."
+    )
+    evidence: list[str] = Field(
+        description="Supporting points grounded in the provided material."
+    )
+    common_misunderstandings: list[str] = Field(
+        description="Common misunderstandings related to the topic."
+    )
+    risk_notice: str = Field(
+        description="Risk notice clarifying that the response is not investment advice."
+    )
+    uncertainty: str = Field(
+        description="Explanation of uncertainty or information gaps in the answer."
+    )
 ```
 
 #### `agent_core/task_models/learning_material_summary.py`
@@ -639,21 +653,33 @@ from pydantic import BaseModel, Field
 
 
 class LearningMaterialSummaryInput(BaseModel):
-    material_text: str = Field(description="财经文章、基金说明或投资学习材料")
+    material_text: str = Field(
+        description="Financial article, fund description, or investment learning material."
+    )
 
 
 class LearningTodo(BaseModel):
-    title: str = Field(description="后续学习事项标题")
-    reason: str = Field(description="为什么建议学习这一项")
+    title: str = Field(description="Title of the suggested follow-up learning item.")
+    reason: str = Field(description="Reason this item is recommended for further study.")
 
 
 class LearningMaterialSummaryResult(BaseModel):
-    summary: str = Field(description="核心摘要")
-    key_concepts: list[str] = Field(description="关键概念")
-    key_takeaways: list[str] = Field(description="重要结论")
-    risks: list[str] = Field(description="风险提醒或常见误区")
-    todos: list[LearningTodo] = Field(description="后续学习待办")
-    uncertainty: str = Field(description="信息不足或不确定性说明")
+    summary: str = Field(description="Core summary of the provided material.")
+    key_concepts: list[str] = Field(
+        description="Key financial concepts mentioned in the material."
+    )
+    key_takeaways: list[str] = Field(
+        description="Important conclusions or lessons from the material."
+    )
+    risks: list[str] = Field(
+        description="Risk reminders or common misunderstandings from the material."
+    )
+    todos: list[LearningTodo] = Field(
+        description="Suggested follow-up learning tasks."
+    )
+    uncertainty: str = Field(
+        description="Information gaps or uncertainty found in the material."
+    )
 ```
 
 `agent_core/task_models/__init__.py` 可以先保持为空。任务注册模块直接从具体 task 类型模块导入模型，这样新增任务时不会把所有模型都塞回顶层 `__init__.py`。
@@ -809,58 +835,58 @@ error=normalize_task_error(
 #### `agent_core/prompts/base/system.md`
 
 ```md
-你是一个严格按要求执行任务的投资学习助手。
+You are an investment learning assistant that follows task requirements strictly.
 
-你的输出仅用于学习、理解、整理和复盘，不构成投资建议。
+Your output is only for learning, understanding, organizing, and review. It is not investment advice.
 ```
 
 #### `agent_core/prompts/base/common_rules.md`
 
 ```md
-1. 只能根据输入数据作答，不要补造事实。
-2. 信息不足时必须明确说明不确定性。
-3. 对投资、理财、基金、证券相关内容，必须保持学习辅助定位。
-4. 不直接给出买入、卖出、择时、仓位建议。
-5. 必须输出符合指定 schema 的结构化结果。
+1. Answer only from the input data. Do not invent facts.
+2. Clearly state uncertainty when information is insufficient.
+3. Keep investment, personal finance, fund, and securities content positioned as learning assistance.
+4. Do not directly provide buy, sell, timing, or position-sizing advice.
+5. Output structured results that match the specified schema.
 ```
 
 #### `agent_core/prompts/tasks/finance_qa.md`
 
 ```md
-请根据提供的财经材料回答用户问题。
+Answer the user's question based on the provided financial material.
 
-执行要求：
+Requirements:
 {common_rules}
 
-你需要输出：
-1. 简明回答
-2. 概念解释
-3. 材料依据
-4. 常见误区
-5. 风险提示
-6. 不确定性说明
+You need to output:
+1. Concise answer
+2. Concept explanation
+3. Evidence from the material
+4. Common misunderstandings
+5. Risk notice
+6. Uncertainty statement
 
-输入数据（JSON）：
+Input data (JSON):
 {input_json}
 ```
 
 #### `agent_core/prompts/tasks/learning_material_summary.md`
 
 ```md
-请根据输入的财经学习材料生成结构化学习笔记。
+Generate structured learning notes from the input financial learning material.
 
-执行要求：
+Requirements:
 {common_rules}
 
-你需要提取：
-1. 核心摘要
-2. 关键概念
-3. 重要结论
-4. 风险提醒或常见误区
-5. 后续学习待办
-6. 信息不足或不确定性说明
+You need to extract:
+1. Core summary
+2. Key concepts
+3. Important conclusions
+4. Risk reminders or common misunderstandings
+5. Follow-up learning tasks
+6. Information gaps or uncertainty statement
 
-输入数据（JSON）：
+Input data (JSON):
 {input_json}
 ```
 
@@ -917,8 +943,8 @@ executor = TaskExecutor()
 result = executor.run(
     FINANCE_QA_TASK,
     {
-        "material_text": "最大回撤表示一段时间内资产从高点下跌到低点的最大跌幅。",
-        "question": "最大回撤是什么意思？它为什么重要？",
+        "material_text": "Maximum drawdown is the largest decline from a peak to a trough over a period of time.",
+        "question": "What does maximum drawdown mean, and why is it important?",
     },
 )
 
