@@ -133,7 +133,43 @@ python -m pip install -e ".[dev]"
 
 这一步会让 `src/investory/` 里的源码可以被当前虚拟环境直接导入，同时安装 `dev` 依赖，例如 `pytest`。
 
-### 5. 验证环境
+### 5. 运行测试
+
+安装完成并激活虚拟环境后，在项目根目录执行：
+
+```powershell
+pytest
+```
+
+如果只想运行某一个测试文件：
+
+```powershell
+pytest tests\test_config.py
+```
+
+如果只想运行某一个测试用例：
+
+```powershell
+pytest tests\test_config.py::test_load_config_uses_openai_as_default_provider
+```
+
+如果想看到更详细的测试结果：
+
+```powershell
+pytest -v
+```
+
+当前项目已经在 `pyproject.toml` 中配置了：
+
+```toml
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+```
+
+所以在项目根目录运行 `pytest` 时，默认会从 `tests/` 下发现测试，并且可以直接导入 `src/investory/` 里的代码。
+
+### 6. 验证环境
 
 ```powershell
 python -c "import investory; print('investory import ok')"
@@ -146,13 +182,13 @@ pytest
 investory
 ```
 
-### 6. 退出虚拟环境
+### 7. 退出虚拟环境
 
 ```powershell
 deactivate
 ```
 
-### 7. 重建虚拟环境
+### 8. 重建虚拟环境
 
 如果依赖装乱了，最简单的方式是删除 `.venv/` 后重新创建：
 
