@@ -66,12 +66,8 @@ src/investory/
       result_types.py
     task_models/
       __init__.py
-      finance_qa/
-        __init__.py
-        models.py
-      learning_material_summary/
-        __init__.py
-        models.py
+      finance_qa.py
+      learning_material_summary.py
     runtime/
       __init__.py
       model_factory.py
@@ -89,7 +85,7 @@ src/investory/
 
 注意目录名建议使用 `agent_core`，不要使用 `agent-core`。Python package 目录不能稳定地用连字符做 import 路径。
 
-`contracts/` 用来放 agent 执行链路的通用契约，例如 `TaskSpec`、`TaskResult`、`TaskError` 和错误归一化函数。它和 `task_models/` 分开：`contracts/` 是框架层契约，`task_models/` 是具体任务的输入和输出模型。`task_models/` 下面按 task 类型拆分目录，例如 `finance_qa/`、`learning_material_summary/`，避免多个任务的输入输出模型挤在同一个文件里。
+`contracts/` 用来放 agent 执行链路的通用契约，例如 `TaskSpec`、`TaskResult`、`TaskError` 和错误归一化函数。它和 `task_models/` 分开：`contracts/` 是框架层契约，`task_models/` 是具体任务的输入和输出模型。`task_models/` 下面按 task 类型拆分模块，例如 `finance_qa.py`、`learning_material_summary.py`，避免多个任务的输入输出模型挤在同一个文件里。
 
 ## 文件职责
 
@@ -97,8 +93,8 @@ src/investory/
   定义任务元数据，例如任务名、prompt 名、输出 schema。
 - `agent_core/contracts/result_types.py`
   定义统一返回结构，例如 `TaskResult`、`TaskError`。
-- `agent_core/task_models/<task_type>/models.py`
-  放某一类具体任务的 Pydantic 输入和输出模型，例如 `task_models/finance_qa/models.py` 放 `FinanceQAInput`、`FinanceQAResult`，`task_models/learning_material_summary/models.py` 放 `LearningMaterialSummaryInput`、`LearningMaterialSummaryResult`。
+- `agent_core/task_models/<task_type>.py`
+  放某一类具体任务的 Pydantic 输入和输出模型，例如 `task_models/finance_qa.py` 放 `FinanceQAInput`、`FinanceQAResult`，`task_models/learning_material_summary.py` 放 `LearningMaterialSummaryInput`、`LearningMaterialSummaryResult`。
 - `agent_core/runtime/model_factory.py`
   只负责创建 LangChain chat model。
 - `agent_core/runtime/request_runner.py`
@@ -607,20 +603,16 @@ def normalize_task_error(
 
 ### Step 6：新增 `agent_core/task_models/`
 
-目的：按 task 类型拆分目录，分别定义 `finance_qa` 和 `learning_material_summary` 的任务输入模型与结构化输出模型。
+目的：按 task 类型拆分模块，分别定义 `finance_qa` 和 `learning_material_summary` 的任务输入模型与结构化输出模型。
 
 ```text
 src/investory/agent_core/task_models/
   __init__.py
-  finance_qa/
-    __init__.py
-    models.py
-  learning_material_summary/
-    __init__.py
-    models.py
+  finance_qa.py
+  learning_material_summary.py
 ```
 
-#### `agent_core/task_models/finance_qa/models.py`
+#### `agent_core/task_models/finance_qa.py`
 
 ```python
 from pydantic import BaseModel, Field
@@ -640,18 +632,7 @@ class FinanceQAResult(BaseModel):
     uncertainty: str = Field(description="不确定性说明")
 ```
 
-#### `agent_core/task_models/finance_qa/__init__.py`
-
-```python
-from investory.agent_core.task_models.finance_qa.models import (
-    FinanceQAInput,
-    FinanceQAResult,
-)
-
-__all__ = ["FinanceQAInput", "FinanceQAResult"]
-```
-
-#### `agent_core/task_models/learning_material_summary/models.py`
+#### `agent_core/task_models/learning_material_summary.py`
 
 ```python
 from pydantic import BaseModel, Field
@@ -675,18 +656,7 @@ class LearningMaterialSummaryResult(BaseModel):
     uncertainty: str = Field(description="信息不足或不确定性说明")
 ```
 
-#### `agent_core/task_models/learning_material_summary/__init__.py`
-
-```python
-from investory.agent_core.task_models.learning_material_summary.models import (
-    LearningMaterialSummaryInput,
-    LearningMaterialSummaryResult,
-)
-
-__all__ = ["LearningMaterialSummaryInput", "LearningMaterialSummaryResult"]
-```
-
-`agent_core/task_models/__init__.py` 可以先保持为空。任务注册模块直接从具体 task 类型目录导入模型，这样新增任务时不会把所有模型都塞回顶层 `__init__.py`。
+`agent_core/task_models/__init__.py` 可以先保持为空。任务注册模块直接从具体 task 类型模块导入模型，这样新增任务时不会把所有模型都塞回顶层 `__init__.py`。
 
 ### Step 7：新增 `agent_core/runtime/prompt_loader.py`
 
@@ -903,10 +873,7 @@ src/investory/agent_core/tasks.py
 ```
 
 ```python
-from investory.agent_core.task_models.finance_qa import (
-    FinanceQAInput,
-    FinanceQAResult,
-)
+from investory.agent_core.task_models.finance_qa import FinanceQAInput, FinanceQAResult
 from investory.agent_core.task_models.learning_material_summary import (
     LearningMaterialSummaryInput,
     LearningMaterialSummaryResult,
