@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from os import getenv
+from os import environ, getenv
 from pathlib import Path
 
 
@@ -93,6 +93,31 @@ def _as_int(value: str | None, *, default: int) -> int:
     return int(value)
 
 
+def _clean_env_value(value: str) -> str:
+    cleaned = value.strip()
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in {"'", '"'}:
+        return cleaned[1:-1]
+
+    return cleaned
+
+
+def _load_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        if not key or key in environ:
+            continue
+
+        environ[key] = _clean_env_value(value)
+
+
 def get_llm_provider_config(provider: str) -> LLMProviderConfig:
     """Return provider metadata or fail with a clear supported-provider list."""
 
@@ -104,8 +129,11 @@ def get_llm_provider_config(provider: str) -> LLMProviderConfig:
     raise ValueError(f"Unsupported LLM provider '{provider}'. Supported: {supported}.")
 
 
-def load_config() -> AppConfig:
+def load_config(*, env_file: Path | None = PROJECT_ROOT / ".env") -> AppConfig:
     """Load the minimal app config from environment variables."""
+
+    if env_file is not None:
+        _load_env_file(env_file)
 
     provider = getenv("INVESTORY_LLM_PROVIDER", DEFAULT_LLM_PROVIDER)
     provider_config = get_llm_provider_config(provider)
