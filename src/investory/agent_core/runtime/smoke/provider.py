@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import argparse
-from collections.abc import Sequence
 from typing import Any
 
 from investory.agent_core.runtime.model_factory import create_chat_model
 from investory.config import AppConfig, load_config
 
 
-DEFAULT_PROMPT = "用一句话回答：Investory 是什么？"
+DEFAULT_PROMPT = "Answer in one sentence: What is Investory?"
 
 
 def _format_content(content: Any) -> str:
@@ -33,7 +31,11 @@ def _print_config_summary(config: AppConfig) -> None:
     print(f"max_retries={config.llm_max_retries}")
 
 
-def run_provider_smoke(*, check_config_only: bool = False, prompt: str = DEFAULT_PROMPT) -> int:
+def run_provider_smoke(
+    *,
+    check_config_only: bool = False,
+    prompt: str = DEFAULT_PROMPT,
+) -> int:
     """Run a minimal provider check and return a process exit code."""
 
     config = load_config()
@@ -57,32 +59,3 @@ def run_provider_smoke(*, check_config_only: bool = False, prompt: str = DEFAULT
     print("response:")
     print(_format_content(response.content))
     return 0
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Run a minimal smoke check for the configured LLM provider.",
-    )
-    parser.add_argument(
-        "--check-config-only",
-        action="store_true",
-        help="Validate provider config without sending a model request.",
-    )
-    parser.add_argument(
-        "--prompt",
-        default=DEFAULT_PROMPT,
-        help="Prompt used for the smoke request.",
-    )
-    return parser
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    return run_provider_smoke(
-        check_config_only=args.check_config_only,
-        prompt=args.prompt,
-    )
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

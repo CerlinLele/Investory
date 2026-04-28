@@ -20,8 +20,7 @@ dev = [
 
 [project.scripts]
 investory = "investory.main:main"
-investory-provider-smoke = "investory.agent_core.runtime.provider_smoke:main"
-investory-task-smoke = "investory.agent_core.runtime.task_smoke:main"
+investory-smoke = "investory.agent_core.runtime.smoke.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
