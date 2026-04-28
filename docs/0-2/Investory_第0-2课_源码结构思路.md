@@ -64,6 +64,144 @@ investory/
 - `src/investory/`
   - 作为项目主包目录，后续章节里的模块都往这里继续长
 
+## Python venv 操作说明
+
+项目根目录建议使用本地虚拟环境 `.venv/`，不要把依赖直接装进全局 Python。
+
+### 1. 创建虚拟环境
+
+在项目根目录执行：
+
+```powershell
+python -m venv .venv
+```
+
+如果本机同时有多个 Python 版本，优先确认版本符合 `pyproject.toml` 里的要求：
+
+```powershell
+python --version
+```
+
+当前项目要求：
+
+```text
+Python >= 3.10
+```
+
+### 2. 激活虚拟环境
+
+Windows PowerShell：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+激活成功后，命令行前面通常会出现：
+
+```text
+(.venv)
+```
+
+如果 PowerShell 阻止脚本执行，可以只给当前终端会话放开权限：
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+macOS / Linux：
+
+```bash
+source .venv/bin/activate
+```
+
+### 3. 升级 pip
+
+激活虚拟环境后执行：
+
+```powershell
+python -m pip install --upgrade pip
+```
+
+### 4. 安装项目和开发依赖
+
+当前项目使用 `pyproject.toml` 管理包信息。开发时建议用 editable 模式安装：
+
+```powershell
+python -m pip install -e ".[dev]"
+```
+
+这一步会让 `src/investory/` 里的源码可以被当前虚拟环境直接导入，同时安装 `dev` 依赖，例如 `pytest`。
+
+### 5. 运行测试
+
+安装完成并激活虚拟环境后，在项目根目录执行：
+
+```powershell
+pytest
+```
+
+如果只想运行某一个测试文件：
+
+```powershell
+pytest tests\test_config.py
+```
+
+如果只想运行某一个测试用例：
+
+```powershell
+pytest tests\test_config.py::test_load_config_uses_openai_as_default_provider
+```
+
+如果想看到更详细的测试结果：
+
+```powershell
+pytest -v
+```
+
+当前项目已经在 `pyproject.toml` 中配置了：
+
+```toml
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+```
+
+所以在项目根目录运行 `pytest` 时，默认会从 `tests/` 下发现测试，并且可以直接导入 `src/investory/` 里的代码。
+
+### 6. 验证环境
+
+```powershell
+python -c "import investory; print('investory import ok')"
+pytest
+```
+
+如果只想确认命令行入口是否可用：
+
+```powershell
+investory
+```
+
+### 7. 退出虚拟环境
+
+```powershell
+deactivate
+```
+
+### 8. 重建虚拟环境
+
+如果依赖装乱了，最简单的方式是删除 `.venv/` 后重新创建：
+
+```powershell
+Remove-Item -Recurse -Force .venv
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+`.venv/` 是本机环境目录，不应该提交到 Git。后续如果新增依赖，优先更新 `pyproject.toml`，再重新执行安装命令。
+
 ## 一句话结论
 
 `Investory` 在第 `0-2` 课的重点，是先定义一个最小但可继续扩展的运行底座，而不是急着堆功能代码；在目录命名上，优先用 `src/investory/`，而不是根级 `app/`。

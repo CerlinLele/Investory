@@ -12,6 +12,7 @@ def main() -> int:
     config.data_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"{config.app_name} starting in {config.app_env} mode")
+    print(f"llm_provider={config.llm_provider}")
     print(f"default_model={config.default_model}")
     print(f"logs_dir={config.logs_dir}")
     print(f"data_dir={config.data_dir}")
