@@ -423,13 +423,48 @@ class TaskSpec:
 
 目的：统一任务成功和失败时的返回形状。
 
+这里的 `TaskError` 不应该只是把 Python 异常包装成 `type/message`。它要把失败收束成上层可以判断的结构：发生在哪个阶段、属于哪类错误、能否重试、能否安全展示给用户、是否带有 provider/model/status code 等排查信息。
+
 ```python
+from typing import Literal
+
 from pydantic import BaseModel
 
 
+TaskErrorType = Literal[
+    "input_validation_failed",
+    "prompt_load_failed",
+    "model_config_error",
+    "provider_auth_error",
+    "rate_limited",
+    "provider_unavailable",
+    "timeout",
+    "structured_output_failed",
+    "unknown_error",
+]
+
+TaskStage = Literal[
+    "input_validation",
+    "prompt_build",
+    "model_call",
+    "output_validation",
+]
+
+
 class TaskError(BaseModel):
-    type: str
-    message: str
+    error_type: TaskErrorType
+    stage: TaskStage
+    user_safe_message: str
+    retryable: bool = False
+
+    request_id: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    status_code: int | None = None
+    retry_count: int = 0
+    fallback_used: bool = False
+
+    debug_message: str | None = None
 
 
 class TaskResult(BaseModel):
@@ -437,7 +472,127 @@ class TaskResult(BaseModel):
     task_name: str
     result: dict | None = None
     error: TaskError | None = None
+
+
+def _extract_status_code(exc: Exception) -> int | None:
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code
+
+    response = getattr(exc, "response", None)
+    response_status = getattr(response, "status_code", None)
+    if isinstance(response_status, int):
+        return response_status
+
+    return None
+
+
+def normalize_task_error(
+    exc: Exception,
+    *,
+    stage: TaskStage,
+    provider: str | None = None,
+    model: str | None = None,
+    request_id: str | None = None,
+    retry_count: int = 0,
+    fallback_used: bool = False,
+) -> TaskError:
+    status_code = _extract_status_code(exc)
+    raw_message = str(exc)
+    normalized_message = raw_message.lower()
+
+    if stage == "input_validation":
+        return TaskError(
+            error_type="input_validation_failed",
+            stage=stage,
+            user_safe_message="输入不符合任务要求，请检查后重试。",
+            retryable=False,
+            request_id=request_id,
+            provider=provider,
+            model=model,
+            status_code=status_code,
+            retry_count=retry_count,
+            fallback_used=fallback_used,
+            debug_message=raw_message,
+        )
+
+    if stage == "prompt_build":
+        return TaskError(
+            error_type="prompt_load_failed",
+            stage=stage,
+            user_safe_message="任务配置暂时不可用，请稍后再试。",
+            retryable=False,
+            request_id=request_id,
+            provider=provider,
+            model=model,
+            status_code=status_code,
+            retry_count=retry_count,
+            fallback_used=fallback_used,
+            debug_message=raw_message,
+        )
+
+    if stage == "output_validation":
+        return TaskError(
+            error_type="structured_output_failed",
+            stage=stage,
+            user_safe_message="AI 返回结果格式不符合要求，请稍后重试。",
+            retryable=True,
+            request_id=request_id,
+            provider=provider,
+            model=model,
+            status_code=status_code,
+            retry_count=retry_count,
+            fallback_used=fallback_used,
+            debug_message=raw_message,
+        )
+
+    if status_code in {401, 403}:
+        error_type: TaskErrorType = "provider_auth_error"
+        user_safe_message = "AI 服务配置不可用，请联系维护者检查权限。"
+        retryable = False
+    elif status_code == 429:
+        error_type = "rate_limited"
+        user_safe_message = "AI 服务暂时繁忙，请稍后重试。"
+        retryable = True
+    elif status_code is not None and status_code >= 500:
+        error_type = "provider_unavailable"
+        user_safe_message = "AI 服务暂时不可用，请稍后重试。"
+        retryable = True
+    elif isinstance(exc, TimeoutError) or "timeout" in normalized_message:
+        error_type = "timeout"
+        user_safe_message = "AI 服务响应超时，请稍后重试。"
+        retryable = True
+    elif isinstance(exc, (ImportError, ValueError)):
+        error_type = "model_config_error"
+        user_safe_message = "AI 服务配置不可用，请联系维护者检查配置。"
+        retryable = False
+    else:
+        error_type = "unknown_error"
+        user_safe_message = "任务执行失败，请稍后重试。"
+        retryable = False
+
+    return TaskError(
+        error_type=error_type,
+        stage=stage,
+        user_safe_message=user_safe_message,
+        retryable=retryable,
+        request_id=request_id,
+        provider=provider,
+        model=model,
+        status_code=status_code,
+        retry_count=retry_count,
+        fallback_used=fallback_used,
+        debug_message=raw_message,
+    )
 ```
+
+字段取舍：
+
+- `error_type` 是稳定的业务错误类型，不直接暴露 `type(exc).__name__`。
+- `stage` 表示失败发生在输入校验、prompt 构造、模型调用还是输出校验。
+- `retryable` 表示上层是否可以做有限重试；它不是无限重试许可。
+- `user_safe_message` 可以返回给用户；`debug_message` 只用于日志或本地调试。
+- `provider/model/status_code/retry_count/fallback_used` 用于可观测性和后续 fallback，但第一版可以先不填满。
 
 ### Step 6：新增 `agent_core/schemas.py`
 
@@ -523,8 +678,9 @@ class RequestRunner:
 import json
 
 from langchain_core.prompts import ChatPromptTemplate
+from pydantic import ValidationError
 
-from investory.agent_core.result_types import TaskError, TaskResult
+from investory.agent_core.result_types import TaskResult, normalize_task_error
 from investory.agent_core.runtime.prompt_loader import load_prompt_text
 from investory.agent_core.runtime.request_runner import RequestRunner
 from investory.agent_core.task_spec import TaskSpec
@@ -556,22 +712,66 @@ class TaskExecutor:
     def run(self, spec: TaskSpec, payload: dict) -> TaskResult:
         try:
             validated_input = spec.input_model.model_validate(payload)
-            messages = self.build_messages(spec, validated_input.model_dump())
-            parsed = self.runner.run(messages, spec.output_model)
+        except ValidationError as exc:
             return TaskResult(
-                ok=True,
+                ok=False,
                 task_name=spec.name,
-                result=parsed.model_dump(),
+                error=normalize_task_error(exc, stage="input_validation"),
+            )
+
+        try:
+            messages = self.build_messages(spec, validated_input.model_dump())
+        except Exception as exc:
+            return TaskResult(
+                ok=False,
+                task_name=spec.name,
+                error=normalize_task_error(exc, stage="prompt_build"),
+            )
+
+        try:
+            parsed = self.runner.run(messages, spec.output_model)
+        except ValidationError as exc:
+            return TaskResult(
+                ok=False,
+                task_name=spec.name,
+                error=normalize_task_error(exc, stage="output_validation"),
             )
         except Exception as exc:
             return TaskResult(
                 ok=False,
                 task_name=spec.name,
-                error=TaskError(type=type(exc).__name__, message=str(exc)),
+                error=normalize_task_error(exc, stage="model_call"),
             )
+
+        return TaskResult(
+            ok=True,
+            task_name=spec.name,
+            result=parsed.model_dump(),
+        )
 ```
 
-`task_executor.py` 是最小执行器本体。它可以知道任务、输入 schema、prompt、runner 和错误收口，但不应该直接知道模型 provider 的具体调用细节。
+如果后续 `RequestRunner` 能拿到当前 provider、model、request id、retry count，就应该把这些元数据传给 `normalize_task_error()`：
+
+```python
+error=normalize_task_error(
+    exc,
+    stage="model_call",
+    provider=config.llm_provider,
+    model=config.default_model,
+    request_id=request_id,
+    retry_count=retry_count,
+)
+```
+
+`task_executor.py` 是最小执行器本体。它可以知道任务、输入 schema、prompt、runner 和错误收口，但不应该直接知道模型 provider 的具体调用细节。它的职责是把失败标记到正确阶段，并交给 `normalize_task_error()` 归一化。
+
+第一版错误处理策略：
+
+- 输入校验失败：`input_validation_failed`，不重试。
+- prompt 文件缺失或构造失败：`prompt_load_failed`，不重试，提示任务配置不可用。
+- 模型调用失败：根据 status code 或异常内容归一化为鉴权、限流、服务不可用、超时或未知错误。
+- 结构化输出校验失败：`structured_output_failed`，允许上层做一次有限重试或修复。
+- 不返回原始异常堆栈、API key、完整 prompt 或未脱敏业务数据给用户。
 
 ### Step 10：新增 prompt 文件
 
