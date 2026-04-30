@@ -4,17 +4,22 @@ Investory is a local-first investment learning and task execution project.
 
 ## Local Setup
 
-From the repository root, use the project virtual environment:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -e .
-```
-
-If the virtual environment does not exist yet, create it first:
+From the repository root, create the virtual environment if it does not exist yet:
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
+```
+
+Activate the virtual environment before running the remaining commands:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Install the project in the activated environment:
+
+```powershell
+python -m pip install -e .
 ```
 
 ## Run FastAPI
@@ -22,7 +27,7 @@ python -m venv .venv
 Start the local FastAPI service with Uvicorn:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn investory.main:app --reload
+python -m uvicorn investory.main:app --reload
 ```
 
 The service runs at:
@@ -44,7 +49,7 @@ The Chapter 0 gateway routes, including `/health` and `/tasks`, are added in the
 The existing task runtime smoke command is still available:
 
 ```powershell
-.\.venv\Scripts\python.exe -m investory.agent_core.runtime.smoke.cli
+python -m investory.agent_core.runtime.smoke.cli
 ```
 
 ## Run Tests
@@ -52,17 +57,17 @@ The existing task runtime smoke command is still available:
 Run the full test suite:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
+python -m pytest
 ```
 
 Run one test file:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\test_config.py
+python -m pytest tests\test_config.py
 ```
 
 Run one test case:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\test_config.py::test_load_config_uses_openai_as_default_provider
+python -m pytest tests\test_config.py::test_load_config_uses_openai_as_default_provider
 ```
