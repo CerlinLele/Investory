@@ -42,7 +42,20 @@ Open the generated API docs at:
 http://127.0.0.1:8000/docs
 ```
 
-The Chapter 0 gateway routes, including `/health` and `/tasks`, are added in the next setup steps.
+Check service health:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8000/health
+```
+
+Run the minimal task gateway:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8000/tasks `
+  -ContentType "application/json" `
+  -Body '{"task_type":"qa","payload":{"material_text":"ETF is a basket of assets.","question":"What is ETF?"}}'
+```
 
 ## CLI Smoke Entry
 
