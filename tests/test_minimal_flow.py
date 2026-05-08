@@ -7,7 +7,7 @@ from investory.agent_core.runtime import message_builder
 from investory.agent_core.runtime.minimal_flow import (
     MinimalTaskFlow,
     call_model,
-    format_output,
+    finalize_result,
     prepare_context,
 )
 
@@ -86,7 +86,7 @@ def test_minimal_task_flow_returns_success_result(monkeypatch):
     assert "Maximum drawdown is a peak-to-trough decline." in runner.messages[1].content
 
 
-def test_minimal_task_flow_nodes_prepare_call_and_format_output(monkeypatch):
+def test_minimal_task_flow_nodes_prepare_call_and_finalize_result(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     spec = _spec()
     state = prepare_context(spec, _payload())
@@ -102,7 +102,7 @@ def test_minimal_task_flow_nodes_prepare_call_and_format_output(monkeypatch):
     assert state.model_result == {"answer": "Maximum drawdown measures loss."}
     assert state.error is None
 
-    state = format_output(state, spec)
+    state = finalize_result(state, spec)
 
     assert state.status == "done"
     assert state.output is not None

@@ -52,6 +52,11 @@ The existing task runtime smoke command is still available:
 python -m investory.agent_core.runtime.smoke.cli
 ```
 
+Task execution now goes through a minimal orchestration layer:
+`TaskExecutor -> MinimalTaskFlow -> prepare_context -> call_model -> finalize_result`.
+This flow is currently linear and does not include planner, tool, event, or
+memory behavior.
+
 ## Run Tests
 
 Run the full test suite:

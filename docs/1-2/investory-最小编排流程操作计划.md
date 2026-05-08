@@ -19,7 +19,7 @@ TaskSpec + payload
 ```text
 prepare_context
 -> call_model
--> format_output
+-> finalize_result
 ```
 
 ## 目标
@@ -157,7 +157,7 @@ TaskFlowState(model_result=...)
 - `ValidationError`：`stage="output_validation"`。
 - 其他模型调用异常：`stage="model_call"`。
 
-### 3. format_output
+### 3. finalize_result
 
 职责：
 
@@ -206,7 +206,7 @@ TaskResult(
 操作：
 
 - 新增 `src/investory/agent_core/runtime/minimal_flow.py`。
-- 实现 `prepare_context()`、`call_model()`、`format_output()`。
+- 实现 `prepare_context()`、`call_model()`、`finalize_result()`。
 - 实现一个入口函数或类，例如 `MinimalTaskFlow.run(spec, payload)`。
 - 复用 `TaskExecutor.build_messages()` 的逻辑，或把 build messages 抽成共享函数，避免复制 prompt 组装代码。
 
@@ -223,7 +223,7 @@ class MinimalTaskFlow:
 
 验收：
 
-- 成功路径按 `prepare_context -> call_model -> format_output` 执行。
+- 成功路径按 `prepare_context -> call_model -> finalize_result` 执行。
 - 每个错误阶段仍然返回现有 `TaskError` 类型。
 - `RequestRunner` 仍然是唯一直接调用模型的对象。
 
@@ -242,7 +242,7 @@ TaskExecutor.run()
 -> MinimalTaskFlow.run()
    -> prepare_context
    -> call_model
-   -> format_output
+   -> finalize_result
 ```
 
 验收：
@@ -314,7 +314,7 @@ Gateway / CLI / Smoke
    -> call_model
       -> RequestRunner
       -> LangChain structured output
-   -> format_output
+   -> finalize_result
       -> TaskResult
 ```
 

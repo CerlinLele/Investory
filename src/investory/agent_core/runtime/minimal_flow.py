@@ -85,7 +85,7 @@ def call_model(
     return state.model_copy(update={"model_result": parsed.model_dump()})
 
 
-def format_output(state: TaskFlowState, spec: TaskSpec) -> TaskFlowState:
+def finalize_result(state: TaskFlowState, spec: TaskSpec) -> TaskFlowState:
     if state.error is not None:
         output = TaskResult(
             ok=False,
@@ -111,7 +111,7 @@ class MinimalTaskFlow:
         if state.error is None:
             state = call_model(state, spec, self.runner)
 
-        state = format_output(state, spec)
+        state = finalize_result(state, spec)
         if state.output is None:
             raise RuntimeError("MinimalTaskFlow finished without TaskResult output.")
         return state.output
