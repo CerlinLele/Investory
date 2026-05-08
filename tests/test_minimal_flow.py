@@ -4,7 +4,12 @@ from pydantic import BaseModel, ValidationError
 
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime import message_builder
-from investory.agent_core.runtime.task_executor import TaskExecutor
+from investory.agent_core.runtime.minimal_flow import (
+    MinimalTaskFlow,
+    call_model,
+    format_output,
+    prepare_context,
+)
 
 
 class QuestionInput(BaseModel):
@@ -42,6 +47,13 @@ def _spec() -> TaskSpec:
     )
 
 
+def _payload() -> dict[str, str]:
+    return {
+        "material_text": "Maximum drawdown is a peak-to-trough decline.",
+        "question": "What is maximum drawdown?",
+    }
+
+
 def _load_prompt_text(*parts: str) -> str:
     prompts = {
         ("base", "system.md"): "You are an investment learning assistant.",
@@ -58,18 +70,12 @@ def _load_prompt_text(*parts: str) -> str:
     return prompts[parts]
 
 
-def test_task_executor_returns_success_result(monkeypatch):
+def test_minimal_task_flow_returns_success_result(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(result=AnswerResult(answer="Maximum drawdown measures loss."))
-    executor = TaskExecutor(runner=runner)
+    flow = MinimalTaskFlow(runner=runner)
 
-    result = executor.run(
-        _spec(),
-        {
-            "material_text": "Maximum drawdown is a peak-to-trough decline.",
-            "question": "What is maximum drawdown?",
-        },
-    )
+    result = flow.run(_spec(), _payload())
 
     assert result.ok is True
     assert result.task_name == "finance_qa"
@@ -80,12 +86,36 @@ def test_task_executor_returns_success_result(monkeypatch):
     assert "Maximum drawdown is a peak-to-trough decline." in runner.messages[1].content
 
 
-def test_task_executor_returns_input_validation_error(monkeypatch):
+def test_minimal_task_flow_nodes_prepare_call_and_format_output(monkeypatch):
+    monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
+    spec = _spec()
+    state = prepare_context(spec, _payload())
+
+    assert state.status == "running"
+    assert state.validated_input == _payload()
+    assert state.messages is not None
+    assert state.error is None
+
+    runner = FakeRunner(result=AnswerResult(answer="Maximum drawdown measures loss."))
+    state = call_model(state, spec, runner)
+
+    assert state.model_result == {"answer": "Maximum drawdown measures loss."}
+    assert state.error is None
+
+    state = format_output(state, spec)
+
+    assert state.status == "done"
+    assert state.output is not None
+    assert state.output.ok is True
+    assert state.output.result == {"answer": "Maximum drawdown measures loss."}
+
+
+def test_minimal_task_flow_returns_input_validation_error(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(result=AnswerResult(answer="unused"))
-    executor = TaskExecutor(runner=runner)
+    flow = MinimalTaskFlow(runner=runner)
 
-    result = executor.run(_spec(), {"question": "What is maximum drawdown?"})
+    result = flow.run(_spec(), {"question": "What is maximum drawdown?"})
 
     assert result.ok is False
     assert result.result is None
@@ -95,20 +125,16 @@ def test_task_executor_returns_input_validation_error(monkeypatch):
     assert runner.messages is None
 
 
-def test_task_executor_returns_prompt_build_error(monkeypatch):
+def test_minimal_task_flow_returns_prompt_build_error(monkeypatch):
     def raise_prompt_error(*parts: str) -> str:
         raise FileNotFoundError("missing prompt")
 
     monkeypatch.setattr(message_builder, "load_prompt_text", raise_prompt_error)
-    executor = TaskExecutor(runner=FakeRunner(result=AnswerResult(answer="unused")))
-
-    result = executor.run(
-        _spec(),
-        {
-            "material_text": "Maximum drawdown is a peak-to-trough decline.",
-            "question": "What is maximum drawdown?",
-        },
+    flow = MinimalTaskFlow(
+        runner=FakeRunner(result=AnswerResult(answer="unused")),
     )
+
+    result = flow.run(_spec(), _payload())
 
     assert result.ok is False
     assert result.error is not None
@@ -116,22 +142,16 @@ def test_task_executor_returns_prompt_build_error(monkeypatch):
     assert result.error.stage == "prompt_build"
 
 
-def test_task_executor_returns_output_validation_error(monkeypatch):
+def test_minimal_task_flow_returns_output_validation_error(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     try:
         AnswerResult.model_validate({})
     except ValidationError as exc:
         validation_error = exc
     runner = FakeRunner(exc=validation_error)
-    executor = TaskExecutor(runner=runner)
+    flow = MinimalTaskFlow(runner=runner)
 
-    result = executor.run(
-        _spec(),
-        {
-            "material_text": "Maximum drawdown is a peak-to-trough decline.",
-            "question": "What is maximum drawdown?",
-        },
-    )
+    result = flow.run(_spec(), _payload())
 
     assert result.ok is False
     assert result.error is not None
@@ -139,18 +159,12 @@ def test_task_executor_returns_output_validation_error(monkeypatch):
     assert result.error.stage == "output_validation"
 
 
-def test_task_executor_returns_model_call_error(monkeypatch):
+def test_minimal_task_flow_returns_model_call_error(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(exc=TimeoutError("request timeout"))
-    executor = TaskExecutor(runner=runner)
+    flow = MinimalTaskFlow(runner=runner)
 
-    result = executor.run(
-        _spec(),
-        {
-            "material_text": "Maximum drawdown is a peak-to-trough decline.",
-            "question": "What is maximum drawdown?",
-        },
-    )
+    result = flow.run(_spec(), _payload())
 
     assert result.ok is False
     assert result.error is not None
