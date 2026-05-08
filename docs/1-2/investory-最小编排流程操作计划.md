@@ -91,6 +91,15 @@ class TaskFlowState(BaseModel):
 - `output` 是最终统一返回的 `TaskResult`。
 - `error` 保存规范化后的错误信息，便于后续事件和日志复用。
 
+状态作用域：
+
+- 当前 `TaskFlowState` 表达的是单次任务运行状态，不是多轮会话状态。
+- 一次 `TaskExecutor.run(spec, payload)` 对应一份 `TaskFlowState`。
+- `task_id` 更准确地说是一次任务运行 id，用来串联本轮的输入校验、prompt 构建、模型调用和输出整理。
+- `messages` 是本轮 prompt build 的结果，不承载跨轮历史消息。
+- 本阶段不引入 `session_id`、`conversation_id`、长期 memory、checkpoint 或多 turn trace。
+- 如果后续需要多轮能力，应在外层增加会话状态，例如 `ConversationState(session_id, turns: list[TaskFlowState], memory=...)`，而不是把多轮语义提前塞进最小流程状态。
+
 ## 最小流程节点
 
 ### 1. prepare_context
