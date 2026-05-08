@@ -59,11 +59,14 @@ investory-smoke task --task learning_material_summary
 
 Task smoke tests run the full task executor path:
 
-1. Validate the payload with the task input model.
-2. Load prompts from `agent_core/prompts/`.
-3. Build LangChain messages.
-4. Invoke the configured model with structured output.
-5. Print the resulting `TaskResult` JSON.
+1. Call the stable `TaskExecutor` entry point.
+2. Delegate execution to `MinimalTaskFlow`.
+3. Run the linear flow nodes: `prepare_context -> call_model -> finalize_result`.
+4. Print the resulting `TaskResult` JSON.
+
+The current flow is a minimal orchestration layer for a single task run. It
+does not include planner, tool, event, memory, concurrency, or streaming
+behavior.
 
 ## Exit Codes
 
