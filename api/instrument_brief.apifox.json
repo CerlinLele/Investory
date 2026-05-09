@@ -1,0 +1,655 @@
+{
+  "apifoxProject": "1.0.0",
+  "$schema": {
+    "app": "apifox",
+    "type": "project",
+    "version": "1.2.0"
+  },
+  "info": {
+    "name": "Investory",
+    "description": "",
+    "mockRule": {
+      "rules": [],
+      "enableSystemRule": true
+    }
+  },
+  "projectSetting": {
+    "id": "8285483",
+    "auth": {},
+    "securityScheme": {},
+    "gateway": [],
+    "language": "zh-CN",
+    "apiStatuses": [
+      "developing",
+      "testing",
+      "released",
+      "deprecated"
+    ],
+    "mockSettings": {},
+    "preProcessors": [],
+    "postProcessors": [],
+    "advancedSettings": {
+      "enableJsonc": false,
+      "enableBigint": false,
+      "responseValidate": true,
+      "enableTestScenarioSetting": false,
+      "enableYAPICompatScript": false,
+      "isDefaultUrlEncoding": 2,
+      "publishedDocUrlRules": {
+        "defaultRule": "RESOURCE_KEY_ONLY",
+        "resourceKeyStandard": "NEW"
+      }
+    },
+    "initialDisabledMockIds": [],
+    "servers": [
+      {
+        "id": "default",
+        "name": "默认服务",
+        "moduleId": 7699941
+      }
+    ],
+    "cloudMock": {
+      "security": "free",
+      "enable": false,
+      "tokenKey": "apifoxToken"
+    }
+  },
+  "apiCollection": [
+    {
+      "name": "根目录",
+      "id": 85122061,
+      "auth": {},
+      "securityScheme": {},
+      "parentId": 0,
+      "serverId": "",
+      "description": "",
+      "identityPattern": {
+        "httpApi": {
+          "type": "methodAndPath",
+          "bodyType": "",
+          "fields": []
+        }
+      },
+      "shareSettings": {},
+      "visibility": "SHARED",
+      "moduleId": 7699941,
+      "preProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "postProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "inheritPostProcessors": {},
+      "inheritPreProcessors": {},
+      "items": [
+        {
+          "name": "instrument brief",
+          "id": 85126904,
+          "auth": {},
+          "securityScheme": {},
+          "parentId": 0,
+          "serverId": "",
+          "description": "",
+          "identityPattern": {
+            "httpApi": {
+              "type": "inherit",
+              "bodyType": "",
+              "fields": []
+            }
+          },
+          "shareSettings": {},
+          "visibility": "INHERITED",
+          "moduleId": 7699941,
+          "preProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "postProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "inheritPostProcessors": {},
+          "inheritPreProcessors": {},
+          "items": [
+            {
+              "name": "Run Task",
+              "api": {
+                "id": "454975853",
+                "method": "post",
+                "path": "http://127.0.0.1:8000/tasks",
+                "parameters": {},
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "134466007",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {}
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [
+                  {
+                    "name": "成功",
+                    "data": "{\"ok\":true,\"task_name\":\"instrument_brief\",\"session_id\":\"apifox-instrument-brief-ok\",\"result\":{\"instrument_name_or_code\":\"VOO\",\"instrument_type\":\"ETF\",\"overview\":\"VOO is an ETF designed to track the S&P 500 Index. According to the source, it holds a diversified portfolio of large-cap U.S. companies and follows an index-tracking approach rather than active stock selection. Its value may move up or down with the broader U.S. equity market.\",\"key_facts\":[{\"label\":\"Instrument type\",\"value\":\"VOO is an exchange-traded fund (ETF).\"},{\"label\":\"Investment objective\",\"value\":\"It seeks to track the performance of the S&P 500 Index.\"},{\"label\":\"Portfolio description\",\"value\":\"The fund holds a diversified portfolio of large-cap U.S. companies.\"},{\"label\":\"Management style\",\"value\":\"Its objective is index tracking, not active stock selection.\"},{\"label\":\"Market sensitivity\",\"value\":\"Its value can rise or fall with the broader U.S. equity market.\"}],\"learning_points\":[\"Index-tracking funds aim to follow a benchmark rather than beat it.\",\"The S&P 500 is the reference index mentioned in the source material.\",\"ETF value can move with the overall market, not just individual company news.\",\"Diversification can reduce single-company dependence, but it does not remove market risk.\"],\"risk_notes\":[\"The fund's value can decline when the broader U.S. equity market falls.\",\"Because it tracks an index, it is not trying to avoid market downturns through active stock picking.\",\"The source material does not say how diversified the portfolio is beyond describing it as diversified.\",\"The material does not provide fee, holdings, or rebalancing details, so those aspects cannot be evaluated here.\"],\"follow_up_questions\":[\"How does an index-tracking ETF like VOO differ from an actively managed fund?\",\"What does it mean for an ETF to track the S&P 500 Index?\",\"How does exposure to large-cap U.S. companies affect an ETF's behavior?\",\"What information would be needed to evaluate VOO more fully, such as fees or holdings?\"],\"risk_notice\":\"This brief is for educational purposes only and is not investment advice.\",\"uncertainty\":\"The provided material is limited. It does not include fees, exact holdings, expense ratio, distribution details, or current fund data, so those cannot be summarized from the source.\"},\"error\":null}",
+                    "responseId": "134466007"
+                  }
+                ],
+                "requestBody": {
+                  "type": "application/json",
+                  "parameters": [],
+                  "jsonSchema": {
+                    "type": "object",
+                    "properties": {}
+                  },
+                  "required": true,
+                  "mediaType": "",
+                  "examples": [
+                    {
+                      "mediaType": "application/json",
+                      "value": "{\r\n  \"task_type\": \"brief\",\r\n  \"session_id\": \"apifox-instrument-brief-ok\",\r\n  \"payload\": {\r\n    \"instrument_name_or_code\": \"VOO\",\r\n    \"source_material\": \"VOO is an exchange-traded fund that seeks to track the performance of the S&P 500 Index. The fund holds a diversified portfolio of large-cap U.S. companies. Its investment objective is index tracking, not active stock selection. The value of the ETF can rise or fall with the broader U.S. equity market.\"\r\n  }\r\n}\r\n"
+                    }
+                  ],
+                  "oasExtensions": ""
+                },
+                "description": "",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 26,
+                "cases": [
+                  {
+                    "id": 371691718,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "e2e success",
+                    "responseId": "134466007",
+                    "parameters": {
+                      "query": [],
+                      "path": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "header": [],
+                      "cookie": []
+                    },
+                    "requestBody": {
+                      "parameters": [],
+                      "data": "{\r\n  \"task_type\": \"brief\",\r\n  \"session_id\": \"apifox-instrument-brief-ok\",\r\n  \"payload\": {\r\n    \"instrument_name_or_code\": \"VOO\",\r\n    \"source_material\": \"VOO is an exchange-traded fund that seeks to track the performance of the S&P 500 Index. The fund holds a diversified portfolio of large-cap U.S. companies. Its investment objective is index tracking, not active stock selection. The value of the ETF can rise or fall with the broader U.S. equity market.\"\r\n  }\r\n}\r\n",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {},
+                      "isDefaultUrlEncoding": 2,
+                      "disableUrlEncoding": false
+                    },
+                    "requestResult": "{\"id\":\"temp.3b384776-3320-4672-9f47-ea868f36ba77\",\"cursor\":{\"position\":0,\"iteration\":0,\"length\":1,\"cycles\":1,\"empty\":false,\"eof\":false,\"bof\":true,\"cr\":false,\"ref\":\"3b384776-3320-4672-9f47-ea868f36ba77\",\"requestIndex\":0,\"httpRequestId\":\"b186b56d-3548-4293-a6c5-b95cfbe8f9bf\"},\"type\":\"http\",\"response\":{\"id\":\"d2f85b99-35ae-4516-9341-1b40c19b0083\",\"status\":\"OK\",\"code\":200,\"header\":[{\"key\":\"date\",\"value\":\"Sat, 09 May 2026 08:35:08 GMT\"},{\"key\":\"server\",\"value\":\"uvicorn\"},{\"key\":\"content-length\",\"value\":\"2184\"},{\"key\":\"content-type\",\"value\":\"application/json\"}],\"trailer\":[],\"stream\":{\"type\":\"Buffer\",\"data\":[123,34,111,107,34,58,116,114,117,101,44,34,116,97,115,107,95,110,97,109,101,34,58,34,105,110,115,116,114,117,109,101,110,116,95,98,114,105,101,102,34,44,34,115,101,115,115,105,111,110,95,105,100,34,58,34,97,112,105,102,111,120,45,105,110,115,116,114,117,109,101,110,116,45,98,114,105,101,102,45,111,107,34,44,34,114,101,115,117,108,116,34,58,123,34,105,110,115,116,114,117,109,101,110,116,95,110,97,109,101,95,111,114,95,99,111,100,101,34,58,34,86,79,79,34,44,34,105,110,115,116,114,117,109,101,110,116,95,116,121,112,101,34,58,34,69,84,70,34,44,34,111,118,101,114,118,105,101,119,34,58,34,86,79,79,32,105,115,32,97,110,32,69,84,70,32,100,101,115,105,103,110,101,100,32,116,111,32,116,114,97,99,107,32,116,104,101,32,83,38,80,32,53,48,48,32,73,110,100,101,120,46,32,84,104,101,32,115,111,117,114,99,101,32,109,97,116,101,114,105,97,108,32,115,97,121,115,32,105,116,32,104,111,108,100,115,32,97,32,100,105,118,101,114,115,105,102,105,101,100,32,112,111,114,116,102,111,108,105,111,32,111,102,32,108,97,114,103,101,45,99,97,112,32,85,46,83,46,32,99,111,109,112,97,110,105,101,115,32,97,110,100,32,97,105,109,115,32,102,111,114,32,105,110,100,101,120,32,116,114,97,99,107,105,110,103,32,114,97,116,104,101,114,32,116,104,97,110,32,97,99,116,105,118,101,32,115,116,111,99,107,32,115,101,108,101,99,116,105,111,110,46,32,73,116,115,32,118,97,108,117,101,32,99,97,110,32,109,111,118,101,32,117,112,32,111,114,32,100,111,119,110,32,119,105,116,104,32,116,104,101,32,98,114,111,97,100,101,114,32,85,46,83,46,32,101,113,117,105,116,121,32,109,97,114,107,101,116,46,34,44,34,107,101,121,95,102,97,99,116,115,34,58,91,123,34,108,97,98,101,108,34,58,34,73,110,115,116,114,117,109,101,110,116,32,116,121,112,101,34,44,34,118,97,108,117,101,34,58,34,86,79,79,32,105,115,32,97,110,32,101,120,99,104,97,110,103,101,45,116,114,97,100,101,100,32,102,117,110,100,32,40,69,84,70,41,46,34,125,44,123,34,108,97,98,101,108,34,58,34,73,110,118,101,115,116,109,101,110,116,32,111,98,106,101,99,116,105,118,101,34,44,34,118,97,108,117,101,34,58,34,86,79,79,32,115,101,101,107,115,32,116,111,32,116,114,97,99,107,32,116,104,101,32,112,101,114,102,111,114,109,97,110,99,101,32,111,102,32,116,104,101,32,83,38,80,32,53,48,48,32,73,110,100,101,120,46,34,125,44,123,34,108,97,98,101,108,34,58,34,80,111,114,116,102,111,108,105,111,32,115,116,121,108,101,34,44,34,118,97,108,117,101,34,58,34,84,104,101,32,102,117,110,100,32,104,111,108,100,115,32,97,32,100,105,118,101,114,115,105,102,105,101,100,32,112,111,114,116,102,111,108,105,111,32,111,102,32,108,97,114,103,101,45,99,97,112,32,85,46,83,46,32,99,111,109,112,97,110,105,101,115,46,34,125,44,123,34,108,97,98,101,108,34,58,34,77,97,110,97,103,101,109,101,110,116,32,97,112,112,114,111,97,99,104,34,44,34,118,97,108,117,101,34,58,34,73,116,115,32,111,98,106,101,99,116,105,118,101,32,105,115,32,105,110,100,101,120,32,116,114,97,99,107,105,110,103,44,32,110,111,116,32,97,99,116,105,118,101,32,115,116,111,99,107,32,115,101,108,101,99,116,105,111,110,46,34,125,44,123,34,108,97,98,101,108,34,58,34,77,97,114,107,101,116,32,114,105,115,107,34,44,34,118,97,108,117,101,34,58,34,84,104,101,32,69,84,70,226,128,153,115,32,118,97,108,117,101,32,99,97,110,32,114,105,115,101,32,111,114,32,102,97,108,108,32,119,105,116,104,32,116,104,101,32,98,114,111,97,100,101,114,32,85,46,83,46,32,101,113,117,105,116,121,32,109,97,114,107,101,116,46,34,125,93,44,34,108,101,97,114,110,105,110,103,95,112,111,105,110,116,115,34,58,91,34,65,110,32,69,84,70,32,99,97,110,32,98,101,32,100,101,115,105,103,110,101,100,32,116,111,32,102,111,108,108,111,119,32,97,32,109,97,114,107,101,116,32,105,110,100,101,120,32,114,97,116,104,101,114,32,116,104,97,110,32,112,105,99,107,32,105,110,100,105,118,105,100,117,97,108,32,115,116,111,99,107,115,46,34,44,34,65,32,100,105,118,101,114,115,105,102,105,101,100,32,112,111,114,116,102,111,108,105,111,32,99,97,110,32,115,116,105,108,108,32,100,101,99,108,105,110,101,32,105,102,32,116,104,101,32,111,118,101,114,97,108,108,32,109,97,114,107,101,116,32,100,101,99,108,105,110,101,115,46,34,44,34,76,97,114,103,101,45,99,97,112,32,85,46,83,46,32,99,111,109,112,97,110,105,101,115,32,97,114,101,32,116,104,101,32,109,97,105,110,32,101,120,112,111,115,117,114,101,32,100,101,115,99,114,105,98,101,100,32,105,110,32,116,104,101,32,115,111,117,114,99,101,32,109,97,116,101,114,105,97,108,46,34,44,34,73,110,100,101,120,32,116,114,97,99,107,105,110,103,32,102,111,99,117,115,101,115,32,111,110,32,109,97,116,99,104,105,110,103,32,97,110,32,105,110,100,101,120,226,128,153,115,32,112,101,114,102,111,114,109,97,110,99,101,44,32,110,111,116,32,116,114,121,105,110,103,32,116,111,32,111,117,116,112,101,114,102,111,114,109,32,105,116,46,34,93,44,34,114,105,115,107,95,110,111,116,101,115,34,58,91,34,66,101,99,97,117,115,101,32,105,116,32,105,115,32,116,105,101,100,32,116,111,32,116,104,101,32,85,46,83,46,32,101,113,117,105,116,121,32,109,97,114,107,101,116,44,32,116,104,101,32,102,117,110,100,32,99,97,110,32,108,111,115,101,32,118,97,108,117,101,32,119,104,101,110,32,116,104,101,32,109,97,114,107,101,116,32,102,97,108,108,115,46,34,44,34,73,110,100,101,120,45,116,114,97,99,107,105,110,103,32,102,117,110,100,115,32,97,114,101,32,110,111,116,32,116,114,121,105,110,103,32,116,111,32,97,118,111,105,100,32,109,97,114,107,101,116,32,100,101,99,108,105,110,101,115,59,32,116,104,101,121,32,103,101,110,101,114,97,108,108,121,32,114,101,102,108,101,99,116,32,116,104,101,32,105,110,100,101,120,32,116,104,101,121,32,102,111,108,108,111,119,46,34,44,34,84,104,101,32,115,111,117,114,99,101,32,109,97,116,101,114,105,97,108,32,100,111,101,115,32,110,111,116,32,112,114,111,118,105,100,101,32,105,110,102,111,114,109,97,116,105,111,110,32,97,98,111,117,116,32,102,101,101,115,44,32,116,114,97,99,107,105,110,103,32,101,114,114,111,114,44,32,111,114,32,112,111,114,116,102,111,108,105,111,32,100,101,116,97,105,108,115,32,98,101,121,111,110,100,32,108,97,114,103,101,45,99,97,112,32,85,46,83,46,32,99,111,109,112,97,110,105,101,115,46,34,93,44,34,102,111,108,108,111,119,95,117,112,95,113,117,101,115,116,105,111,110,115,34,58,91,34,87,104,97,116,32,105,115,32,86,79,79,226,128,153,115,32,101,120,112,101,110,115,101,32,114,97,116,105,111,32,97,110,100,32,104,111,119,32,104,97,115,32,105,116,32,99,104,97,110,103,101,100,32,111,118,101,114,32,116,105,109,101,63,34,44,34,72,111,119,32,99,108,111,115,101,108,121,32,104,97,115,32,86,79,79,32,116,114,97,99,107,101,100,32,116,104,101,32,83,38,80,32,53,48,48,32,73,110,100,101,120,32,104,105,115,116,111,114,105,99,97,108,108,121,63,34,44,34,87,104,97,116,32,97,114,101,32,116,104,101,32,102,117,110,100,226,128,153,115,32,108,97,114,103,101,115,116,32,104,111,108,100,105,110,103,115,32,97,110,100,32,115,101,99,116,111,114,32,101,120,112,111,115,117,114,101,115,63,34,44,34,68,111,101,115,32,86,79,79,32,100,105,115,116,114,105,98,117,116,101,32,100,105,118,105,100,101,110,100,115,44,32,97,110,100,32,104,111,119,32,111,102,116,101,110,63,34,93,44,34,114,105,115,107,95,110,111,116,105,99,101,34,58,34,84,104,105,115,32,98,114,105,101,102,32,105,115,32,102,111,114,32,101,100,117,99,97,116,105,111,110,97,108,32,112,117,114,112,111,115,101,115,32,111,110,108,121,32,97,110,100,32,105,115,32,110,111,116,32,105,110,118,101,115,116,109,101,110,116,32,97,100,118,105,99,101,46,34,44,34,117,110,99,101,114,116,97,105,110,116,121,34,58,34,84,104,101,32,112,114,111,118,105,100,101,100,32,109,97,116,101,114,105,97,108,32,105,115,32,108,105,109,105,116,101,100,46,32,73,116,32,100,111,101,115,32,110,111,116,32,105,110,99,108,117,100,101,32,99,117,114,114,101,110,116,32,112,114,105,99,101,44,32,101,120,112,101,110,115,101,32,114,97,116,105,111,44,32,104,111,108,100,105,110,103,115,32,108,105,115,116,44,32,100,105,115,116,114,105,98,117,116,105,111,110,32,112,111,108,105,99,121,44,32,111,114,32,104,105,115,116,111,114,105,99,97,108,32,112,101,114,102,111,114,109,97,110,99,101,32,100,101,116,97,105,108,115,46,34,125,44,34,101,114,114,111,114,34,58,110,117,108,108,125]},\"cookie\":[],\"responseTime\":15047,\"responseSize\":2184,\"downloadedBytes\":2184,\"type\":\"http\",\"tempFilePath\":\"\",\"socketSession\":{\"addresses\":{\"local\":\"127.0.0.1\",\"remote\":\"127.0.0.1\"},\"httpVersion\":\"1.1\",\"tls\":{\"protocol\":\"\",\"cipherName\":\"\"},\"cert\":{\"subjectCN\":\"\",\"issuerCN\":\"\",\"validUntil\":\"\"}},\"timingPhases\":{\"prepare\":0.6366999996826053,\"wait\":0.8251000000163913,\"dns\":0,\"tcp\":0.2073999997228384,\"firstByte\":15045.092800000682,\"download\":0.6735999993979931,\"process\":0.09460000041872263,\"total\":15047.530199999921}},\"request\":{\"url\":{\"protocol\":\"http\",\"port\":\"8000\",\"path\":[\"tasks\"],\"host\":[\"127\",\"0\",\"0\",\"1\"],\"query\":[],\"variable\":[]},\"header\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Content-Type\",\"value\":\"application/json\"},{\"key\":\"Accept\",\"value\":\"*/*\",\"system\":true},{\"key\":\"Host\",\"value\":\"127.0.0.1:8000\",\"system\":true},{\"key\":\"Accept-Encoding\",\"value\":\"gzip, deflate, br\",\"system\":true},{\"key\":\"Connection\",\"value\":\"keep-alive\",\"system\":true},{\"key\":\"Content-Length\",\"value\":468,\"system\":true}],\"method\":\"POST\",\"body\":{\"mode\":\"raw\",\"raw\":\"{\\r\\n  \\\"task_type\\\": \\\"brief\\\",\\r\\n  \\\"session_id\\\": \\\"apifox-instrument-brief-ok\\\",\\r\\n  \\\"payload\\\": {\\r\\n    \\\"instrument_name_or_code\\\": \\\"VOO\\\",\\r\\n    \\\"source_material\\\": \\\"VOO is an exchange-traded fund that seeks to track the performance of the S&P 500 Index. The fund holds a diversified portfolio of large-cap U.S. companies. Its investment objective is index tracking, not active stock selection. The value of the ETF can rise or fall with the broader U.S. equity market.\\\"\\r\\n  }\\r\\n}\\r\\n\",\"generateMode\":\"normal\",\"type\":\"application/json\"},\"type\":\"http\"},\"history\":{\"execution\":{\"verbose\":true,\"sessions\":{\"0bea3b32-c885-415a-ad73-828324a72e94\":{\"addresses\":{\"local\":{\"address\":\"127.0.0.1\",\"family\":\"IPv4\",\"port\":49396},\"remote\":{\"address\":\"127.0.0.1\",\"family\":\"IPv4\",\"port\":8000}}}},\"data\":[{\"request\":{\"method\":\"POST\",\"href\":\"http://127.0.0.1:8000/tasks\",\"headers\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Content-Type\",\"value\":\"application/json\"},{\"key\":\"Accept\",\"value\":\"*/*\"},{\"key\":\"Host\",\"value\":\"127.0.0.1:8000\"},{\"key\":\"Accept-Encoding\",\"value\":\"gzip, deflate, br\"},{\"key\":\"Connection\",\"value\":\"keep-alive\"},{\"key\":\"Content-Length\",\"value\":\"468\"}],\"httpVersion\":\"1.1\"},\"response\":{\"statusCode\":200,\"headers\":[{\"key\":\"date\",\"value\":\"Sat, 09 May 2026 08:35:08 GMT\"},{\"key\":\"server\",\"value\":\"uvicorn\"},{\"key\":\"content-length\",\"value\":\"2184\"},{\"key\":\"content-type\",\"value\":\"application/json\"}],\"httpVersion\":\"1.1\",\"downloadedBytes\":2184},\"timings\":{\"start\":1778315709379,\"requestStart\":1778315709380,\"offset\":{\"request\":0.6366999996826053,\"socket\":1.4617999996989965,\"connect\":1.669199999421835,\"response\":15046.762000000104,\"end\":15047.435599999502,\"lookup\":1.4617999996989965,\"done\":15047.530199999921}},\"session\":{\"id\":\"0bea3b32-c885-415a-ad73-828324a72e94\",\"reused\":false}}]}},\"responseValidation\":{\"schema\":{\"valid\":true,\"message\":\"\",\"errors\":null},\"responseCode\":{\"valid\":true}},\"passed\":true,\"timings\":{\"started\":1778315709317,\"preProcessorsStarted\":1778315709332,\"preProcessorsCompleted\":1778315709332,\"postProcessorsStarted\":1778315724427,\"postProcessorsCompleted\":1778315724427,\"completed\":1778315724428},\"metaInfo\":{\"httpApiId\":454975853,\"httpApiCaseId\":371691718,\"httpApiName\":\"Run Task\",\"httpApiPath\":\"http://127.0.0.1:8000/tasks\",\"httpApiMethod\":\"post\",\"httpApiCaseName\":\"e2e success\",\"moduleId\":7699941,\"serverId\":\"\"},\"socketSession\":{\"addresses\":{\"local\":\"127.0.0.1\",\"remote\":\"127.0.0.1\"},\"httpVersion\":\"1.1\",\"tls\":{\"protocol\":\"\",\"cipherName\":\"\"},\"cert\":{\"subjectCN\":\"\",\"issuerCN\":\"\",\"validUntil\":\"\"}}}",
+                    "visibility": "INHERITED",
+                    "moduleId": 7699941,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  },
+                  {
+                    "id": 371692026,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "ask missing fields",
+                    "responseId": "134466007",
+                    "parameters": {
+                      "query": [],
+                      "path": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "header": [],
+                      "cookie": []
+                    },
+                    "requestBody": {
+                      "parameters": [],
+                      "data": "{\r\n  \"task_type\": \"brief\",\r\n  \"session_id\": \"apifox-instrument-brief-missing\",\r\n  \"payload\": {\r\n    \"instrument_name_or_code\": \"VOO\"\r\n  }\r\n}\r\n\r\n",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {},
+                      "isDefaultUrlEncoding": 2,
+                      "disableUrlEncoding": false
+                    },
+                    "requestResult": "{\"id\":\"temp.f51219c1-0526-4b84-86ce-e91efca6065b\",\"cursor\":{\"position\":0,\"iteration\":0,\"length\":1,\"cycles\":1,\"empty\":false,\"eof\":false,\"bof\":true,\"cr\":false,\"ref\":\"f51219c1-0526-4b84-86ce-e91efca6065b\",\"requestIndex\":0,\"httpRequestId\":\"b4f43fec-c4e5-448f-a986-6bad8255cfff\"},\"type\":\"http\",\"response\":{\"id\":\"fbda7664-5a89-4d6b-8c9b-735ce9675b2f\",\"status\":\"OK\",\"code\":200,\"header\":[{\"key\":\"date\",\"value\":\"Sat, 09 May 2026 08:36:23 GMT\"},{\"key\":\"server\",\"value\":\"uvicorn\"},{\"key\":\"content-length\",\"value\":\"446\"},{\"key\":\"content-type\",\"value\":\"application/json\"}],\"trailer\":[],\"stream\":{\"type\":\"Buffer\",\"data\":[123,34,111,107,34,58,116,114,117,101,44,34,116,97,115,107,95,110,97,109,101,34,58,34,105,110,115,116,114,117,109,101,110,116,95,98,114,105,101,102,34,44,34,115,101,115,115,105,111,110,95,105,100,34,58,34,97,112,105,102,111,120,45,105,110,115,116,114,117,109,101,110,116,45,98,114,105,101,102,45,109,105,115,115,105,110,103,34,44,34,114,101,115,117,108,116,34,58,123,34,97,99,116,105,111,110,34,58,34,97,115,107,95,109,105,115,115,105,110,103,95,102,105,101,108,100,115,34,44,34,116,97,115,107,95,110,97,109,101,34,58,34,105,110,115,116,114,117,109,101,110,116,95,98,114,105,101,102,34,44,34,109,105,115,115,105,110,103,95,102,105,101,108,100,115,34,58,91,34,115,111,117,114,99,101,95,109,97,116,101,114,105,97,108,34,93,44,34,117,115,101,114,95,109,101,115,115,97,103,101,34,58,34,80,108,101,97,115,101,32,112,97,115,116,101,32,116,104,101,32,115,111,117,114,99,101,32,109,97,116,101,114,105,97,108,32,121,111,117,32,119,97,110,116,32,109,101,32,116,111,32,117,115,101,44,32,115,117,99,104,32,97,115,32,97,32,102,117,110,100,32,100,101,115,99,114,105,112,116,105,111,110,44,32,69,84,70,32,102,97,99,116,115,104,101,101,116,44,32,110,101,119,115,44,32,111,114,32,114,101,115,101,97,114,99,104,32,101,120,99,101,114,112,116,46,34,44,34,114,101,97,115,111,110,34,58,34,84,104,101,32,114,101,113,117,101,115,116,32,105,115,32,109,105,115,115,105,110,103,32,114,101,113,117,105,114,101,100,32,105,110,112,117,116,32,102,105,101,108,100,115,32,102,111,114,32,105,110,115,116,114,117,109,101,110,116,95,98,114,105,101,102,58,32,115,111,117,114,99,101,95,109,97,116,101,114,105,97,108,46,34,125,44,34,101,114,114,111,114,34,58,110,117,108,108,125]},\"cookie\":[],\"responseTime\":6,\"responseSize\":446,\"downloadedBytes\":446,\"type\":\"http\",\"tempFilePath\":\"\",\"socketSession\":{\"addresses\":{\"local\":\"127.0.0.1\",\"remote\":\"127.0.0.1\"},\"httpVersion\":\"1.1\",\"tls\":{\"protocol\":\"\",\"cipherName\":\"\"},\"cert\":{\"subjectCN\":\"\",\"issuerCN\":\"\",\"validUntil\":\"\"}},\"timingPhases\":{\"prepare\":0.472099999897182,\"wait\":0.941699999384582,\"dns\":0,\"tcp\":0.2081000003963709,\"firstByte\":3.4303000001236796,\"download\":0.8657999997958541,\"process\":0.09510000050067902,\"total\":6.013100000098348}},\"request\":{\"url\":{\"protocol\":\"http\",\"port\":\"8000\",\"path\":[\"tasks\"],\"host\":[\"127\",\"0\",\"0\",\"1\"],\"query\":[],\"variable\":[]},\"header\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Content-Type\",\"value\":\"application/json\"},{\"key\":\"Accept\",\"value\":\"*/*\",\"system\":true},{\"key\":\"Host\",\"value\":\"127.0.0.1:8000\",\"system\":true},{\"key\":\"Accept-Encoding\",\"value\":\"gzip, deflate, br\",\"system\":true},{\"key\":\"Connection\",\"value\":\"keep-alive\",\"system\":true},{\"key\":\"Content-Length\",\"value\":144,\"system\":true}],\"method\":\"POST\",\"body\":{\"mode\":\"raw\",\"raw\":\"{\\r\\n  \\\"task_type\\\": \\\"brief\\\",\\r\\n  \\\"session_id\\\": \\\"apifox-instrument-brief-missing\\\",\\r\\n  \\\"payload\\\": {\\r\\n    \\\"instrument_name_or_code\\\": \\\"VOO\\\"\\r\\n  }\\r\\n}\\r\\n\\r\\n\",\"generateMode\":\"normal\",\"type\":\"application/json\"},\"type\":\"http\"},\"history\":{\"execution\":{\"verbose\":true,\"sessions\":{\"e37c8b8a-69a2-40c4-b363-1266086d72cb\":{\"addresses\":{\"local\":{\"address\":\"127.0.0.1\",\"family\":\"IPv4\",\"port\":52201},\"remote\":{\"address\":\"127.0.0.1\",\"family\":\"IPv4\",\"port\":8000}}}},\"data\":[{\"request\":{\"method\":\"POST\",\"href\":\"http://127.0.0.1:8000/tasks\",\"headers\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Content-Type\",\"value\":\"application/json\"},{\"key\":\"Accept\",\"value\":\"*/*\"},{\"key\":\"Host\",\"value\":\"127.0.0.1:8000\"},{\"key\":\"Accept-Encoding\",\"value\":\"gzip, deflate, br\"},{\"key\":\"Connection\",\"value\":\"keep-alive\"},{\"key\":\"Content-Length\",\"value\":\"144\"}],\"httpVersion\":\"1.1\"},\"response\":{\"statusCode\":200,\"headers\":[{\"key\":\"date\",\"value\":\"Sat, 09 May 2026 08:36:23 GMT\"},{\"key\":\"server\",\"value\":\"uvicorn\"},{\"key\":\"content-length\",\"value\":\"446\"},{\"key\":\"content-type\",\"value\":\"application/json\"}],\"httpVersion\":\"1.1\",\"downloadedBytes\":446},\"timings\":{\"start\":1778315784480,\"requestStart\":1778315784481,\"offset\":{\"request\":0.472099999897182,\"socket\":1.413799999281764,\"connect\":1.621899999678135,\"response\":5.052199999801815,\"end\":5.917999999597669,\"lookup\":1.413799999281764,\"done\":6.013100000098348}},\"session\":{\"id\":\"e37c8b8a-69a2-40c4-b363-1266086d72cb\",\"reused\":false}}]}},\"responseValidation\":{\"schema\":{\"valid\":true,\"message\":\"\",\"errors\":null},\"responseCode\":{\"valid\":true}},\"passed\":true,\"timings\":{\"started\":1778315784467,\"preProcessorsStarted\":1778315784476,\"preProcessorsCompleted\":1778315784476,\"postProcessorsStarted\":1778315784491,\"postProcessorsCompleted\":1778315784491,\"completed\":1778315784492},\"metaInfo\":{\"httpApiId\":454975853,\"httpApiCaseId\":371692026,\"httpApiName\":\"Run Task\",\"httpApiPath\":\"http://127.0.0.1:8000/tasks\",\"httpApiMethod\":\"post\",\"httpApiCaseName\":\"ask missing fields\",\"moduleId\":7699941,\"serverId\":\"\"},\"socketSession\":{\"addresses\":{\"local\":\"127.0.0.1\",\"remote\":\"127.0.0.1\"},\"httpVersion\":\"1.1\",\"tls\":{\"protocol\":\"\",\"cipherName\":\"\"},\"cert\":{\"subjectCN\":\"\",\"issuerCN\":\"\",\"validUntil\":\"\"}}}",
+                    "visibility": "INHERITED",
+                    "moduleId": 7699941,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  },
+                  {
+                    "id": 371684114,
+                    "type": "TEST_CASE",
+                    "path": "http://127.0.0.1:8000/tasks",
+                    "name": "e2e success",
+                    "responseId": "134466007",
+                    "parameters": {},
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "application/json",
+                      "data": "{\r\n  \"task_type\": \"brief\",\r\n  \"session_id\": \"apifox-instrument-brief-ok\",\r\n  \"payload\": {\r\n    \"instrument_name_or_code\": \"VOO\",\r\n    \"source_material\": \"VOO is an exchange-traded fund that seeks to track the performance of the S&P 500 Index. The fund holds a diversified portfolio of large-cap U.S. companies. Its investment objective is index tracking, not active stock selection. The value of the ETF can rise or fall with the broader U.S. equity market.\"\r\n  }\r\n}\r\n"
+                    },
+                    "auth": {},
+                    "securityScheme": {
+                      "use": {}
+                    },
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {}
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 7699941,
+                    "categoryId": 9937842,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  },
+                  {
+                    "id": 371684819,
+                    "type": "TEST_CASE",
+                    "path": "http://127.0.0.1:8000/tasks",
+                    "name": "ask missing fields",
+                    "responseId": "134466007",
+                    "parameters": {
+                      "query": [],
+                      "header": [],
+                      "cookie": [],
+                      "path": []
+                    },
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "header": [],
+                      "cookie": []
+                    },
+                    "requestBody": {
+                      "parameters": [],
+                      "type": "application/json",
+                      "data": "{\r\n  \"task_type\": \"brief\",\r\n  \"session_id\": \"apifox-instrument-brief-missing\",\r\n  \"payload\": {\r\n    \"instrument_name_or_code\": \"VOO\"\r\n  }\r\n}\r\n\r\n",
+                      "jsonSchema": {
+                        "type": "object",
+                        "properties": {}
+                      },
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {
+                      "scopes": {}
+                    },
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {},
+                      "isDefaultUrlEncoding": 1
+                    },
+                    "requestResult": null,
+                    "visibility": "INHERITED",
+                    "moduleId": 7699941,
+                    "categoryId": 9937843,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [
+                      {
+                        "type": "placeholder",
+                        "renderType": "dynamicValueDivider",
+                        "defaultEnable": false,
+                        "enable": false
+                      }
+                    ],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7699941,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "socketCollection": [],
+  "docCollection": [],
+  "webSocketCollection": [],
+  "socketIOCollection": [],
+  "mcpClientCollection": [],
+  "responseCollection": [
+    {
+      "_databaseId": 9091456,
+      "updatedAt": "2026-05-09T06:42:34.000Z",
+      "name": "根目录",
+      "type": "root",
+      "children": [],
+      "moduleId": 7699941,
+      "parentId": 0,
+      "id": 9091456,
+      "ordering": [],
+      "items": []
+    }
+  ],
+  "schemaCollection": [
+    {
+      "id": 19522582,
+      "name": "根目录",
+      "visibility": "SHARED",
+      "moduleId": 7699941,
+      "items": [],
+      "ordering": []
+    }
+  ],
+  "securitySchemeCollection": [
+    {
+      "id": 4282593,
+      "moduleId": 7699941,
+      "name": "根目录",
+      "items": [],
+      "ordering": []
+    }
+  ],
+  "oasComponentCollection": [],
+  "requestCollection": [
+    {
+      "name": "根目录",
+      "children": [],
+      "ordering": [
+        "requestFolder.8873313"
+      ],
+      "items": []
+    }
+  ],
+  "apiTestCaseCollection": [
+    {
+      "id": 0,
+      "name": "Root",
+      "children": [],
+      "items": []
+    }
+  ],
+  "testCaseReferences": [],
+  "environments": [
+    {
+      "name": "开发环境",
+      "requestProxyAgentSettings": {},
+      "variables": [],
+      "parameters": {},
+      "type": "normal",
+      "visibility": "protected",
+      "ordering": 0,
+      "tags": [],
+      "advancedSettings": {},
+      "id": "45184959",
+      "baseUrl": "http://dev-cn.your-api-server.com",
+      "baseUrls": {
+        "7699941": "http://dev-cn.your-api-server.com"
+      },
+      "socketioBaseUrls": {},
+      "websocketBaseUrls": {}
+    }
+  ],
+  "commonScripts": [],
+  "databaseConnections": [],
+  "globalVariables": [],
+  "commonParameters": null,
+  "customFunctions": [],
+  "projectTestCaseCategories": [
+    {
+      "id": 9937842,
+      "name": "正向",
+      "description": "有效的输入和正确的预期结果,代表典型的用法。"
+    },
+    {
+      "id": 9937843,
+      "name": "负向",
+      "description": "消极的、无效的输入,如缺少字段、错误的类型、不支持的方法等。"
+    },
+    {
+      "id": 9937844,
+      "name": "边界值",
+      "description": "极端或边缘条件,如最大字符串长度、空值、零、null等"
+    },
+    {
+      "id": 9937845,
+      "name": "安全性",
+      "description": "可能暴露API安全性风险的测试用例。"
+    },
+    {
+      "id": 9937846,
+      "name": "其他",
+      "description": "其他未归属的测试用例。"
+    }
+  ],
+  "projectTestCaseTags": [
+    {
+      "id": 45639559,
+      "name": "仅传必要字段",
+      "description": "仅发送具有有效值的必填字段,省略所有可选字段,以测试最小有效请求。"
+    },
+    {
+      "id": 45639560,
+      "name": "语义合法",
+      "description": "使用语法正确且在业务逻辑或域上下文中也有意义的值。"
+    },
+    {
+      "id": 45639561,
+      "name": "覆盖枚举组合",
+      "description": "对所有枚举型参数,应用正交设计系统地构建参数及其枚举值的测试用例组合,专用于测试枚举覆盖率"
+    },
+    {
+      "id": 45639562,
+      "name": "其他正向",
+      "description": "提供符合API规范的真实有效的输入,产生正确和预期的结果。"
+    },
+    {
+      "id": 45639563,
+      "name": "缺失必填字段",
+      "description": "在请求主体或参数中省略一个或多个必需字段。"
+    },
+    {
+      "id": 45639564,
+      "name": "无效值",
+      "description": "提供的值类型和格式正确,但在逻辑上对该字段无效。"
+    },
+    {
+      "id": 45639565,
+      "name": "类型错误",
+      "description": "使用数据类型不正确的值,例如发送字符串而不是整数。"
+    },
+    {
+      "id": 45639566,
+      "name": "格式错误",
+      "description": "以不正确的格式提供值,例如,错误的日期模式,格式错误的电子邮件地址。"
+    },
+    {
+      "id": 45639567,
+      "name": "语义非法",
+      "description": "使用语法正确且格式正确的值,这些值在逻辑上不可能或违反域规则。"
+    },
+    {
+      "id": 45639568,
+      "name": "其他负向",
+      "description": "提供无效或意外的输入,应触发错误处理或拒绝API。"
+    },
+    {
+      "id": 45639569,
+      "name": "Null",
+      "description": "必须是 JSON 字面量 `null`(不是空的,也不是 \"null\")。"
+    },
+    {
+      "id": 45639570,
+      "name": "零值",
+      "description": "必须是数字字面值0。"
+    },
+    {
+      "id": 45639571,
+      "name": "空值",
+      "description": "必须是\"\"。"
+    },
+    {
+      "id": 45639572,
+      "name": "极大值",
+      "description": "Max/min值 - 为数字或日期字段提供精确的最小值和最大值。"
+    },
+    {
+      "id": 45639573,
+      "name": "极小值",
+      "description": "Max/min值 - 为数字或日期字段提供精确的最小值和最大值。"
+    },
+    {
+      "id": 45639574,
+      "name": "超出最大边界值",
+      "description": "过长/过短字符串 - 提供超出允许的最小或最大边界的值。"
+    },
+    {
+      "id": 45639575,
+      "name": "超出最小边界值",
+      "description": "过长/过短字符串 - 提供超出允许的最小或最大边界的值。"
+    },
+    {
+      "id": 45639576,
+      "name": "字符串过长",
+      "description": "超出范围的值 - 提供大于允许的最大长度或小于要求的最小长度的字符串。"
+    },
+    {
+      "id": 45639577,
+      "name": "字符串过短",
+      "description": "超出范围的值 - 提供大于允许的最大长度或小于要求的最小长度的字符串。"
+    },
+    {
+      "id": 45639578,
+      "name": "对象级别授权缺失",
+      "description": "对象级别授权缺失 - 用户在没有适当授权的情况下访问或操作数据对象。"
+    },
+    {
+      "id": 45639579,
+      "name": "访问控制",
+      "description": "基于角色、权限或属性来限制用户能访问哪些资源、能执行哪些操作"
+    },
+    {
+      "id": 45639580,
+      "name": "认证失败",
+      "description": "认证失败 - 认证薄弱、配置错误或被绕过,导致未授权访问。"
+    },
+    {
+      "id": 45639581,
+      "name": "SQL注入",
+      "description": "在输入字段中插入恶意SQL代码,测试是否存在SQL注入漏洞。"
+    },
+    {
+      "id": 45639582,
+      "name": "XSS注入",
+      "description": "注入JavaScript或HTML标签来测试跨站点脚本漏洞。"
+    },
+    {
+      "id": 45639583,
+      "name": "模糊输入",
+      "description": "发送大型或随机生成的有效载荷,以测试输入的有效性和稳定性。"
+    },
+    {
+      "id": 45639584,
+      "name": "命令行注入",
+      "description": "将shell命令插入输入以测试命令执行漏洞。"
+    },
+    {
+      "id": 45639585,
+      "name": "JSON注入",
+      "description": "插入恶意或意外的JSON结构来测试解析和验证。"
+    },
+    {
+      "id": 45639586,
+      "name": "NoSQL注入",
+      "description": "提供NoSQL特定的恶意查询或操作符来测试注入漏洞。"
+    },
+    {
+      "id": 45639587,
+      "name": "其他",
+      "description": "其他未归属的测试用例。"
+    }
+  ],
+  "projectAssociations": [],
+  "moduleSettings": [
+    {
+      "id": "7699941",
+      "name": "默认模块",
+      "description": "",
+      "moduleVariables": [],
+      "openApiInfo": {}
+    }
+  ]
+}
