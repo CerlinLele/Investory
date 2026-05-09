@@ -1,3 +1,9 @@
+from investory.agent_core.contracts.action_decision import (
+    ActionName,
+    AskMissingFieldsAction,
+    build_ask_missing_fields_action,
+    decide_missing_fields_action,
+)
 from investory.agent_core.contracts.flow_state import TaskFlowState, TaskFlowStatus
 from investory.agent_core.contracts.result_types import (
     TaskError,
@@ -9,6 +15,8 @@ from investory.agent_core.contracts.result_types import (
 from investory.agent_core.contracts.task_spec import TaskSpec
 
 __all__ = [
+    "ActionName",
+    "AskMissingFieldsAction",
     "TaskError",
     "TaskErrorType",
     "TaskFlowState",
@@ -16,5 +24,7 @@ __all__ = [
     "TaskResult",
     "TaskSpec",
     "TaskStage",
+    "build_ask_missing_fields_action",
+    "decide_missing_fields_action",
     "normalize_task_error",
 ]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.tasks import (
     FINANCE_QA_TASK,
+    INSTRUMENT_BRIEF_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK,
     TASKS,
 )
@@ -13,6 +14,7 @@ from investory.agent_core.tasks import (
 TASK_ALIASES = {
     "qa": FINANCE_QA_TASK.name,
     "summary": LEARNING_MATERIAL_SUMMARY_TASK.name,
+    "brief": INSTRUMENT_BRIEF_TASK.name,
 }
 
 
