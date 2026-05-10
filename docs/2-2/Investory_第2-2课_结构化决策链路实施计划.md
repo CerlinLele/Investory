@@ -711,6 +711,85 @@ ActionRouter.route(call)
 
 因此，`router.py` 本质上是 action executor registry。后续新增 action 时，需要新增对应 executor，并把它注册到默认 registry 或调用方自定义 registry 中。
 
+当前 executors 落地逻辑：
+
+`executors.py` 负责真正执行 action。它接收已经通过 validator 的 `ActionCall`，返回统一的 `ActionResult`。
+
+在完整链路中的位置是：
+
+```text
+TaskDecision
+-> validate_decision
+-> ActionCall
+-> ActionRouter
+-> ActionExecutor
+-> ActionResult
+```
+
+所有 executor 都遵守同一个接口约定：
+
+```text
+execute(call: ActionCall, spec: TaskSpec) -> ActionResult
+```
+
+第一版包含三个 executor。
+
+`AskMissingFieldsExecutor` 负责缺字段追问。它复用现有 `build_ask_missing_fields_action`，因此 gateway 看到的 result shape 可以保持和旧链路一致。执行结果收束为：
+
+```text
+ActionResult.status = requires_user_input
+ActionResult.result = ask_missing_fields action dict
+ActionResult.user_message = action.user_message
+```
+
+`RunTaskModelExecutor` 负责执行原来的模型任务。它不直接处理 prompt 或模型调用细节，而是继续调用已有稳定入口：
+
+```text
+RunTaskModelExecutor
+-> TaskExecutor.run(spec, payload)
+-> MinimalTaskFlow
+```
+
+然后把旧的 `TaskResult` 转换为新的 `ActionResult`：
+
+```text
+TaskResult.ok=True
+-> ActionResult.status = success
+
+TaskResult.ok=False
+-> ActionResult.status = failed
+```
+
+这个转换由 `action_result_from_task_result(call, task_result)` 承担。
+
+`RefuseInvestmentAdviceExecutor` 负责明确拒绝投资建议请求。它返回：
+
+```text
+ActionResult.status = refused
+```
+
+并把以下字段放入 result：
+
+```text
+action
+task_name
+refused_reason
+allowed_alternative
+user_message
+```
+
+其中 `refused_reason` 优先来自 `call.params.refused_reason`，否则使用 `call.decision_reason`；`user_message` 优先来自 `call.params.user_message`，否则使用默认拒绝买卖建议文案。
+
+因此，`executors.py` 的边界是：
+
+```text
+输入：已校验的 ActionCall + TaskSpec
+输出：统一 ActionResult
+不负责 planner 决策
+不负责 action 路由
+不负责最终 TaskResponse 回填
+```
+
 测试：
 
 ```text
