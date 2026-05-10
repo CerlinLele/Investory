@@ -650,6 +650,67 @@ RunTaskModelExecutor
 RefuseInvestmentAdviceExecutor
 ```
 
+当前 router 落地逻辑：
+
+`router.py` 的职责是根据 `ActionCall.action` 找到对应的 executor。它不负责决定应该做什么，也不负责执行动作，只负责把已经通过 validator 的 `ActionCall` 分发给正确的执行器。
+
+在完整链路中的位置是：
+
+```text
+TaskDecision
+-> validate_decision
+-> ActionCall
+-> ActionRouter
+-> ActionExecutor
+```
+
+`ActionRouter` 初始化时有两种用法。
+
+第一种是不传 `executors`，使用默认注册表：
+
+```text
+ask_missing_fields -> AskMissingFieldsExecutor
+run_task_model -> RunTaskModelExecutor
+refuse_investment_advice -> RefuseInvestmentAdviceExecutor
+```
+
+其中 `run_task_model` 比较特殊，它内部需要调用已有 `TaskExecutor`，所以 `ActionRouter` 支持传入 `task_executor`，再交给 `RunTaskModelExecutor` 复用：
+
+```text
+ActionRouter(task_executor=some_task_executor)
+```
+
+这方便 gateway 后续注入已有 executor，也方便测试用 fake executor 验证调用。
+
+第二种是传入自定义 `executors` registry：
+
+```text
+ActionRouter(executors={
+  "ask_missing_fields": fake_executor
+})
+```
+
+这主要用于单元测试，或者以后局部替换某个 action 的执行器。
+
+真正路由发生在：
+
+```text
+ActionRouter.route(call)
+```
+
+逻辑是：
+
+```text
+读取 call.action
+-> 从 self._executors 查找 executor
+-> 找到则返回 executor
+-> 找不到则抛 ActionRoutingError
+```
+
+`route_action(call, router=None)` 是一个便捷函数。没有传 router 时会创建默认 `ActionRouter`，传入 router 时则复用调用方提供的 registry。
+
+因此，`router.py` 本质上是 action executor registry。后续新增 action 时，需要新增对应 executor，并把它注册到默认 registry 或调用方自定义 registry 中。
+
 测试：
 
 ```text
