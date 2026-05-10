@@ -571,6 +571,62 @@ src/investory/agent_core/actions/validator.py
 校验 refuse action 是否有 user_message 或 refused_reason
 ```
 
+当前落地逻辑：
+
+```text
+validate_decision(decision, spec, request_id=None) -> ActionCall
+```
+
+`validator` 的定位是从“planner 的建议”到“系统批准执行的调用”的安全门：
+
+```text
+TaskDecision = planner 的建议
+ActionCall = 系统校验后批准执行的调用
+```
+
+第一层校验是 action 白名单。当前只允许：
+
+```text
+ask_missing_fields
+run_task_model
+refuse_investment_advice
+```
+
+虽然 `TaskDecision` 的 Pydantic schema 已经限制 action 枚举，`validator` 仍然保留白名单校验，用于防止测试 mock、`model_construct()` 或后续 LLM 原始输出转换绕过 schema。
+
+第二层校验是 `decision.task_name` 必须和当前 `TaskSpec.name` 一致。这样可以避免已经 resolve 出来的任务定义和 planner 产出的 decision 错位。
+
+第三层校验按 action 分支处理：
+
+```text
+ask_missing_fields:
+  params.missing_fields 必须存在
+  missing_fields 必须是非空 list
+  missing_fields 每一项必须是字符串
+  missing_fields 每一项必须属于 spec.input_model.model_fields
+
+run_task_model:
+  params.payload 必须存在
+  payload 必须是 dict
+
+refuse_investment_advice:
+  必须有 decision.user_message 或 params.refused_reason 之一
+  refused_reason 如果存在，必须是非空字符串
+  allowed_alternative 如果存在，必须是非空字符串
+```
+
+全部校验通过后，`validator` 生成 `ActionCall`：
+
+```text
+action = decision.action
+task_name = decision.task_name
+params = decision.params
+decision_reason = decision.reason
+request_id = request_id
+```
+
+后续 `ActionRouter` 和 executor 可以假设拿到的 `ActionCall` 已经满足基本合约，不需要重复处理缺字段、非法字段名或 task 错位问题。
+
 测试：
 
 ```text
