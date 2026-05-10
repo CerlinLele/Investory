@@ -878,6 +878,96 @@ resolve spec 后接收 spec + payload
 返回 TaskResult
 ```
 
+当前 DecisionFlow 落地逻辑：
+
+`decision_flow.py` 是新的外层编排器。它把前面几步串成完整的最小闭环：
+
+```text
+payload
+-> DecisionPlanner
+-> TaskDecision
+-> validate_decision
+-> ActionCall
+-> ActionRouter
+-> ActionExecutor
+-> ActionResult
+-> TaskResult
+```
+
+`DecisionFlow` 初始化时可以接收三个可替换依赖：
+
+```text
+planner: DecisionPlanner | None
+router: ActionRouter | None
+task_executor: TaskExecutor | None
+```
+
+默认情况下：
+
+```text
+planner = DecisionPlanner()
+router = ActionRouter(task_executor=task_executor)
+```
+
+其中 `task_executor` 会传给默认 router，再由 `RunTaskModelExecutor` 使用。这让 gateway 后续可以继续注入已有 `TaskExecutor`，测试也可以使用 fake executor。
+
+`DecisionFlowState` 用来记录最近一次执行链路中的中间产物：
+
+```text
+task_id
+task_name
+input_payload
+decision
+action_call
+action_result
+output
+error
+```
+
+当前实现通过 `DecisionFlow.last_state` 保存最近一次 state，主要用于测试和调试。第一版不做持久化、checkpoint 或多轮恢复。
+
+`DecisionFlow.run(spec, payload, request_id=None)` 的执行步骤是：
+
+```text
+1. 创建 DecisionFlowState
+2. planner.decide(spec, payload) -> TaskDecision
+3. validate_decision(decision, spec, request_id) -> ActionCall
+4. router.route(action_call) -> ActionExecutor
+5. executor.execute(action_call, spec) -> ActionResult
+6. backfill_action_result(action_result) -> TaskResult
+7. 更新 state.output / state.error 并返回 TaskResult
+```
+
+回填规则由 `backfill_action_result(action_result)` 负责：
+
+```text
+ActionResult.status == failed
+-> TaskResult(ok=False, error=...)
+
+其他状态
+-> TaskResult(ok=True, result=...)
+```
+
+因此第一版状态映射是：
+
+```text
+success -> ok=True
+requires_user_input -> ok=True
+refused -> ok=True
+failed -> ok=False
+```
+
+如果 action 返回 `failed` 但没有携带 `TaskError`，`DecisionFlow` 会生成一个兜底 `TaskError`，避免出现 `ok=False` 但 `error=None` 的不完整结果。
+
+`DecisionFlow` 的边界是：
+
+```text
+负责串联 planner / validator / router / executor / backfill
+不负责 HTTP TaskResponse 组装
+不直接处理 prompt 或模型调用细节
+不负责自然语言 planner 或复杂多轮 replan
+```
+
 测试：
 
 ```text
