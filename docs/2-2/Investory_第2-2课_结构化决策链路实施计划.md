@@ -732,6 +732,44 @@ TaskDecision
 execute(call: ActionCall, spec: TaskSpec) -> ActionResult
 ```
 
+代码中用 `ActionExecutor(Protocol)` 表达这个接口约定：
+
+```python
+class ActionExecutor(Protocol):
+    def execute(self, call: ActionCall, spec: TaskSpec) -> ActionResult:
+        ...
+```
+
+`AskMissingFieldsExecutor`、`RunTaskModelExecutor` 和 `RefuseInvestmentAdviceExecutor` 不需要显式继承 `ActionExecutor`。它们只要实现同样形状的方法：
+
+```text
+execute(call, spec) -> ActionResult
+```
+
+就符合这个 protocol。这是 Python 的 structural typing：不看类继承了谁，只看对象是否具备需要的方法结构。
+
+这个联系主要体现在 router 的 registry 类型上：
+
+```text
+dict[ActionName, ActionExecutor]
+```
+
+默认 registry 可以把三个具体 executor 实例统一保存为 `ActionExecutor`：
+
+```text
+ask_missing_fields -> AskMissingFieldsExecutor()
+run_task_model -> RunTaskModelExecutor()
+refuse_investment_advice -> RefuseInvestmentAdviceExecutor()
+```
+
+因此 `ActionRouter.route(call)` 可以统一返回 `ActionExecutor`，调用方只需要执行：
+
+```text
+executor.execute(call, spec)
+```
+
+不需要知道具体 executor 类型。
+
 第一版包含三个 executor。
 
 `AskMissingFieldsExecutor` 负责缺字段追问。它复用现有 `build_ask_missing_fields_action`，因此 gateway 看到的 result shape 可以保持和旧链路一致。执行结果收束为：
