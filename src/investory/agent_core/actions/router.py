@@ -3,6 +3,7 @@ from collections.abc import Mapping
 from investory.agent_core.actions.executors import (
     ActionExecutor,
     AskMissingFieldsExecutor,
+    FetchThenRunInstrumentBriefExecutor,
     RefuseInvestmentAdviceExecutor,
     RunTaskModelExecutor,
 )
@@ -37,6 +38,9 @@ def _default_executors(
         "ask_missing_fields": AskMissingFieldsExecutor(),
         "run_task_model": RunTaskModelExecutor(task_executor=task_executor),
         "refuse_investment_advice": RefuseInvestmentAdviceExecutor(),
+        "fetch_then_run_instrument_brief": FetchThenRunInstrumentBriefExecutor(
+            task_executor=task_executor
+        ),
     }
 
 

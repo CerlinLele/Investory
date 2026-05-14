@@ -2,6 +2,7 @@ import pytest
 
 from investory.agent_core.actions.executors import (
     AskMissingFieldsExecutor,
+    FetchThenRunInstrumentBriefExecutor,
     RefuseInvestmentAdviceExecutor,
     RunTaskModelExecutor,
 )
@@ -35,6 +36,12 @@ def test_router_finds_refuse_investment_advice_executor():
     executor = ActionRouter().route(_call("refuse_investment_advice"))
 
     assert isinstance(executor, RefuseInvestmentAdviceExecutor)
+
+
+def test_router_finds_fetch_then_run_instrument_brief_executor():
+    executor = ActionRouter().route(_call("fetch_then_run_instrument_brief"))
+
+    assert isinstance(executor, FetchThenRunInstrumentBriefExecutor)
 
 
 def test_router_rejects_unregistered_action():
