@@ -6,18 +6,20 @@ from investory.agent_core.runtime.decision_planner import (
 from investory.agent_core.tasks import FINANCE_QA_TASK, INSTRUMENT_BRIEF_TASK
 
 
-def test_decision_planner_returns_missing_fields_decision():
+def test_decision_planner_routes_instrument_brief_to_fetch_then_run_when_only_source_missing():
     decision = DecisionPlanner().decide(
         INSTRUMENT_BRIEF_TASK,
         {"instrument_name_or_code": "VOO"},
     )
 
-    assert decision.action == "ask_missing_fields"
+    assert decision.action == "fetch_then_run_instrument_brief"
     assert decision.task_name == "instrument_brief"
-    assert decision.params == {"missing_fields": ["source_material"]}
-    assert "source_material" in decision.reason
-    assert decision.user_message is not None
-    assert "source material" in decision.user_message
+    assert decision.params == {
+        "instrument_name_or_code": "VOO",
+        "payload": {"instrument_name_or_code": "VOO"},
+    }
+    assert "missing source_material" in decision.reason
+    assert decision.user_message is None
 
 
 def test_decision_planner_treats_blank_required_strings_as_missing():
@@ -72,8 +74,20 @@ def test_build_task_decision_uses_default_planner():
         {"instrument_name_or_code": "VOO"},
     )
 
+    assert decision.action == "fetch_then_run_instrument_brief"
+    assert decision.params == {
+        "instrument_name_or_code": "VOO",
+        "payload": {"instrument_name_or_code": "VOO"},
+    }
+
+
+def test_decision_planner_keeps_ask_missing_fields_when_multiple_required_fields_missing():
+    decision = DecisionPlanner().decide(INSTRUMENT_BRIEF_TASK, {})
+
     assert decision.action == "ask_missing_fields"
-    assert decision.params == {"missing_fields": ["source_material"]}
+    assert decision.params == {
+        "missing_fields": ["instrument_name_or_code", "source_material"]
+    }
 
 
 def test_decision_planner_output_can_be_validated_into_action_call():

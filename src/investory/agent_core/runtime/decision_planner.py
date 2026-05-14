@@ -10,6 +10,21 @@ class DecisionPlanner:
     def decide(self, spec: TaskSpec, payload: dict[str, Any]) -> TaskDecision:
         missing_fields = get_missing_required_fields(spec, payload)
         if missing_fields:
+            if spec.name == "instrument_brief" and missing_fields == ["source_material"]:
+                instrument_name_or_code = str(payload["instrument_name_or_code"]).strip()
+                return TaskDecision(
+                    action="fetch_then_run_instrument_brief",
+                    task_name=spec.name,
+                    reason=(
+                        "The request is missing source_material for instrument_brief, "
+                        "so fetch profile data first and then run the task model."
+                    ),
+                    params={
+                        "instrument_name_or_code": instrument_name_or_code,
+                        "payload": dict(payload),
+                    },
+                )
+
             action = build_ask_missing_fields_action(
                 task_name=spec.name,
                 missing_fields=missing_fields,
