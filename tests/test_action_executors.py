@@ -1,10 +1,12 @@
 from investory.agent_core.actions.executors import (
     AskMissingFieldsExecutor,
+    FetchThenRunInstrumentBriefExecutor,
     RefuseInvestmentAdviceExecutor,
     RunTaskModelExecutor,
 )
 from investory.agent_core.contracts.action_contract import ActionCall
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
+from investory.agent_core.contracts.tool_contract import ToolResult
 from investory.agent_core.tasks import INSTRUMENT_BRIEF_TASK
 
 
@@ -117,3 +119,92 @@ def test_refuse_investment_advice_executor_returns_refused_result():
         "allowed_alternative": "I can help create an educational brief.",
         "user_message": "I cannot decide whether you should buy or sell.",
     }
+
+
+def test_fetch_then_run_executor_fetches_material_and_runs_task_model():
+    payload = {"instrument_name_or_code": "VTI"}
+    task_result = TaskResult(
+        ok=True,
+        task_name="instrument_brief",
+        result={"overview": "US total market ETF."},
+    )
+    task_executor = FakeTaskExecutor(task_result)
+
+    def fake_fetcher(code: str) -> ToolResult:
+        assert code == "VTI"
+        return ToolResult(
+            tool_name="fetch_instrument_profile",
+            ok=True,
+            data={
+                "instrument_name_or_code": "VTI",
+                "source_material": "VTI factsheet mock text.",
+                "sources": ["https://example.com/vti"],
+                "as_of": "2026-05-15",
+            },
+        )
+
+    call = ActionCall(
+        action="fetch_then_run_instrument_brief",
+        task_name="instrument_brief",
+        params={
+            "instrument_name_or_code": "VTI",
+            "payload": payload,
+        },
+        decision_reason="Need source material before running the task model.",
+    )
+
+    result = FetchThenRunInstrumentBriefExecutor(
+        task_executor=task_executor,
+        fetcher=fake_fetcher,
+    ).execute(call, INSTRUMENT_BRIEF_TASK)
+
+    assert result.status == "success"
+    assert result.result == {"overview": "US total market ETF."}
+    assert task_executor.calls == [
+        (
+            INSTRUMENT_BRIEF_TASK,
+            {
+                "instrument_name_or_code": "VTI",
+                "source_material": "VTI factsheet mock text.",
+            },
+        )
+    ]
+
+
+def test_fetch_then_run_executor_returns_requires_user_input_when_fetch_fails():
+    task_executor = FakeTaskExecutor(
+        TaskResult(ok=True, task_name="instrument_brief", result={"overview": "unused"})
+    )
+
+    def fake_fetcher(code: str) -> ToolResult:
+        assert code == "VTI"
+        return ToolResult(
+            tool_name="fetch_instrument_profile",
+            ok=False,
+            error_type="network_error",
+            error_message="timeout",
+            retryable=True,
+        )
+
+    call = ActionCall(
+        action="fetch_then_run_instrument_brief",
+        task_name="instrument_brief",
+        params={
+            "instrument_name_or_code": "VTI",
+            "payload": {"instrument_name_or_code": "VTI"},
+        },
+        decision_reason="Need source material before running the task model.",
+    )
+
+    result = FetchThenRunInstrumentBriefExecutor(
+        task_executor=task_executor,
+        fetcher=fake_fetcher,
+    ).execute(call, INSTRUMENT_BRIEF_TASK)
+
+    assert result.status == "requires_user_input"
+    assert result.user_message is not None
+    assert "Please paste" in result.user_message
+    assert result.result is not None
+    assert result.result["tool_error_type"] == "network_error"
+    assert result.result["tool_error_message"] == "timeout"
+    assert task_executor.calls == []
