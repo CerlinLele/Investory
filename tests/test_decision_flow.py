@@ -1,4 +1,5 @@
 from investory.agent_core.actions.router import ActionRouter
+from investory.agent_core.contracts import tool_contract
 from investory.agent_core.contracts.action_contract import ActionCall, ActionResult
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.runtime.decision_flow import (
@@ -19,7 +20,14 @@ class FakeTaskExecutor:
 
 
 def test_decision_flow_returns_requires_user_input_for_missing_fields():
-    flow = DecisionFlow()
+    task_executor = FakeTaskExecutor(
+        TaskResult(
+            ok=True,
+            task_name="instrument_brief",
+            result={"overview": "Generated from fetched profile."},
+        )
+    )
+    flow = DecisionFlow(task_executor=task_executor)
 
     result = flow.run(
         INSTRUMENT_BRIEF_TASK,
@@ -31,16 +39,18 @@ def test_decision_flow_returns_requires_user_input_for_missing_fields():
     assert result.task_name == "instrument_brief"
     assert result.error is None
     assert result.result is not None
-    assert result.result["action"] == "ask_missing_fields"
-    assert result.result["missing_fields"] == ["source_material"]
+    assert result.result["overview"] == "Generated from fetched profile."
+    assert task_executor.calls
+    assert task_executor.calls[0][1]["instrument_name_or_code"] == "VOO"
+    assert "source_material" in task_executor.calls[0][1]
     assert flow.last_state is not None
     assert flow.last_state.task_id == "req_123"
     assert flow.last_state.decision is not None
-    assert flow.last_state.decision.action == "ask_missing_fields"
+    assert flow.last_state.decision.action == "fetch_then_run_instrument_brief"
     assert flow.last_state.action_call is not None
-    assert flow.last_state.action_call.action == "ask_missing_fields"
+    assert flow.last_state.action_call.action == "fetch_then_run_instrument_brief"
     assert flow.last_state.action_result is not None
-    assert flow.last_state.action_result.status == "requires_user_input"
+    assert flow.last_state.action_result.status == "success"
 
 
 def test_decision_flow_runs_task_executor_for_complete_payload():
@@ -145,6 +155,48 @@ def test_decision_flow_can_use_custom_router_for_refusal_action():
         "allowed_alternative": "I can help create an educational brief.",
     }
     assert len(call_seen) == 1
+
+
+def test_decision_flow_degrades_to_requires_user_input_when_tool_fetch_fails(
+    monkeypatch,
+):
+    from investory.agent_core.actions import executors as executors_module
+
+    monkeypatch.setattr(
+        executors_module,
+        "fetch_instrument_profile",
+        lambda code: tool_contract.ToolResult(
+            tool_name="fetch_instrument_profile",
+            ok=False,
+            error_type="network_error",
+            error_message="timeout",
+            retryable=True,
+        ),
+    )
+
+    flow = DecisionFlow(
+        task_executor=FakeTaskExecutor(
+            TaskResult(
+                ok=True,
+                task_name="instrument_brief",
+                result={"overview": "unused"},
+            )
+        )
+    )
+
+    result = flow.run(
+        INSTRUMENT_BRIEF_TASK,
+        {"instrument_name_or_code": "VOO"},
+        request_id="req_456",
+    )
+
+    assert result.ok is True
+    assert result.result is not None
+    assert result.result["action"] == "fetch_then_run_instrument_brief"
+    assert result.result["tool_error_type"] == "network_error"
+    assert flow.last_state is not None
+    assert flow.last_state.action_result is not None
+    assert flow.last_state.action_result.status == "requires_user_input"
 
 
 def test_backfill_action_result_creates_error_when_failed_action_has_none():
