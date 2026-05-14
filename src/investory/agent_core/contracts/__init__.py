@@ -19,6 +19,7 @@ from investory.agent_core.contracts.result_types import (
     normalize_task_error,
 )
 from investory.agent_core.contracts.task_spec import TaskSpec
+from investory.agent_core.contracts.tool_contract import ToolCall, ToolName, ToolResult
 
 __all__ = [
     "ActionName",
@@ -34,6 +35,9 @@ __all__ = [
     "TaskResult",
     "TaskSpec",
     "TaskStage",
+    "ToolCall",
+    "ToolName",
+    "ToolResult",
     "build_ask_missing_fields_action",
     "decide_missing_fields_action",
     "normalize_task_error",
