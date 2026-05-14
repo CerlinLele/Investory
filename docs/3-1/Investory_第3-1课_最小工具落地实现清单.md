@@ -256,7 +256,181 @@ tests/test_decision_flow.py
 4. 补齐单测（planner/validator/router/executor/flow）。
 5. 最后再把 mock 替换成真实公开站点抓取。
 
-## 八、完成定义（DoD）
+## 八、Implementation Steps（可执行版）
+
+下面这版按“先可跑通，再替换真实抓取”组织，建议按顺序执行。
+
+### Step 1：新增 Tool Contract
+
+修改文件：
+
+```text
+src/investory/agent_core/contracts/tool_contract.py
+```
+
+实现内容：
+
+- 新建 `ToolCall`、`ToolResult` 两个 Pydantic 模型。
+- `tool_name` 先只支持 `fetch_instrument_profile`。
+
+完成检查：
+
+- 能在 REPL 或测试中成功实例化 `ToolCall` / `ToolResult`。
+
+### Step 2：实现工具函数（先 Mock）
+
+修改文件：
+
+```text
+src/investory/agent_core/tools/instrument_profile.py
+```
+
+实现内容：
+
+- 实现 `fetch_instrument_profile(instrument_name_or_code)`。
+- 第一版先返回固定 mock 结构（包含 `source_material`、`sources`、`as_of`）。
+- 对空字符串和非法输入返回 `ok=False`。
+
+完成检查：
+
+- 新增最小单测验证成功/失败两个分支。
+
+### Step 3：扩展 Action 契约
+
+修改文件：
+
+```text
+src/investory/agent_core/contracts/action_contract.py
+```
+
+实现内容：
+
+- 在 `ActionName` 增加 `fetch_then_run_instrument_brief`。
+- 不改现有 `ActionResult` 结构，保持向后兼容。
+
+完成检查：
+
+- 现有 action 相关测试仍通过。
+
+### Step 4：在 Planner 增加路由规则
+
+修改文件：
+
+```text
+src/investory/agent_core/runtime/decision_planner.py
+```
+
+实现内容：
+
+- 当 task 为 `instrument_brief`、且仅缺 `source_material` 时：
+  - 产出 `TaskDecision(action=\"fetch_then_run_instrument_brief\")`。
+  - `params` 带上 `instrument_name_or_code` 和原始 `payload`。
+- 其他情况保持原逻辑。
+
+完成检查：
+
+- `tests/test_decision_planner.py` 覆盖此分支并通过。
+
+### Step 5：扩展 Validator
+
+修改文件：
+
+```text
+src/investory/agent_core/actions/validator.py
+```
+
+实现内容：
+
+- 新 action 校验 `instrument_name_or_code` 必填。
+- 缺失时返回/抛出与现有风格一致的校验错误。
+
+完成检查：
+
+- `tests/test_action_validator.py` 新增通过与失败用例。
+
+### Step 6：新增 Executor（核心）
+
+修改文件：
+
+```text
+src/investory/agent_core/actions/executors.py
+```
+
+实现内容：
+
+1. 调工具 `fetch_instrument_profile`。
+2. 若 `ok=True`：
+   - 从 `params.payload` 复制原 payload；
+   - 回填 `source_material`；
+   - 调用 `TaskExecutor.run(spec, payload)`；
+   - 用现有 `action_result_from_task_result` 返回结果。
+3. 若 `ok=False`：
+   - 返回 `status=\"requires_user_input\"`；
+   - `user_message` 提示用户粘贴来源材料。
+
+完成检查：
+
+- `tests/test_action_executors.py` 覆盖成功与降级分支。
+
+### Step 7：注册 Router
+
+修改文件：
+
+```text
+src/investory/agent_core/actions/router.py
+```
+
+实现内容：
+
+- 在 `_default_executors` 增加：
+  - `\"fetch_then_run_instrument_brief\": FetchThenRunInstrumentBriefExecutor(...)`
+
+完成检查：
+
+- `tests/test_action_router.py` 校验路由正确。
+
+### Step 8：补齐 DecisionFlow 端到端
+
+修改文件：
+
+```text
+tests/test_decision_flow.py
+```
+
+实现内容：
+
+- 构造“仅 instrument code 输入”的请求。
+- mock 工具成功时，断言最终 `TaskResult.ok is True`。
+- mock 工具失败时，断言返回可追问状态（不崩溃）。
+
+完成检查：
+
+- `python -m pytest tests/test_decision_flow.py`
+
+### Step 9：真实公开数据替换（最后做）
+
+修改文件：
+
+```text
+src/investory/agent_core/tools/instrument_profile.py
+```
+
+实现内容：
+
+- 将 mock 替换为真实抓取/请求逻辑（仅公开来源）。
+- 增加超时、解析失败、空结果保护。
+- 固定输出结构不变，避免上层改动。
+
+完成检查：
+
+- 回归执行相关测试文件并通过：
+  - `tests/test_decision_planner.py`
+  - `tests/test_action_validator.py`
+  - `tests/test_action_router.py`
+  - `tests/test_action_executors.py`
+  - `tests/test_decision_flow.py`
+
+## 九、完成定义（DoD）
 
 满足以下条件即算本次实践完成：
 
