@@ -148,6 +148,48 @@ def test_validate_decision_rejects_refuse_without_message_or_reason():
         validate_decision(decision, INSTRUMENT_BRIEF_TASK)
 
 
+def test_validate_decision_accepts_fetch_then_run_with_required_params():
+    decision = TaskDecision(
+        action="fetch_then_run_instrument_brief",
+        task_name="instrument_brief",
+        reason="source_material is missing; fetch profile data first.",
+        params={
+            "instrument_name_or_code": "VOO",
+            "payload": {"instrument_name_or_code": "VOO"},
+        },
+    )
+
+    call = validate_decision(decision, INSTRUMENT_BRIEF_TASK)
+
+    assert call.action == "fetch_then_run_instrument_brief"
+    assert call.params["instrument_name_or_code"] == "VOO"
+    assert call.params["payload"] == {"instrument_name_or_code": "VOO"}
+
+
+def test_validate_decision_rejects_fetch_then_run_without_instrument_code():
+    decision = TaskDecision(
+        action="fetch_then_run_instrument_brief",
+        task_name="instrument_brief",
+        reason="source_material is missing; fetch profile data first.",
+        params={"payload": {"instrument_name_or_code": "VOO"}},
+    )
+
+    with pytest.raises(ActionValidationError, match="instrument_name_or_code"):
+        validate_decision(decision, INSTRUMENT_BRIEF_TASK)
+
+
+def test_validate_decision_rejects_fetch_then_run_without_payload():
+    decision = TaskDecision(
+        action="fetch_then_run_instrument_brief",
+        task_name="instrument_brief",
+        reason="source_material is missing; fetch profile data first.",
+        params={"instrument_name_or_code": "VOO"},
+    )
+
+    with pytest.raises(ActionValidationError, match="payload"):
+        validate_decision(decision, INSTRUMENT_BRIEF_TASK)
+
+
 def test_validate_decision_rejects_unsupported_action_from_unvalidated_model():
     decision = TaskDecision.model_construct(
         action="unknown_action",
