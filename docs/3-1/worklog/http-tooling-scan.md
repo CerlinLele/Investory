@@ -111,3 +111,22 @@
 
 - Candidate files v1 count: 18 (deduplicated)
 
+## Step A-5 Terminology mapping table v1
+
+- Scan time: 2026-05-15 22:57:51 +10:00
+- Input: candidate files v1 from Step A-4
+- Mapping rule: Investory internal naming -> course term (Contract/Registry/Handler/Guard)
+
+| Investory 内部命名 | 课程术语 | 绑定代码文件 | 映射理由 |
+| --- | --- | --- | --- |
+| `agent_core/contracts/tool_contract.py` | Contract | `src\investory\agent_core\contracts\tool_contract.py` | 定义工具调用契约与字段边界 |
+| `gateway/schemas.py` | Contract | `src\investory\gateway\schemas.py` | 定义网关入参与结构校验边界 |
+| `agent_core/tools/__init__.py` | Registry | `src\investory\agent_core\tools\__init__.py` | 工具导出集合，承担可发现入口 |
+| `gateway/api.py` | Registry | `src\investory\gateway\api.py` | 将对外请求映射到网关能力入口 |
+| `agent_core/tools/instrument_profile.py` | Handler | `src\investory\agent_core\tools\instrument_profile.py` | 实际执行业务工具逻辑并返回结果 |
+| `agent_core/actions/executors.py` | Handler | `src\investory\agent_core\actions\executors.py` | 执行分发后的动作/工具调用 |
+| `agent_core/tools/net_guard.py` | Guard | `src\investory\agent_core\tools\net_guard.py` | 对外网请求做安全/约束前置控制 |
+| `config.py` | Guard | `src\investory\config.py` | 提供 timeout/proxy 等策略配置边界 |
+
+- Coverage check: each mapping row binds at least one source file from candidate files v1.
+
