@@ -1,0 +1,197 @@
+import re
+import time
+from typing import Literal
+from urllib.parse import quote_plus, urlparse
+
+from investory.agent_core.contracts.tool_contract import ToolResult
+from investory.agent_core.tools.net_guard import (
+    GuardedHttpResult,
+    guarded_get,
+    log_http_attempt,
+)
+from investory.config import load_config
+
+ErrorType = Literal[
+    "invalid_input",
+    "blocked_host",
+    "timeout",
+    "network_error",
+    "parse_error",
+    "not_found",
+]
+
+TOOL_NAME = "web_search"
+_APP_CONFIG = load_config()
+ALLOWED_HOSTS: tuple[str, ...] = _APP_CONFIG.tool_allowed_hosts
+DEFAULT_TIMEOUT_SECONDS = _APP_CONFIG.tool_http_timeout_seconds
+TOOL_USER_AGENT = _APP_CONFIG.tool_user_agent
+DEFAULT_TOP_K = 5
+MAX_TOP_K = 10
+ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = {
+    "invalid_input": False,
+    "blocked_host": False,
+    "timeout": True,
+    "network_error": True,
+    "parse_error": False,
+    "not_found": False,
+}
+
+# Minimal provider adapters for current architecture.
+PROVIDER_ORDER: tuple[str, ...] = ("example_search", "example_instruments")
+
+
+def _clamp_top_k(top_k: int) -> int:
+    if top_k < 1:
+        return 1
+    if top_k > MAX_TOP_K:
+        return MAX_TOP_K
+    return top_k
+
+
+def _build_error_result(error_type: ErrorType, error_message: str) -> ToolResult:
+    return ToolResult(
+        tool_name=TOOL_NAME,
+        ok=False,
+        error_type=error_type,
+        error_message=error_message,
+        retryable=ERROR_RETRYABLE_POLICY[error_type],
+    )
+
+
+def _parse_title(raw_text: str, *, fallback: str) -> str:
+    match = re.search(r"<title[^>]*>(.*?)</title>", raw_text, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return fallback
+    title = re.sub(r"\s+", " ", match.group(1)).strip()
+    return title or fallback
+
+
+def _extract_snippet(raw_text: str, *, max_chars: int = 240) -> str:
+    text = re.sub(r"<script[\s\S]*?</script>", " ", raw_text, flags=re.IGNORECASE)
+    text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"&nbsp;|&#160;", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"&amp;", "&", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:max_chars]
+
+
+def _provider_candidates(query: str, provider_hint: str | None) -> list[tuple[str, str]]:
+    normalized_query = quote_plus(query.strip())
+    candidates = {
+        "example_search": f"https://www.example.com/search?q={normalized_query}",
+        "example_instruments": f"https://example.com/instruments/{normalized_query}",
+    }
+
+    ordered: list[str] = []
+    if provider_hint and provider_hint in candidates:
+        ordered.append(provider_hint)
+    ordered.extend([name for name in PROVIDER_ORDER if name not in ordered])
+
+    return [(provider, candidates[provider]) for provider in ordered if provider in candidates]
+
+
+def _as_result_item(*, provider: str, url: str, html: str, query: str) -> dict[str, str]:
+    parsed = urlparse(url)
+    source = parsed.hostname or "unknown"
+    return {
+        "title": _parse_title(html, fallback=f"Search result for {query}"),
+        "url": url,
+        "snippet": _extract_snippet(html),
+        "source": source,
+        "provider": provider,
+    }
+
+
+def _build_failure_result(last_error: GuardedHttpResult | None) -> ToolResult:
+    if last_error is None:
+        return _build_error_result(
+            error_type="not_found",
+            error_message="No reachable search provider found.",
+        )
+    raw_error_type = (last_error.error_type or "network_error").lower()
+    error_type: ErrorType = (
+        raw_error_type if raw_error_type in ERROR_RETRYABLE_POLICY else "network_error"
+    )
+    return ToolResult(
+        tool_name=TOOL_NAME,
+        ok=False,
+        error_type=error_type,
+        error_message=last_error.error_message or "Web search failed.",
+        retryable=ERROR_RETRYABLE_POLICY[error_type],
+    )
+
+
+def search_web(query: str, top_k: int = DEFAULT_TOP_K, provider_hint: str | None = None) -> ToolResult:
+    normalized_query = query.strip()
+    if not normalized_query:
+        return _build_error_result(
+            error_type="invalid_input",
+            error_message="query is required.",
+        )
+
+    capped_top_k = _clamp_top_k(top_k)
+    results: list[dict[str, str]] = []
+    attempted_providers: list[str] = []
+    last_error: GuardedHttpResult | None = None
+
+    for provider, url in _provider_candidates(normalized_query, provider_hint):
+        started_at = time.perf_counter()
+        attempt = guarded_get(
+            url,
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+            allowed_hosts=ALLOWED_HOSTS,
+            user_agent=TOOL_USER_AGENT,
+        )
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        host = urlparse(url).hostname or "unknown"
+        attempted_providers.append(provider)
+
+        if not attempt.ok:
+            log_http_attempt(
+                tool_name=TOOL_NAME,
+                host=host,
+                elapsed_ms=elapsed_ms,
+                success=False,
+                error_type=attempt.error_type,
+            )
+            last_error = attempt
+            continue
+
+        log_http_attempt(
+            tool_name=TOOL_NAME,
+            host=host,
+            elapsed_ms=elapsed_ms,
+            success=True,
+            error_type=None,
+        )
+        result_item = _as_result_item(
+            provider=provider,
+            url=url,
+            html=attempt.text or "",
+            query=normalized_query,
+        )
+        if not result_item["snippet"]:
+            last_error = GuardedHttpResult(
+                ok=False,
+                error_type="parse_error",
+                error_message=f"Provider '{provider}' returned empty content.",
+                retryable=False,
+            )
+            continue
+        results.append(result_item)
+        if len(results) >= capped_top_k:
+            break
+
+    if not results:
+        return _build_failure_result(last_error)
+
+    return ToolResult(
+        tool_name=TOOL_NAME,
+        ok=True,
+        data={
+            "query": normalized_query,
+            "results": results,
+            "provider_attempt_order": attempted_providers,
+        },
+    )
