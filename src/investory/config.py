@@ -69,6 +69,9 @@ class AppConfig:
         default_factory=lambda: LLM_PROVIDERS[DEFAULT_LLM_PROVIDER],
     )
     mock_tools_enabled: bool = True
+    tool_http_timeout_seconds: int = 8
+    tool_allowed_hosts: tuple[str, ...] = ("example.com", "www.example.com")
+    tool_user_agent: str = "InvestoryBot/0.1 (+https://investory.local)"
 
 
 def _as_bool(value: str | None, *, default: bool) -> bool:
@@ -99,6 +102,14 @@ def _clean_env_value(value: str) -> str:
         return cleaned[1:-1]
 
     return cleaned
+
+
+def _as_csv_tuple(value: str | None, *, default: tuple[str, ...]) -> tuple[str, ...]:
+    if value is None:
+        return default
+
+    items = tuple(part.strip().lower() for part in value.split(",") if part.strip())
+    return items or default
 
 
 def _load_env_file(path: Path) -> None:
@@ -153,5 +164,17 @@ def load_config(*, env_file: Path | None = PROJECT_ROOT / ".env") -> AppConfig:
         mock_tools_enabled=_as_bool(
             getenv("INVESTORY_MOCK_TOOLS_ENABLED"),
             default=True,
+        ),
+        tool_http_timeout_seconds=_as_int(
+            getenv("INVESTORY_TOOL_HTTP_TIMEOUT_SECONDS"),
+            default=8,
+        ),
+        tool_allowed_hosts=_as_csv_tuple(
+            getenv("INVESTORY_TOOL_ALLOWED_HOSTS"),
+            default=("example.com", "www.example.com"),
+        ),
+        tool_user_agent=getenv(
+            "INVESTORY_TOOL_USER_AGENT",
+            "InvestoryBot/0.1 (+https://investory.local)",
         ),
     )

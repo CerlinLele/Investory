@@ -3,6 +3,7 @@ import re
 from typing import Literal
 
 from investory.agent_core.contracts.tool_contract import ToolResult
+from investory.config import load_config
 from investory.agent_core.tools.net_guard import GuardedHttpResult, guarded_get
 
 ErrorType = Literal[
@@ -14,11 +15,10 @@ ErrorType = Literal[
     "not_found",
 ]
 
-ALLOWED_HOSTS: tuple[str, ...] = (
-    "example.com",
-    "www.example.com",
-)
-DEFAULT_TIMEOUT_SECONDS = 8
+_APP_CONFIG = load_config()
+ALLOWED_HOSTS: tuple[str, ...] = _APP_CONFIG.tool_allowed_hosts
+DEFAULT_TIMEOUT_SECONDS = _APP_CONFIG.tool_http_timeout_seconds
+TOOL_USER_AGENT = _APP_CONFIG.tool_user_agent
 MAX_SOURCE_MATERIAL_CHARS = 3000
 MIN_SOURCE_MATERIAL_CHARS = 40
 ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = {
@@ -107,6 +107,7 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
             source,
             timeout=DEFAULT_TIMEOUT_SECONDS,
             allowed_hosts=ALLOWED_HOSTS,
+            user_agent=TOOL_USER_AGENT,
         )
         attempted_sources.append(source)
         if not result.ok:

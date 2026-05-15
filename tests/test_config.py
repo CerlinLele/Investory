@@ -14,6 +14,9 @@ def test_load_config_uses_openai_as_default_provider(monkeypatch):
     assert config.default_model == "gpt-5.4-mini"
     assert config.llm_base_url == "https://api.openai.com/v1"
     assert config.llm_provider_config == LLM_PROVIDERS["openai"]
+    assert config.tool_http_timeout_seconds == 8
+    assert config.tool_allowed_hosts == ("example.com", "www.example.com")
+    assert config.tool_user_agent == "InvestoryBot/0.1 (+https://investory.local)"
 
 
 def test_load_config_reads_provider_settings_from_environment(monkeypatch):
@@ -23,6 +26,9 @@ def test_load_config_reads_provider_settings_from_environment(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("INVESTORY_LLM_TEMPERATURE", "0.2")
     monkeypatch.setenv("INVESTORY_LLM_MAX_RETRIES", "3")
+    monkeypatch.setenv("INVESTORY_TOOL_HTTP_TIMEOUT_SECONDS", "12")
+    monkeypatch.setenv("INVESTORY_TOOL_ALLOWED_HOSTS", "a.example.com, b.example.com")
+    monkeypatch.setenv("INVESTORY_TOOL_USER_AGENT", "InvestoryTestBot/9.9")
 
     config = load_config(env_file=None)
 
@@ -32,6 +38,9 @@ def test_load_config_reads_provider_settings_from_environment(monkeypatch):
     assert config.llm_api_key == "test-anthropic-key"
     assert config.llm_temperature == 0.2
     assert config.llm_max_retries == 3
+    assert config.tool_http_timeout_seconds == 12
+    assert config.tool_allowed_hosts == ("a.example.com", "b.example.com")
+    assert config.tool_user_agent == "InvestoryTestBot/9.9"
 
 
 def test_load_config_uses_provider_default_model_when_model_is_unset(monkeypatch):
