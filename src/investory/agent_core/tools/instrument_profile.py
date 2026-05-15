@@ -1,4 +1,5 @@
 from datetime import date
+import re
 
 from investory.agent_core.contracts.tool_contract import ToolResult
 from investory.agent_core.tools.net_guard import GuardedHttpResult, guarded_get
@@ -9,6 +10,26 @@ ALLOWED_HOSTS: tuple[str, ...] = (
 )
 DEFAULT_TIMEOUT_SECONDS = 8
 MAX_SOURCE_MATERIAL_CHARS = 3000
+MIN_SOURCE_MATERIAL_CHARS = 40
+
+
+def _extract_profile_text(raw_text: str) -> str:
+    text = raw_text or ""
+    text = re.sub(r"<script[\s\S]*?</script>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"&nbsp;|&#160;", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"&amp;", "&", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:MAX_SOURCE_MATERIAL_CHARS]
+
+
+def _build_source_material(instrument_name_or_code: str, profile_text: str) -> str:
+    summary = (
+        f"Instrument: {instrument_name_or_code}\n"
+        f"Profile Summary: {profile_text.strip()}"
+    ).strip()
+    return summary[:MAX_SOURCE_MATERIAL_CHARS]
 
 
 def _build_candidate_sources(normalized: str) -> list[str]:
@@ -66,12 +87,13 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
             last_error = result
             continue
 
-        source_material = (result.text or "").strip()[:MAX_SOURCE_MATERIAL_CHARS]
-        if not source_material:
+        extracted = _extract_profile_text(result.text or "")
+        source_material = _build_source_material(normalized, extracted)
+        if len(extracted) < MIN_SOURCE_MATERIAL_CHARS:
             last_error = GuardedHttpResult(
                 ok=False,
                 error_type="parse_error",
-                error_message=f"Empty source content from '{source}'.",
+                error_message=f"Insufficient source content from '{source}'.",
                 retryable=False,
             )
             continue
