@@ -143,3 +143,14 @@
 - 已建立术语映射表 v1（Investory 命名 -> Contract/Registry/Handler/Guard），且每条映射绑定代码文件，见 docs/3-1/worklog/http-tooling-scan.md 的 Step A-5。
 - 阶段 A 的事实记录均集中在同一日志文件并按步骤分段，可按 Step A-2 至 Step A-5 顺序回溯。
 
+## Step B-7 Locate web_search schema definition
+
+- Scan time: 2026-05-15 23:05:47 +10:00
+- Scope: src/investory (code only)
+- Result: no explicit `web_search` schema or `web_search` tool name found in current codebase.
+- Evidence (search): `rg -n -i "web_search|websearch|search" src/investory` only hits generic text and one URL template in instrument tool.
+- Current tool contract definition anchor: `src/investory/agent_core/contracts/tool_contract.py:6-12` (`ToolName = Literal["fetch_instrument_profile"]`, `ToolCall`).
+- Current tool schema consumption anchor: `src/investory/agent_core/actions/executors.py:74-80` (fetcher defaults to `fetch_instrument_profile`, then executes tool call).
+- Related HTTP gateway schema (not web_search-specific): `src/investory/gateway/schemas.py:23-35` (`TaskRequest` generic payload schema).
+- Conclusion for Step 7 output: web_search schema definition point = not present; nearest equivalent schema is `fetch_instrument_profile` tool contract.
+
