@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -5,6 +6,7 @@ from urllib.request import Request, urlopen
 
 
 DEFAULT_USER_AGENT = "InvestoryBot/0.1 (+https://investory.local)"
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,26 @@ class GuardedHttpResult:
     error_type: str | None = None
     error_message: str | None = None
     retryable: bool = False
+
+
+def log_http_attempt(
+    *,
+    tool_name: str,
+    host: str,
+    elapsed_ms: int,
+    success: bool,
+    error_type: str | None = None,
+) -> None:
+    LOGGER.info(
+        "tool_http_attempt",
+        extra={
+            "tool_name": tool_name,
+            "target_host": host,
+            "elapsed_ms": elapsed_ms,
+            "success": success,
+            "error_type": error_type,
+        },
+    )
 
 
 def validate_url(url: str, allowed_hosts: tuple[str, ...]) -> GuardValidation:

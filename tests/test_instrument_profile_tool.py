@@ -217,7 +217,7 @@ def test_fetch_instrument_profile_logs_failed_attempt_without_body(monkeypatch, 
         "investory.agent_core.tools.instrument_profile.guarded_get",
         _fake_guarded_get,
     )
-    caplog.set_level(logging.INFO, logger="investory.agent_core.tools.instrument_profile")
+    caplog.set_level(logging.INFO, logger="investory.agent_core.tools.net_guard")
     fetch_instrument_profile("vti")
 
     records = [r for r in caplog.records if r.msg == "tool_http_attempt"]
@@ -242,7 +242,7 @@ def test_fetch_instrument_profile_logs_successful_attempt(monkeypatch, caplog):
         "investory.agent_core.tools.instrument_profile.guarded_get",
         _fake_guarded_get,
     )
-    caplog.set_level(logging.INFO, logger="investory.agent_core.tools.instrument_profile")
+    caplog.set_level(logging.INFO, logger="investory.agent_core.tools.net_guard")
     fetch_instrument_profile("vti")
 
     records = [r for r in caplog.records if r.msg == "tool_http_attempt"]

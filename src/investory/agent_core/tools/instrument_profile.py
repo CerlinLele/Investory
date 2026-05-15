@@ -1,5 +1,4 @@
 from datetime import date
-import logging
 import re
 import time
 from typing import Literal
@@ -7,7 +6,11 @@ from urllib.parse import urlparse
 
 from investory.agent_core.contracts.tool_contract import ToolResult
 from investory.config import load_config
-from investory.agent_core.tools.net_guard import GuardedHttpResult, guarded_get
+from investory.agent_core.tools.net_guard import (
+    GuardedHttpResult,
+    guarded_get,
+    log_http_attempt,
+)
 
 ErrorType = Literal[
     "invalid_input",
@@ -33,7 +36,6 @@ ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = {
     "parse_error": False,
     "not_found": False,
 }
-LOGGER = logging.getLogger(__name__)
 
 
 def _extract_profile_text(raw_text: str) -> str:
@@ -95,25 +97,6 @@ def _build_error_result(error_type: ErrorType, error_message: str) -> ToolResult
     )
 
 
-def _log_tool_attempt(
-    *,
-    host: str,
-    elapsed_ms: int,
-    success: bool,
-    error_type: str | None = None,
-) -> None:
-    LOGGER.info(
-        "tool_http_attempt",
-        extra={
-            "tool_name": TOOL_NAME,
-            "target_host": host,
-            "elapsed_ms": elapsed_ms,
-            "success": success,
-            "error_type": error_type,
-        },
-    )
-
-
 def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
     normalized = instrument_name_or_code.strip().upper()
     if not normalized:
@@ -138,7 +121,8 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
         host = urlparse(source).hostname or "unknown"
         attempted_sources.append(source)
         if not result.ok:
-            _log_tool_attempt(
+            log_http_attempt(
+                tool_name=TOOL_NAME,
                 host=host,
                 elapsed_ms=elapsed_ms,
                 success=False,
@@ -150,7 +134,8 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
         extracted = _extract_profile_text(result.text or "")
         source_material = _build_source_material(normalized, extracted)
         if len(extracted) < MIN_SOURCE_MATERIAL_CHARS:
-            _log_tool_attempt(
+            log_http_attempt(
+                tool_name=TOOL_NAME,
                 host=host,
                 elapsed_ms=elapsed_ms,
                 success=False,
@@ -163,7 +148,8 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
                 retryable=False,
             )
             continue
-        _log_tool_attempt(
+        log_http_attempt(
+            tool_name=TOOL_NAME,
             host=host,
             elapsed_ms=elapsed_ms,
             success=True,
