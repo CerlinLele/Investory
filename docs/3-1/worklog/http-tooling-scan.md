@@ -251,3 +251,12 @@ ormalize_task_error entry).
 - DNS policy finding: no explicit custom DNS resolver strategy found in tool HTTP layer.
 - Step-17 output: redirect/DNS behavior is implicit in stdlib defaults; no project-level explicit policy code located.
 
+## Step C-18 Locate timeout/retry/backoff
+
+- Scan time: 2026-05-15 23:19:14 +10:00
+- Request timeout config anchor: src/investory/config.py:72 and env binding src/investory/config.py:168-171.
+- Request timeout usage anchor: src/investory/agent_core/tools/instrument_profile.py:116 -> guarded_get(timeout=DEFAULT_TIMEOUT_SECONDS).
+- Retry behavior anchor #1: src/investory/agent_core/tools/instrument_profile.py:112-132 (sequential retry-by-next-source on request failure).
+- Retry behavior anchor #2: src/investory/agent_core/tools/instrument_profile.py:136-150 (retry-by-next-source on parse insufficiency).
+- Backoff strategy finding: no explicit backoff/sleep/jitter logic found in tool HTTP path.
+
