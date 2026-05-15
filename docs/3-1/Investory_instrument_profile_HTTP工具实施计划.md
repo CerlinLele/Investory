@@ -158,6 +158,36 @@ Step 3 修改逻辑（按执行链路）：
 - 下游 `instrument_brief` 需要干净、稳定、可控长度的文本输入。
 - 结构稳定可减少上层改动和测试波动。
 
+当前落地（已完成）：
+
+1. 已新增 `_extract_profile_text(raw_text)`：
+   - 去除 `script/style` 片段与 HTML 标签
+   - 处理常见 HTML 实体（如 `&nbsp;`、`&amp;`）
+   - 压缩连续空白并截断到 `MAX_SOURCE_MATERIAL_CHARS`
+2. 已新增 `_build_source_material(instrument_name_or_code, profile_text)`：
+   - 统一输出模板：
+     - `Instrument: {code}`
+     - `Profile Summary: {clean_text}`
+   - 保证 `source_material` 结构稳定，便于下游 prompt 消费
+3. 主流程已接入抽取与标准化：
+   - `guarded_get` 成功后先抽取文本，再构建标准化摘要
+   - 新增最小有效文本阈值 `MIN_SOURCE_MATERIAL_CHARS`
+   - 文本过短时按 `parse_error` 处理并继续多源回退
+4. 测试已更新为契约断言：
+   - 验证 HTML 去噪与空白归一化
+   - 验证输出模板结构
+   - 验证过短内容触发 `parse_error`
+   - 保持长度上限与多源回退行为可回归
+
+Step 4 修改逻辑（按执行链路）：
+
+1. 从 `guarded_get(...).text` 获取原始文本。
+2. 调用 `_extract_profile_text` 完成去噪与长度控制。
+3. 调用 `_build_source_material` 生成固定结构摘要。
+4. 校验抽取文本长度是否达到最小阈值。
+5. 不达标则标记 `parse_error` 并继续尝试下一个来源。
+6. 达标则返回标准化 `ToolResult.data`（字段不变）。
+
 ---
 
 ### Step 5：建立统一错误模型（error_type + retryable）
