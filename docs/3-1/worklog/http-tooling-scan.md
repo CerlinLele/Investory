@@ -206,3 +206,13 @@ et_guard.guarded_get via urllib.request.urlopen.
 - Error classification support anchor: src/investory/agent_core/tools/instrument_profile.py:31-38 (ERROR_RETRYABLE_POLICY).
 - Step-12 output: at least one success path and one error path normalization point identified.
 
+## Step B-13 Locate gateway/mcp parameter validation and adaptation
+
+- Scan time: 2026-05-15 23:17:30 +10:00
+- Result: no explicit MCP gateway adapter found (mcp symbol absent in src/investory).
+- Equivalent gateway validation anchor: src/investory/gateway/schemas.py:23-35 (TaskRequest with extra="forbid").
+- Equivalent gateway routing/adaptation anchor #1: src/investory/gateway/api.py:49 (esolve_task_spec(task_request.task_type)).
+- Equivalent gateway routing/adaptation anchor #2: src/investory/gateway/api.py:51-53 (DecisionFlow execution and gateway response adaptation).
+- Equivalent gateway session/permission-context anchor: src/investory/gateway/api.py:48 (esolve_session_id).
+- Step-13 output: validation/adaptation/execution nodes covered through gateway schemas + api + runtime path.
+
