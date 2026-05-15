@@ -1,0 +1,78 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investory instrument_profile HTTP 工具调用流程分析</title>
+  <style>
+    body { font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; margin: 24px; color: #1f2937; line-height: 1.6; }
+    h1, h2, h3 { color: #111827; }
+    code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; }
+    pre { background: #0f172a; color: #e5e7eb; padding: 12px; border-radius: 8px; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0 20px; }
+    th, td { border: 1px solid #d1d5db; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #f9fafb; }
+    .muted { color: #6b7280; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Investory instrument_profile HTTP 工具调用流程分析</h1>
+  <p class="muted">生成时间：2026-05-15（Australia/Sydney）</p>
+
+  <h2>1. 结论概览</h2>
+  <p>当前项目的 HTTP 工具调用不是“模型直接联网”，而是通过动作编排链路触发：当 <code>instrument_brief</code> 仅缺 <code>source_material</code> 时，系统自动选择 <code>fetch_then_run_instrument_brief</code>，再由执行器调用 <code>fetch_instrument_profile</code>，最终通过 <code>net_guard.guarded_get</code> 发起受控 HTTP 请求。</p>
+
+  <h2>2. 端到端调用主链路</h2>
+  <ol>
+    <li><b>DecisionFlow 入口</b>：<code>DecisionFlow.run</code> 依次执行 planner/validator/router/executor（<code>src/investory/agent_core/runtime/decision_flow.py:56-64</code>）。</li>
+    <li><b>Planner 决策</b>：若任务是 <code>instrument_brief</code> 且缺失字段仅为 <code>source_material</code>，则返回动作 <code>fetch_then_run_instrument_brief</code>（<code>src/investory/agent_core/runtime/decision_planner.py:13-26</code>）。</li>
+    <li><b>Validator 校验</b>：要求 <code>instrument_name_or_code</code> 非空且 <code>payload</code> 为 dict（<code>src/investory/agent_core/actions/validator.py:80-90</code>）。</li>
+    <li><b>Router 路由</b>：动作映射到 <code>FetchThenRunInstrumentBriefExecutor</code>（<code>src/investory/agent_core/actions/router.py:41-43</code>）。</li>
+    <li><b>Executor 执行</b>：调用 <code>fetch_instrument_profile</code> 获取资料；失败则返回 <code>requires_user_input</code>；成功则回填 <code>source_material/source_links/source_as_of</code> 后运行任务模型（<code>src/investory/agent_core/actions/executors.py:76-104</code>）。</li>
+    <li><b>Tool 实际抓取</b>：<code>fetch_instrument_profile</code> 执行多来源顺序尝试并调用 <code>guarded_get</code>（<code>src/investory/agent_core/tools/instrument_profile.py:112-170</code>）。</li>
+    <li><b>Net Guard 控制</b>：<code>validate_url</code> 强制 <code>https + allowlist host</code>，<code>guarded_get</code> 统一 timeout、content-type、HTTP/network 异常归一化（<code>src/investory/agent_core/tools/net_guard.py:49-132</code>）。</li>
+  </ol>
+
+  <h2>3. HTTP 工具内部执行流程（fetch_instrument_profile）</h2>
+  <table>
+    <thead>
+      <tr><th>阶段</th><th>当前实现</th><th>代码位置</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>输入标准化</td><td><code>instrument_name_or_code.strip().upper()</code>；空值返回 <code>invalid_input</code></td><td><code>instrument_profile.py:101-107</code></td></tr>
+      <tr><td>候选来源构建</td><td>固定 3 个候选 URL，按顺序回退</td><td><code>instrument_profile.py:60-66,108</code></td></tr>
+      <tr><td>受控请求</td><td>每个 URL 调用 <code>guarded_get(timeout/allowlist/user-agent)</code></td><td><code>instrument_profile.py:114-119</code></td></tr>
+      <tr><td>失败分支</td><td>记录日志并继续下一来源；最终聚合为统一失败结果</td><td><code>instrument_profile.py:123-133,170</code></td></tr>
+      <tr><td>内容抽取</td><td>去 script/style/html tag、实体处理、空白归一化、长度截断</td><td><code>instrument_profile.py:41-50</code></td></tr>
+      <tr><td>有效性判断</td><td>抽取文本长度小于最小阈值触发 <code>parse_error</code> 并回退</td><td><code>instrument_profile.py:136-150</code></td></tr>
+      <tr><td>成功输出</td><td>返回 <code>instrument_name_or_code/source_material/sources/as_of</code></td><td><code>instrument_profile.py:159-168</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. 错误与降级策略</h2>
+  <ul>
+    <li>错误类型域：<code>invalid_input/blocked_host/timeout/network_error/parse_error/not_found</code>（<code>instrument_profile.py:15-22</code>）。</li>
+    <li>重试语义由 <code>ERROR_RETRYABLE_POLICY</code> 固定，不直接信任上游值（<code>instrument_profile.py:31-38,77-87</code>）。</li>
+    <li>Executor 侧不把工具错误直接抛给用户，而是统一降级为“请用户粘贴资料”路径（<code>actions/executors.py:80-97</code>）。</li>
+  </ul>
+
+  <h2>5. 当前实现特征与注意点</h2>
+  <ul>
+    <li>已具备“先治理后请求”的结构：工具层不裸连网，网络规则集中在 <code>net_guard</code>。</li>
+    <li>当前候选源仍是示例域名（<code>example.com</code>），生产可用性依赖后续替换为真实数据源与 allowlist 配置。</li>
+    <li>成功结果已经回填 <code>source_links</code> 与 <code>source_as_of</code>，可解释性链路完整。</li>
+  </ul>
+
+  <h2>6. 主链路速记（用于评审）</h2>
+  <pre>DecisionFlow.run
+  -> DecisionPlanner.decide (缺 source_material)
+  -> validate_decision
+  -> ActionRouter.route(fetch_then_run_instrument_brief)
+  -> FetchThenRunInstrumentBriefExecutor.execute
+  -> fetch_instrument_profile
+  -> guarded_get / validate_url
+  -> ToolResult
+  -> 回填 payload(source_material/source_links/source_as_of)
+  -> TaskExecutor.run</pre>
+</body>
+</html>
