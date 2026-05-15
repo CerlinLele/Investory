@@ -216,3 +216,14 @@ et_guard.guarded_get via urllib.request.urlopen.
 - Equivalent gateway session/permission-context anchor: src/investory/gateway/api.py:48 (esolve_session_id).
 - Step-13 output: validation/adaptation/execution nodes covered through gateway schemas + api + runtime path.
 
+## Step B-14 Locate gateway/mcp error normalization
+
+- Scan time: 2026-05-15 23:17:51 +10:00
+- Gateway error-shape normalization anchor: src/investory/gateway/api.py:23-30 (_to_gateway_error maps TaskError -> TaskErrorResponse).
+- Gateway error envelope anchor: src/investory/gateway/schemas.py:37-47 (TaskErrorResponse fields).
+- Runtime error-class normalization anchor: src/investory/agent_core/contracts/result_types.py:91-100 (
+ormalize_task_error entry).
+- Mapping evidence #1: src/investory/agent_core/contracts/result_types.py:148-160 (401/403 -> provider_auth_error; 429 -> ate_limited; 5xx -> provider_unavailable).
+- Mapping evidence #2: src/investory/agent_core/contracts/result_types.py:165-179 (	imeout and fallback unknown_error).
+- Step-14 output: at least two distinct error mappings identified and anchored.
+
