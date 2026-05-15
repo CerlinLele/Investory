@@ -196,3 +196,13 @@
 - Step-11 output: confirmed actual outbound HTTP occurs in 
 et_guard.guarded_get via urllib.request.urlopen.
 
+## Step B-12 Locate result normalization logic
+
+- Scan time: 2026-05-15 23:16:41 +10:00
+- Success-path normalization anchor #1: src/investory/agent_core/tools/instrument_profile.py:134-136 (extract + build source material).
+- Success-path normalization anchor #2: src/investory/agent_core/tools/instrument_profile.py:159-168 (normalized ToolResult success payload shape).
+- Error-path normalization anchor #1: src/investory/agent_core/tools/instrument_profile.py:90-97 (_build_error_result).
+- Error-path normalization anchor #2: src/investory/agent_core/tools/instrument_profile.py:68-87 (_build_failure_result consolidates last error).
+- Error classification support anchor: src/investory/agent_core/tools/instrument_profile.py:31-38 (ERROR_RETRYABLE_POLICY).
+- Step-12 output: at least one success path and one error path normalization point identified.
+
