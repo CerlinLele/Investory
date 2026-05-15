@@ -277,3 +277,18 @@ ormalize_task_error entry).
 - Error classification anchor: src/investory/agent_core/contracts/result_types.py:148-179 (provider/timeouts/unknown mapping).
 - Gateway observability fields anchor: src/investory/gateway/schemas.py:42-47 (error_type,stage,etryable,equest_id).
 
+## Step C-21 Security control checklist v1
+
+- Scan time: 2026-05-15 23:20:53 +10:00
+
+| 控制点 | 代码位置 | 触发条件 | 失败行为 |
+| --- | --- | --- | --- |
+| HTTPS 强制 | src/investory/agent_core/tools/net_guard.py:51-56 | URL scheme 不是 https | 返回 locked_host，不发起网络请求 |
+| Host allowlist | src/investory/agent_core/tools/net_guard.py:58-64 | host 不在 llowed_hosts | 返回 locked_host，不发起网络请求 |
+| 请求超时 | src/investory/agent_core/tools/net_guard.py:103-109 | urlopen 超时 | 返回 	imeout，etryable=True |
+| HTTP 状态分类 | src/investory/agent_core/tools/net_guard.py:110-124 | 404 或 5xx/其他 HTTPError | 404 -> 
+ot_found；5xx -> 
+etwork_error 且可重试 |
+| 内容类型门禁 | src/investory/agent_core/tools/net_guard.py:91-97 | 非 text/json 内容 | 返回 parse_error，不可重试 |
+| 结果重试属性归一 | src/investory/agent_core/tools/instrument_profile.py:31-38 + 77-87 | 工具错误类型收束时 | 输出统一 etryable 标记 |
+
