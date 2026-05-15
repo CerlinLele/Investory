@@ -260,3 +260,11 @@ ormalize_task_error entry).
 - Retry behavior anchor #2: src/investory/agent_core/tools/instrument_profile.py:136-150 (retry-by-next-source on parse insufficiency).
 - Backoff strategy finding: no explicit backoff/sleep/jitter logic found in tool HTTP path.
 
+## Step C-19 Locate proxy and credential boundaries
+
+- Scan time: 2026-05-15 23:19:36 +10:00
+- Tool HTTP proxy finding: no dedicated proxy config field found for tool outbound HTTP in AppConfig.
+- Tool HTTP actual usage anchor: src/investory/agent_core/tools/net_guard.py:85-87 sends request with URL + User-Agent only.
+- LLM credential config entry anchors: src/investory/config.py:23, 33, 41, 49 (provider API key env names), load site src/investory/config.py:160.
+- Boundary summary: tool HTTP path uses allowlist+timeout config; provider credentials are loaded via env into LLM config path.
+
