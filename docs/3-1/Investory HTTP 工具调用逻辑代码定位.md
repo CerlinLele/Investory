@@ -77,3 +77,9 @@
 - 现实现中，“网址候选”由代码显式提供，而非模型自由拼接：`src/investory/agent_core/tools/instrument_profile.py:60-65`。
 - 模型侧主要决定是否触发 `fetch_then_run_instrument_brief` 这类动作；执行后的 URL 访问由工具函数与 guard 代码完成（`actions/router.py:41-43`、`tools/net_guard.py:49-87`）。
 - 因此“看起来像 Agent 自己找网址”，实际是“模型触发动作 + 代码内候选源与策略执行”。
+
+### 8.1 模型决策边界 vs 代码执行边界
+
+- 模型决策边界：在 DecisionFlow 中生成动作调用（src/investory/agent_core/runtime/decision_flow.py:56-63）。
+- 代码执行边界：动作一旦落到 etch_then_run_instrument_brief，后续 URL 列表、访问顺序、allowlist 校验均由代码固定执行（src/investory/agent_core/tools/instrument_profile.py:60-65,112-119；src/investory/agent_core/tools/net_guard.py:49-87）。
+- 结果：模型不直接执行任意 URL 请求；它触发的是受约束的工具路径。
