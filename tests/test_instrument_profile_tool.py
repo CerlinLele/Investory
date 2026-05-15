@@ -1,6 +1,7 @@
 from investory.agent_core.tools.instrument_profile import (
     ALLOWED_HOSTS,
     DEFAULT_TIMEOUT_SECONDS,
+    ERROR_RETRYABLE_POLICY,
     MAX_SOURCE_MATERIAL_CHARS,
     _extract_profile_text,
     fetch_instrument_profile,
@@ -134,6 +135,46 @@ def test_fetch_instrument_profile_returns_error_when_all_sources_fail(monkeypatc
     assert result.error_type == "network_error"
     assert result.error_message == "upstream unavailable"
     assert result.retryable is True
+
+
+def test_fetch_instrument_profile_enforces_retryable_by_error_policy(monkeypatch):
+    def _fake_guarded_get(url, *, timeout, allowed_hosts, user_agent=None):
+        return GuardedHttpResult(
+            ok=False,
+            error_type="timeout",
+            error_message="request timeout",
+            retryable=False,
+        )
+
+    monkeypatch.setattr(
+        "investory.agent_core.tools.instrument_profile.guarded_get",
+        _fake_guarded_get,
+    )
+    result = fetch_instrument_profile("vti")
+
+    assert result.ok is False
+    assert result.error_type == "timeout"
+    assert result.retryable == ERROR_RETRYABLE_POLICY["timeout"]
+
+
+def test_fetch_instrument_profile_normalizes_unknown_error_type(monkeypatch):
+    def _fake_guarded_get(url, *, timeout, allowed_hosts, user_agent=None):
+        return GuardedHttpResult(
+            ok=False,
+            error_type="upstream_gateway",
+            error_message="gateway issue",
+            retryable=False,
+        )
+
+    monkeypatch.setattr(
+        "investory.agent_core.tools.instrument_profile.guarded_get",
+        _fake_guarded_get,
+    )
+    result = fetch_instrument_profile("vti")
+
+    assert result.ok is False
+    assert result.error_type == "network_error"
+    assert result.retryable == ERROR_RETRYABLE_POLICY["network_error"]
 
 
 def test_extract_profile_text_removes_html_and_normalizes_space():

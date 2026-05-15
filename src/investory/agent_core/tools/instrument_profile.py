@@ -1,8 +1,18 @@
 from datetime import date
 import re
+from typing import Literal
 
 from investory.agent_core.contracts.tool_contract import ToolResult
 from investory.agent_core.tools.net_guard import GuardedHttpResult, guarded_get
+
+ErrorType = Literal[
+    "invalid_input",
+    "blocked_host",
+    "timeout",
+    "network_error",
+    "parse_error",
+    "not_found",
+]
 
 ALLOWED_HOSTS: tuple[str, ...] = (
     "example.com",
@@ -11,6 +21,14 @@ ALLOWED_HOSTS: tuple[str, ...] = (
 DEFAULT_TIMEOUT_SECONDS = 8
 MAX_SOURCE_MATERIAL_CHARS = 3000
 MIN_SOURCE_MATERIAL_CHARS = 40
+ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = {
+    "invalid_input": False,
+    "blocked_host": False,
+    "timeout": True,
+    "network_error": True,
+    "parse_error": False,
+    "not_found": False,
+}
 
 
 def _extract_profile_text(raw_text: str) -> str:
@@ -44,32 +62,40 @@ def _build_failure_result(
     normalized: str, last_error: GuardedHttpResult | None
 ) -> ToolResult:
     if last_error is None:
-        return ToolResult(
-            tool_name="fetch_instrument_profile",
-            ok=False,
+        return _build_error_result(
             error_type="not_found",
             error_message=f"No reachable source found for '{normalized}'.",
-            retryable=False,
         )
+
+    error_type = (last_error.error_type or "network_error").lower()
+    if error_type not in ERROR_RETRYABLE_POLICY:
+        error_type = "network_error"
 
     return ToolResult(
         tool_name="fetch_instrument_profile",
         ok=False,
-        error_type=last_error.error_type or "network_error",
+        error_type=error_type,
         error_message=last_error.error_message or "Failed to fetch instrument profile.",
-        retryable=last_error.retryable,
+        retryable=ERROR_RETRYABLE_POLICY[error_type],
+    )
+
+
+def _build_error_result(error_type: ErrorType, error_message: str) -> ToolResult:
+    return ToolResult(
+        tool_name="fetch_instrument_profile",
+        ok=False,
+        error_type=error_type,
+        error_message=error_message,
+        retryable=ERROR_RETRYABLE_POLICY[error_type],
     )
 
 
 def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
     normalized = instrument_name_or_code.strip().upper()
     if not normalized:
-        return ToolResult(
-            tool_name="fetch_instrument_profile",
-            ok=False,
+        return _build_error_result(
             error_type="invalid_input",
             error_message="instrument_name_or_code is required.",
-            retryable=False,
         )
 
     sources = _build_candidate_sources(normalized)
