@@ -17,6 +17,7 @@ ErrorType = Literal[
     "parse_error",
     "not_found",
 ]
+TOOL_NAME = "fetch_instrument_profile"
 
 _APP_CONFIG = load_config()
 ALLOWED_HOSTS: tuple[str, ...] = _APP_CONFIG.tool_allowed_hosts
@@ -76,7 +77,7 @@ def _build_failure_result(
         error_type = "network_error"
 
     return ToolResult(
-        tool_name="fetch_instrument_profile",
+        tool_name=TOOL_NAME,
         ok=False,
         error_type=error_type,
         error_message=last_error.error_message or "Failed to fetch instrument profile.",
@@ -86,7 +87,7 @@ def _build_failure_result(
 
 def _build_error_result(error_type: ErrorType, error_message: str) -> ToolResult:
     return ToolResult(
-        tool_name="fetch_instrument_profile",
+        tool_name=TOOL_NAME,
         ok=False,
         error_type=error_type,
         error_message=error_message,
@@ -104,7 +105,7 @@ def _log_tool_attempt(
     LOGGER.info(
         "tool_http_attempt",
         extra={
-            "tool_name": "fetch_instrument_profile",
+            "tool_name": TOOL_NAME,
             "target_host": host,
             "elapsed_ms": elapsed_ms,
             "success": success,
@@ -170,7 +171,7 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
         )
 
         return ToolResult(
-            tool_name="fetch_instrument_profile",
+            tool_name=TOOL_NAME,
             ok=True,
             data={
                 "instrument_name_or_code": normalized,
