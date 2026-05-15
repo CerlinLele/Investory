@@ -34,6 +34,19 @@
   - `DEFAULT_TIMEOUT_SECONDS`
   - `MAX_SOURCE_MATERIAL_CHARS`
 
+当前落地（已完成）：
+
+1. 已在 `instrument_profile.py` 固化边界常量：
+   - `ALLOWED_HOSTS`：来源 host 白名单
+   - `DEFAULT_TIMEOUT_SECONDS`：统一超时默认值
+   - `MAX_SOURCE_MATERIAL_CHARS`：`source_material` 输出长度上限
+2. 输出策略已明确为“结构化摘要字段”，当前工具返回 `ToolResult.data` 仅包含：
+   - `instrument_name_or_code`
+   - `source_material`
+   - `sources`
+   - `as_of`
+3. 在进入真实抓取前，已通过常量与测试把“来源边界/长度边界”冻结，避免后续改动偏离治理要求。
+
 ---
 
 ### Step 2：新增 HTTP Guard 层（不要在工具里裸请求）
@@ -82,6 +95,24 @@
 
 - 单一来源故障率高，容易让用户频繁走降级分支。
 - 多源可显著提升成功率，且与课堂“工具调用鲁棒性”主题一致。
+
+当前落地（已完成）：
+
+1. `fetch_instrument_profile` 已从固定 mock 改为“候选来源顺序尝试”：
+   - 先标准化输入：`strip + upper`
+   - 通过 `_build_candidate_sources(normalized)` 生成优先级来源列表
+   - 逐个调用 `guarded_get(...)`，首个成功即返回
+2. 成功分支逻辑：
+   - 对返回文本做 `strip` 并截断到 `MAX_SOURCE_MATERIAL_CHARS`
+   - 文本为空时按 `parse_error` 处理并继续尝试下一个来源
+   - 返回 `sources` 为“实际尝试链路”，便于调试与可解释性
+3. 全失败分支逻辑：
+   - 通过 `_build_failure_result(...)` 统一失败返回
+   - 优先透传最后一次失败的 `error_type/error_message/retryable`
+   - 若无可用错误上下文，回退为 `not_found`
+4. 测试策略已同步切换为“行为契约”：
+   - 使用 monkeypatch 模拟 `guarded_get`，不依赖真实网络
+   - 覆盖首源成功、回退成功、全失败透传、空输入、长度截断等关键场景
 
 ---
 
