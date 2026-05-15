@@ -227,3 +227,11 @@ ormalize_task_error entry).
 - Mapping evidence #2: src/investory/agent_core/contracts/result_types.py:165-179 (	imeout and fallback unknown_error).
 - Step-14 output: at least two distinct error mappings identified and anchored.
 
+## Step B-15 Three-chain sketch v1
+
+- Scan time: 2026-05-15 23:18:08 +10:00
+- Search chain (equivalent): src/investory/gateway/api.py:51-53 -> src/investory/agent_core/actions/router.py:41-43 -> src/investory/agent_core/tools/instrument_profile.py:112-119.
+- Fetch chain: src/investory/agent_core/actions/executors.py:74-78 -> src/investory/agent_core/tools/instrument_profile.py:100-119 -> src/investory/agent_core/tools/net_guard.py:85-87.
+- Gateway chain (mcp-equivalent): src/investory/gateway/api.py:67-73 -> src/investory/gateway/api.py:49-53 -> src/investory/gateway/api.py:33-40.
+- Note: explicit web_search and gateway/mcp symbols are not present; chain labels use current equivalent implementation path.
+
