@@ -1,7 +1,7 @@
 from datetime import date
-from urllib.parse import urlparse
 
 from investory.agent_core.contracts.tool_contract import ToolResult
+from investory.agent_core.tools.net_guard import validate_url
 
 ALLOWED_HOSTS: tuple[str, ...] = (
     "example.com",
@@ -9,16 +9,6 @@ ALLOWED_HOSTS: tuple[str, ...] = (
 )
 DEFAULT_TIMEOUT_SECONDS = 8
 MAX_SOURCE_MATERIAL_CHARS = 3000
-
-
-def _is_allowed_source_url(url: str) -> bool:
-    parsed = urlparse(url)
-    if parsed.scheme != "https":
-        return False
-    host = (parsed.hostname or "").lower()
-    return host in ALLOWED_HOSTS
-
-
 def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
     normalized = instrument_name_or_code.strip().upper()
     if not normalized:
@@ -35,7 +25,9 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
         f"https://example.com/instruments/{normalized}",
         "https://example.com/factsheet",
     ]
-    filtered_sources = [url for url in sources if _is_allowed_source_url(url)]
+    filtered_sources = [
+        url for url in sources if validate_url(url, allowed_hosts=ALLOWED_HOSTS).ok
+    ]
     source_material = (
         f"{normalized} mock profile: this is a placeholder public summary "
         "used for learning-brief generation."
