@@ -292,3 +292,12 @@ etwork_error 且可重试 |
 | 内容类型门禁 | src/investory/agent_core/tools/net_guard.py:91-97 | 非 text/json 内容 | 返回 parse_error，不可重试 |
 | 结果重试属性归一 | src/investory/agent_core/tools/instrument_profile.py:31-38 + 77-87 | 工具错误类型收束时 | 输出统一 etryable 标记 |
 
+## Step D-26 Self-check and delivery
+
+- Check time: 2026-05-15 23:25:16 +10:00
+- Check #1 (traceability): completed. Key conclusions in locating doc include code anchors (path:line).
+- Check #2 (terminology consistency): completed. Contract/Registry/Handler/Guard terms align with Step A-5 mapping.
+- Check #3 (scope boundary): completed. No expansion into UI/prompt tuning modules; focus kept on tooling/runtime/security.
+- Delivery artifact #1: docs/3-1/Investory HTTP 工具调用逻辑代码定位.md (v1).
+- Delivery artifact #2: docs/3-1/worklog/http-tooling-scan.md (A/B/C/D execution log).
+
