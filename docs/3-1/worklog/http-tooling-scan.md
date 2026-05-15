@@ -176,3 +176,13 @@
 - Guard/allowlist gate impacting provider eligibility: `src/investory/agent_core/tools/net_guard.py:49-66` + `76-83` (blocked host/non-https -> non-retryable failure).
 - Retryability mapping evidence: `src/investory/agent_core/tools/instrument_profile.py:31-38` and `77-87` maps error_type to retryable in final ToolResult.
 
+## Step B-10 Locate web_fetch/http schema and entry
+
+- Scan time: 2026-05-15 23:15:37 +10:00
+- Tool schema definition anchor: src/investory/agent_core/contracts/tool_contract.py:9-12 (ToolCall with 	ool_name/params/request_id).
+- Tool-name constraint anchor: src/investory/agent_core/contracts/tool_contract.py:6 (ToolName = Literal["fetch_instrument_profile"]).
+- HTTP gateway request schema anchor: src/investory/gateway/schemas.py:23-35 (TaskRequest generic payload).
+- web_fetch/http entry (executor layer): src/investory/agent_core/actions/executors.py:67-78 (FetchThenRunInstrumentBriefExecutor.execute calls fetcher).
+- web_fetch/http concrete tool entry: src/investory/agent_core/tools/instrument_profile.py:100 (etch_instrument_profile).
+- Step-10 output: schema and entry located for current equivalent HTTP tool path (no standalone web_fetch symbol).
+
