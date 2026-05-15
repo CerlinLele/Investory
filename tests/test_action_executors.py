@@ -166,6 +166,8 @@ def test_fetch_then_run_executor_fetches_material_and_runs_task_model():
             {
                 "instrument_name_or_code": "VTI",
                 "source_material": "VTI factsheet mock text.",
+                "source_links": ["https://example.com/vti"],
+                "source_as_of": "2026-05-15",
             },
         )
     ]

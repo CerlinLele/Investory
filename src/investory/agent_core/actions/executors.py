@@ -98,6 +98,8 @@ class FetchThenRunInstrumentBriefExecutor:
 
         payload = dict(call.params["payload"])
         payload["source_material"] = tool_result.data["source_material"]
+        payload["source_links"] = list(tool_result.data.get("sources") or [])
+        payload["source_as_of"] = tool_result.data.get("as_of")
         task_result = self.task_executor.run(spec, payload)
         return action_result_from_task_result(call, task_result)
 
