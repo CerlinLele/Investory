@@ -235,3 +235,11 @@ ormalize_task_error entry).
 - Gateway chain (mcp-equivalent): src/investory/gateway/api.py:67-73 -> src/investory/gateway/api.py:49-53 -> src/investory/gateway/api.py:33-40.
 - Note: explicit web_search and gateway/mcp symbols are not present; chain labels use current equivalent implementation path.
 
+## Step C-16 Locate SSRF pre-checks
+
+- Scan time: 2026-05-15 23:18:32 +10:00
+- Control point #1: src/investory/agent_core/tools/net_guard.py:51-56 blocks non-HTTPS URLs (locked_host).
+- Control point #2: src/investory/agent_core/tools/net_guard.py:58-64 host allowlist gate (host not in allowed_hosts => blocked).
+- Control point #3: src/investory/agent_core/tools/net_guard.py:76-83 validation failure short-circuits before network call.
+- Trigger/behavior summary: scheme/host violations return non-retryable guard errors and do not call urlopen.
+
