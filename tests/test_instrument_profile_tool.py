@@ -1,3 +1,5 @@
+import logging
+
 from investory.agent_core.tools.instrument_profile import (
     ALLOWED_HOSTS,
     DEFAULT_TIMEOUT_SECONDS,
@@ -200,3 +202,52 @@ def test_fetch_instrument_profile_returns_parse_error_when_content_too_short(mon
     assert result.ok is False
     assert result.error_type == "parse_error"
     assert result.retryable is False
+
+
+def test_fetch_instrument_profile_logs_failed_attempt_without_body(monkeypatch, caplog):
+    def _fake_guarded_get(url, *, timeout, allowed_hosts, user_agent=None):
+        return GuardedHttpResult(
+            ok=False,
+            error_type="network_error",
+            error_message="upstream unavailable",
+            retryable=True,
+        )
+
+    monkeypatch.setattr(
+        "investory.agent_core.tools.instrument_profile.guarded_get",
+        _fake_guarded_get,
+    )
+    caplog.set_level(logging.INFO, logger="investory.agent_core.tools.instrument_profile")
+    fetch_instrument_profile("vti")
+
+    records = [r for r in caplog.records if r.msg == "tool_http_attempt"]
+    assert len(records) >= 1
+    first = records[0]
+    assert getattr(first, "tool_name", None) == "fetch_instrument_profile"
+    assert getattr(first, "target_host", None) is not None
+    assert getattr(first, "success", None) is False
+    assert getattr(first, "error_type", None) == "network_error"
+    assert "Profile Summary" not in caplog.text
+
+
+def test_fetch_instrument_profile_logs_successful_attempt(monkeypatch, caplog):
+    def _fake_guarded_get(url, *, timeout, allowed_hosts, user_agent=None):
+        return GuardedHttpResult(
+            ok=True,
+            status_code=200,
+            text="VTI profile summary with fund strategy and holdings details.",
+        )
+
+    monkeypatch.setattr(
+        "investory.agent_core.tools.instrument_profile.guarded_get",
+        _fake_guarded_get,
+    )
+    caplog.set_level(logging.INFO, logger="investory.agent_core.tools.instrument_profile")
+    fetch_instrument_profile("vti")
+
+    records = [r for r in caplog.records if r.msg == "tool_http_attempt"]
+    assert len(records) >= 1
+    last = records[-1]
+    assert getattr(last, "tool_name", None) == "fetch_instrument_profile"
+    assert getattr(last, "success", None) is True
+    assert getattr(last, "error_type", None) is None

@@ -1,6 +1,9 @@
 from datetime import date
+import logging
 import re
+import time
 from typing import Literal
+from urllib.parse import urlparse
 
 from investory.agent_core.contracts.tool_contract import ToolResult
 from investory.config import load_config
@@ -29,6 +32,7 @@ ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = {
     "parse_error": False,
     "not_found": False,
 }
+LOGGER = logging.getLogger(__name__)
 
 
 def _extract_profile_text(raw_text: str) -> str:
@@ -90,6 +94,25 @@ def _build_error_result(error_type: ErrorType, error_message: str) -> ToolResult
     )
 
 
+def _log_tool_attempt(
+    *,
+    host: str,
+    elapsed_ms: int,
+    success: bool,
+    error_type: str | None = None,
+) -> None:
+    LOGGER.info(
+        "tool_http_attempt",
+        extra={
+            "tool_name": "fetch_instrument_profile",
+            "target_host": host,
+            "elapsed_ms": elapsed_ms,
+            "success": success,
+            "error_type": error_type,
+        },
+    )
+
+
 def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
     normalized = instrument_name_or_code.strip().upper()
     if not normalized:
@@ -103,20 +126,35 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
     last_error: GuardedHttpResult | None = None
 
     for source in sources:
+        started_at = time.perf_counter()
         result = guarded_get(
             source,
             timeout=DEFAULT_TIMEOUT_SECONDS,
             allowed_hosts=ALLOWED_HOSTS,
             user_agent=TOOL_USER_AGENT,
         )
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        host = urlparse(source).hostname or "unknown"
         attempted_sources.append(source)
         if not result.ok:
+            _log_tool_attempt(
+                host=host,
+                elapsed_ms=elapsed_ms,
+                success=False,
+                error_type=result.error_type,
+            )
             last_error = result
             continue
 
         extracted = _extract_profile_text(result.text or "")
         source_material = _build_source_material(normalized, extracted)
         if len(extracted) < MIN_SOURCE_MATERIAL_CHARS:
+            _log_tool_attempt(
+                host=host,
+                elapsed_ms=elapsed_ms,
+                success=False,
+                error_type="parse_error",
+            )
             last_error = GuardedHttpResult(
                 ok=False,
                 error_type="parse_error",
@@ -124,6 +162,12 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
                 retryable=False,
             )
             continue
+        _log_tool_attempt(
+            host=host,
+            elapsed_ms=elapsed_ms,
+            success=True,
+            error_type=None,
+        )
 
         return ToolResult(
             tool_name="fetch_instrument_profile",
