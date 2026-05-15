@@ -49,6 +49,24 @@
 - 让 `instrument_profile` 专注业务逻辑，网络安全与异常收敛下沉到公共层。
 - 后续新增 HTTP 工具可直接复用，不重复造轮子。
 
+当前落地（已完成）：
+
+1. 已新增 `src/investory/agent_core/tools/net_guard.py`，提供：
+   - `validate_url(url, allowed_hosts)`：仅允许 `https` + allowlist host。
+   - `guarded_get(url, timeout, allowed_hosts, user_agent)`：统一请求头、超时与错误归一化。
+2. `guarded_get` 统一错误类型与重试语义：
+   - `blocked_host`：不可重试
+   - `timeout`：可重试
+   - `network_error`：通常可重试（HTTP 5xx 可重试）
+   - `not_found`：不可重试
+   - `parse_error`：不可重试
+3. `instrument_profile.py` 已改为复用 `validate_url` 过滤来源 URL，避免工具侧重复维护 URL 安全逻辑。
+4. 已补充 `tests/test_net_guard.py`，覆盖：
+   - `https`/allowlist 校验
+   - blocked host 短路
+   - timeout 归一化
+   - network error 归一化
+
 ---
 
 ### Step 3：把 `fetch_instrument_profile` 改为真实多源尝试
