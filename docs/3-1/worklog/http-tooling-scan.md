@@ -76,3 +76,38 @@
   - [高相关] src\investory\gateway\schemas.py :: http,retry
   - [高相关] src\investory\gateway\session.py :: http
 
+## Step A-4 Merge and deduplicate candidate files v1
+
+- Scan time: 2026-05-15 22:54:42 +10:00
+- Input: A-2 raw hit paths + A-3 candidate paths
+- Operation: merge + deduplicate + group by tool/export/runtime/security
+- Rule: each file appears once with one primary group reason
+
+- Group: tool
+  - src\investory\agent_core\tools\__init__.py :: tool module export surface
+  - src\investory\agent_core\tools\instrument_profile.py :: concrete web/http tool handler
+  - src\investory\agent_core\contracts\tool_contract.py :: tool contract and invocation schema boundary
+
+- Group: export
+  - src\investory\main.py :: app bootstrap and outward API exposure entry
+  - src\investory\gateway\__init__.py :: gateway module export entry
+  - src\investory\gateway\api.py :: external HTTP API boundary and tool-call ingress
+  - src\investory\agent_core\actions\__init__.py :: action-layer export aggregation
+  - src\investory\agent_core\contracts\__init__.py :: contract export aggregation
+
+- Group: runtime
+  - src\investory\agent_core\actions\router.py :: runtime action routing decision point
+  - src\investory\agent_core\actions\executors.py :: runtime action execution dispatcher
+  - src\investory\agent_core\runtime\decision_flow.py :: model-to-tool decision flow runtime
+  - src\investory\gateway\routing.py :: gateway runtime routing path
+  - src\investory\gateway\session.py :: request/session runtime state carrier
+  - src\investory\agent_core\runtime\smoke\README.md :: runtime smoke path reference doc (trace support)
+
+- Group: security
+  - src\investory\agent_core\tools\net_guard.py :: network guard for outbound request constraints
+  - src\investory\config.py :: timeout/proxy and network policy config source
+  - src\investory\gateway\schemas.py :: request field constraints affecting safe execution
+  - src\investory\agent_core\contracts\result_types.py :: timeout/retry related result/error shape
+
+- Candidate files v1 count: 18 (deduplicated)
+
