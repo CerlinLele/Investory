@@ -22,11 +22,11 @@ ErrorType = Literal[
 
 TOOL_NAME = "web_search"
 _APP_CONFIG = load_config()
-ALLOWED_HOSTS: tuple[str, ...] = _APP_CONFIG.tool_allowed_hosts
-DEFAULT_TIMEOUT_SECONDS = _APP_CONFIG.tool_http_timeout_seconds
+ALLOWED_HOSTS: tuple[str, ...] = _APP_CONFIG.web_search_allowed_hosts
+DEFAULT_TIMEOUT_SECONDS = _APP_CONFIG.web_search_timeout_seconds
 TOOL_USER_AGENT = _APP_CONFIG.tool_user_agent
-DEFAULT_TOP_K = 5
-MAX_TOP_K = 10
+MAX_TOP_K = max(1, _APP_CONFIG.web_search_max_results)
+DEFAULT_TOP_K = MAX_TOP_K
 ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = {
     "invalid_input": False,
     "blocked_host": False,
@@ -36,8 +36,8 @@ ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = {
     "not_found": False,
 }
 
-# Minimal provider adapters for current architecture.
-PROVIDER_ORDER: tuple[str, ...] = ("example_search", "example_instruments")
+# Provider order is externally configurable for fallback governance.
+PROVIDER_ORDER: tuple[str, ...] = _APP_CONFIG.web_search_provider_order
 
 
 def _clamp_top_k(top_k: int) -> int:
@@ -172,6 +172,13 @@ def search_web(query: str, top_k: int = DEFAULT_TOP_K, provider_hint: str | None
             query=normalized_query,
         )
         if not result_item["snippet"]:
+            log_http_attempt(
+                tool_name=TOOL_NAME,
+                host=host,
+                elapsed_ms=elapsed_ms,
+                success=False,
+                error_type="parse_error",
+            )
             last_error = GuardedHttpResult(
                 ok=False,
                 error_type="parse_error",

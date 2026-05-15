@@ -32,3 +32,22 @@
   - `src/investory/agent_core/tools/web_search.py:125`
   - `src/investory/agent_core/tools/web_search.py:189`
   - `src/investory/agent_core/tools/__init__.py:1`
+
+## Step E-3 - 接入 Guard 与网络治理
+- Timestamp: 2026-05-16 01:32:39 +10:00
+- Command/Action:
+  - Added web_search config keys in `src/investory/config.py`: timeout, allowed_hosts, max_results, provider_order.
+  - Wired `src/investory/agent_core/tools/web_search.py` to use web_search-specific config values.
+  - Kept outbound validation via existing `guarded_get` allowlist checks and unified `tool_http_attempt` logging.
+  - Added explicit parse-error attempt logging for observability consistency.
+- Files touched:
+  - `src/investory/config.py`
+  - `src/investory/agent_core/tools/web_search.py`
+- Result:
+  - Non-allowlist targets are blocked by net guard using `web_search_allowed_hosts`.
+  - Timeout/network/content-error paths produce stable `error_type/retryable` with observable log events.
+- Evidence anchors:
+  - `src/investory/config.py:75`
+  - `src/investory/config.py:184`
+  - `src/investory/agent_core/tools/web_search.py:25`
+  - `src/investory/agent_core/tools/web_search.py:175`

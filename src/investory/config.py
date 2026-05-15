@@ -72,6 +72,10 @@ class AppConfig:
     tool_http_timeout_seconds: int = 8
     tool_allowed_hosts: tuple[str, ...] = ("example.com", "www.example.com")
     tool_user_agent: str = "InvestoryBot/0.1 (+https://investory.local)"
+    web_search_timeout_seconds: int = 8
+    web_search_allowed_hosts: tuple[str, ...] = ("example.com", "www.example.com")
+    web_search_max_results: int = 5
+    web_search_provider_order: tuple[str, ...] = ("example_search", "example_instruments")
 
 
 def _as_bool(value: str | None, *, default: bool) -> bool:
@@ -176,5 +180,21 @@ def load_config(*, env_file: Path | None = PROJECT_ROOT / ".env") -> AppConfig:
         tool_user_agent=getenv(
             "INVESTORY_TOOL_USER_AGENT",
             "InvestoryBot/0.1 (+https://investory.local)",
+        ),
+        web_search_timeout_seconds=_as_int(
+            getenv("INVESTORY_WEB_SEARCH_TIMEOUT_SECONDS"),
+            default=8,
+        ),
+        web_search_allowed_hosts=_as_csv_tuple(
+            getenv("INVESTORY_WEB_SEARCH_ALLOWED_HOSTS"),
+            default=("example.com", "www.example.com"),
+        ),
+        web_search_max_results=_as_int(
+            getenv("INVESTORY_WEB_SEARCH_MAX_RESULTS"),
+            default=5,
+        ),
+        web_search_provider_order=_as_csv_tuple(
+            getenv("INVESTORY_WEB_SEARCH_PROVIDER_ORDER"),
+            default=("example_search", "example_instruments"),
         ),
     )
