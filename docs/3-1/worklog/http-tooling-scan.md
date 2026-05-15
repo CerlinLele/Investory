@@ -268,3 +268,12 @@ ormalize_task_error entry).
 - LLM credential config entry anchors: src/investory/config.py:23, 33, 41, 49 (provider API key env names), load site src/investory/config.py:160.
 - Boundary summary: tool HTTP path uses allowlist+timeout config; provider credentials are loaded via env into LLM config path.
 
+## Step C-20 Locate logging and error classification
+
+- Scan time: 2026-05-15 23:20:29 +10:00
+- HTTP attempt log field anchor: src/investory/agent_core/tools/net_guard.py:29-45 (	ool_name,	arget_host,elapsed_ms,success,error_type).
+- Success-log path anchor: src/investory/agent_core/tools/instrument_profile.py:151-157 (success=true, error_type=None).
+- Error-log path anchor: src/investory/agent_core/tools/instrument_profile.py:124-130 and 137-143 (success=false with error_type).
+- Error classification anchor: src/investory/agent_core/contracts/result_types.py:148-179 (provider/timeouts/unknown mapping).
+- Gateway observability fields anchor: src/investory/gateway/schemas.py:42-47 (error_type,stage,etryable,equest_id).
+
