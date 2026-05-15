@@ -164,3 +164,15 @@
 - HTTP gateway caller anchor: `src/investory/gateway/api.py:51-53` constructs `DecisionFlow` and calls `flow.run(...)`.
 - Step-8 output form: `web_search` execution entry = not present; current equivalent execution entry is `FetchThenRunInstrumentBriefExecutor.execute` calling `fetch_instrument_profile`.
 
+## Step B-9 Locate web_search provider selection and fallback
+
+- Scan time: 2026-05-15 23:09:53 +10:00
+- Result: no explicit `web_search` provider-selection module found in current codebase.
+- Equivalent provider selection (source provider list): `src/investory/agent_core/tools/instrument_profile.py:60-65` defines ordered candidate sources as provider list.
+- Equivalent selection execution: `src/investory/agent_core/tools/instrument_profile.py:112-119` iterates sources and issues guarded request in order.
+- Fallback trigger condition #1: request-level failure (`not result.ok`) -> continue to next source, `src/investory/agent_core/tools/instrument_profile.py:123-132`.
+- Fallback trigger condition #2: content parse insufficiency (`len(extracted) < MIN_SOURCE_MATERIAL_CHARS`) -> continue to next source, `src/investory/agent_core/tools/instrument_profile.py:136-150`.
+- Fallback exhausted behavior: all sources failed then returns normalized failure result, `src/investory/agent_core/tools/instrument_profile.py:170` + `68-87`.
+- Guard/allowlist gate impacting provider eligibility: `src/investory/agent_core/tools/net_guard.py:49-66` + `76-83` (blocked host/non-https -> non-retryable failure).
+- Retryability mapping evidence: `src/investory/agent_core/tools/instrument_profile.py:31-38` and `77-87` maps error_type to retryable in final ToolResult.
+
