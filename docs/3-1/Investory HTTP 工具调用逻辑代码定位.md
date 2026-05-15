@@ -66,11 +66,11 @@
 
 ## 7. 建议课件最小主链路
 
-- 入口：`gateway/api.py:67-73`
-- 决策到执行：`runtime/decision_flow.py:62-63`
-- 执行器到工具：`actions/executors.py:74-78`
-- 真实联网：`tools/net_guard.py:85-87`
-- 安全门禁：`tools/net_guard.py:51-64`
+1. 网关任务入口：`src/investory/gateway/api.py:67-73`
+2. 决策流路由到动作执行器：`src/investory/agent_core/runtime/decision_flow.py:62-63`
+3. 执行器触发 HTTP 工具：`src/investory/agent_core/actions/executors.py:74-78`
+4. 工具函数发起真实网络请求：`src/investory/agent_core/tools/net_guard.py:85-87`
+5. Guard 做联网治理并回传结构化结果：`src/investory/agent_core/tools/net_guard.py:49-83` + `src/investory/agent_core/tools/instrument_profile.py:159-168`
 
 ## 8. 补充：为什么 Agent 会“自己判断网址”
 
@@ -80,6 +80,6 @@
 
 ### 8.1 模型决策边界 vs 代码执行边界
 
-- 模型决策边界：在 DecisionFlow 中生成动作调用（src/investory/agent_core/runtime/decision_flow.py:56-63）。
-- 代码执行边界：动作一旦落到 etch_then_run_instrument_brief，后续 URL 列表、访问顺序、allowlist 校验均由代码固定执行（src/investory/agent_core/tools/instrument_profile.py:60-65,112-119；src/investory/agent_core/tools/net_guard.py:49-87）。
+- 模型决策边界：在 `DecisionFlow` 中生成动作调用（`src/investory/agent_core/runtime/decision_flow.py:56-63`）。
+- 代码执行边界：动作一旦落到 `fetch_then_run_instrument_brief`，后续 URL 列表、访问顺序、allowlist 校验均由代码固定执行（`src/investory/agent_core/tools/instrument_profile.py:60-65,112-119`；`src/investory/agent_core/tools/net_guard.py:49-87`）。
 - 结果：模型不直接执行任意 URL 请求；它触发的是受约束的工具路径。
