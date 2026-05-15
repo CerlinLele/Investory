@@ -3,12 +3,18 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-ToolName = Literal["fetch_instrument_profile"]
+ToolName = Literal["fetch_instrument_profile", "web_search"]
 
 
 class ToolCall(BaseModel):
     tool_name: ToolName
-    params: dict[str, Any] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Tool input params. For web_search, recommended keys are: "
+            "query (str), top_k (int, optional), provider_hint (str, optional)."
+        ),
+    )
     request_id: str | None = None
 
 
