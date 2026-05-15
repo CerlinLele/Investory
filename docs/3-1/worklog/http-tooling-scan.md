@@ -186,3 +186,13 @@
 - web_fetch/http concrete tool entry: src/investory/agent_core/tools/instrument_profile.py:100 (etch_instrument_profile).
 - Step-10 output: schema and entry located for current equivalent HTTP tool path (no standalone web_fetch symbol).
 
+## Step B-11 Locate real HTTP request trigger point
+
+- Scan time: 2026-05-15 23:16:06 +10:00
+- Tool-side request dispatch anchor: src/investory/agent_core/tools/instrument_profile.py:114-119 (guarded_get(...) call).
+- HTTP trigger function anchor: src/investory/agent_core/tools/net_guard.py:69-75 (guarded_get signature and inputs).
+- Real network call anchor: src/investory/agent_core/tools/net_guard.py:87 (urlopen(request, timeout=timeout)).
+- Request construction anchor: src/investory/agent_core/tools/net_guard.py:85 (Request(url, headers={"User-Agent": user_agent})).
+- Step-11 output: confirmed actual outbound HTTP occurs in 
+et_guard.guarded_get via urllib.request.urlopen.
+
