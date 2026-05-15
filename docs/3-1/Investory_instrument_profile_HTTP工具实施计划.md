@@ -213,6 +213,39 @@ Step 4 修改逻辑（按执行链路）：
 - Executor 依赖错误分类来决定“降级追问”还是“直接失败”。
 - 后续日志分析、可观测性和测试断言都会更清晰。
 
+当前落地（已完成）：
+
+1. 已在 `instrument_profile.py` 定义统一错误类型集合 `ErrorType`：
+   - `invalid_input`
+   - `blocked_host`
+   - `timeout`
+   - `network_error`
+   - `parse_error`
+   - `not_found`
+2. 已新增 `ERROR_RETRYABLE_POLICY` 作为重试语义唯一来源：
+   - `invalid_input/blocked_host/parse_error/not_found` -> `False`
+   - `timeout/network_error` -> `True`
+3. 已新增 `_build_error_result(error_type, error_message)`：
+   - 所有本地失败出口统一通过该函数构造 `ToolResult`
+   - 避免不同分支手写 `retryable` 导致语义漂移
+4. `_build_failure_result(...)` 已收口错误归一逻辑：
+   - 优先读取最后一次抓取失败的 `error_type/error_message`
+   - 遇到未知错误类型时统一降级为 `network_error`
+   - `retryable` 不再直接透传上游值，统一按策略表计算
+5. 空输入分支已接入统一错误构造路径（`invalid_input` + policy）。
+6. 测试已补充策略断言：
+   - 验证 `retryable` 由策略表主导（即使上游返回冲突值）
+   - 验证未知错误类型归一为 `network_error`
+
+Step 5 修改逻辑（按执行链路）：
+
+1. 定义固定错误类型集合，限制 `error_type` 输出域。
+2. 定义错误类型到 `retryable` 的静态映射策略表。
+3. 任何本地错误先走 `_build_error_result` 统一构造。
+4. 多源全失败时走 `_build_failure_result` 聚合最后错误。
+5. 对未知错误类型做归一化（`-> network_error`）。
+6. 输出 `retryable` 始终按策略表计算，保证语义一致。
+
 ---
 
 ### Step 6：增强 Executor 成功分支的元数据回填
