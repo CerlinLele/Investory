@@ -1,7 +1,7 @@
 from datetime import date
 
 from investory.agent_core.contracts.tool_contract import ToolResult
-from investory.agent_core.tools.net_guard import validate_url
+from investory.agent_core.tools.net_guard import GuardedHttpResult, guarded_get
 
 ALLOWED_HOSTS: tuple[str, ...] = (
     "example.com",
@@ -9,6 +9,37 @@ ALLOWED_HOSTS: tuple[str, ...] = (
 )
 DEFAULT_TIMEOUT_SECONDS = 8
 MAX_SOURCE_MATERIAL_CHARS = 3000
+
+
+def _build_candidate_sources(normalized: str) -> list[str]:
+    return [
+        f"https://example.com/instruments/{normalized}",
+        f"https://www.example.com/search?q={normalized}",
+        "https://example.com/factsheet",
+    ]
+
+
+def _build_failure_result(
+    normalized: str, last_error: GuardedHttpResult | None
+) -> ToolResult:
+    if last_error is None:
+        return ToolResult(
+            tool_name="fetch_instrument_profile",
+            ok=False,
+            error_type="not_found",
+            error_message=f"No reachable source found for '{normalized}'.",
+            retryable=False,
+        )
+
+    return ToolResult(
+        tool_name="fetch_instrument_profile",
+        ok=False,
+        error_type=last_error.error_type or "network_error",
+        error_message=last_error.error_message or "Failed to fetch instrument profile.",
+        retryable=last_error.retryable,
+    )
+
+
 def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
     normalized = instrument_name_or_code.strip().upper()
     if not normalized:
@@ -20,26 +51,40 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
             retryable=False,
         )
 
-    # Step 1: freeze source strategy with allowlisted https URLs and structured text only.
-    sources = [
-        f"https://example.com/instruments/{normalized}",
-        "https://example.com/factsheet",
-    ]
-    filtered_sources = [
-        url for url in sources if validate_url(url, allowed_hosts=ALLOWED_HOSTS).ok
-    ]
-    source_material = (
-        f"{normalized} mock profile: this is a placeholder public summary "
-        "used for learning-brief generation."
-    )[:MAX_SOURCE_MATERIAL_CHARS]
+    sources = _build_candidate_sources(normalized)
+    attempted_sources: list[str] = []
+    last_error: GuardedHttpResult | None = None
 
-    return ToolResult(
-        tool_name="fetch_instrument_profile",
-        ok=True,
-        data={
-            "instrument_name_or_code": normalized,
-            "source_material": source_material,
-            "sources": filtered_sources,
-            "as_of": date.today().isoformat(),
-        },
-    )
+    for source in sources:
+        result = guarded_get(
+            source,
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+            allowed_hosts=ALLOWED_HOSTS,
+        )
+        attempted_sources.append(source)
+        if not result.ok:
+            last_error = result
+            continue
+
+        source_material = (result.text or "").strip()[:MAX_SOURCE_MATERIAL_CHARS]
+        if not source_material:
+            last_error = GuardedHttpResult(
+                ok=False,
+                error_type="parse_error",
+                error_message=f"Empty source content from '{source}'.",
+                retryable=False,
+            )
+            continue
+
+        return ToolResult(
+            tool_name="fetch_instrument_profile",
+            ok=True,
+            data={
+                "instrument_name_or_code": normalized,
+                "source_material": source_material,
+                "sources": attempted_sources,
+                "as_of": date.today().isoformat(),
+            },
+        )
+
+    return _build_failure_result(normalized, last_error)
