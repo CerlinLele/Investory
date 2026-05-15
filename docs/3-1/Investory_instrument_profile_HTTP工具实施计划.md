@@ -114,6 +114,31 @@
    - 使用 monkeypatch 模拟 `guarded_get`，不依赖真实网络
    - 覆盖首源成功、回退成功、全失败透传、空输入、长度截断等关键场景
 
+Step 3 修改逻辑（按执行链路）：
+
+1. 输入标准化：
+   - `instrument_name_or_code` 先执行 `strip().upper()`。
+   - 标准化后为空时，直接返回 `invalid_input`。
+2. 构建多源候选：
+   - 通过 `_build_candidate_sources(normalized)` 生成按优先级排序的候选 URL 列表。
+3. 顺序尝试与回退：
+   - 对每个候选 URL 调用 `guarded_get(...)`。
+   - 若失败，记录为 `last_error` 并尝试下一个来源。
+   - 若成功，立即进入成功分支并返回（命中即返）。
+4. 成功内容收敛：
+   - 对成功返回文本执行 `strip()` 与长度截断（`MAX_SOURCE_MATERIAL_CHARS`）。
+   - 若文本为空，按 `parse_error` 处理并继续回退。
+5. 全失败统一返回：
+   - 通过 `_build_failure_result(...)` 统一失败结果。
+   - 优先透传最后一次失败的 `error_type/error_message/retryable`。
+   - 若无可用错误上下文，则回退为 `not_found`。
+6. 输出契约保持稳定：
+   - 成功时 `ToolResult.data` 固定返回：
+     - `instrument_name_or_code`
+     - `source_material`
+     - `sources`（实际尝试链路）
+     - `as_of`
+
 ---
 
 ### Step 4：增加内容抽取与标准化输出
