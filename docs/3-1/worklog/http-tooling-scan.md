@@ -243,3 +243,11 @@ ormalize_task_error entry).
 - Control point #3: src/investory/agent_core/tools/net_guard.py:76-83 validation failure short-circuits before network call.
 - Trigger/behavior summary: scheme/host violations return non-retryable guard errors and do not call urlopen.
 
+## Step C-17 Locate redirect and DNS strategy
+
+- Scan time: 2026-05-15 23:18:56 +10:00
+- HTTP client implementation anchor: src/investory/agent_core/tools/net_guard.py:85-87 uses urllib.request.urlopen directly.
+- Redirect policy finding: no explicit redirect toggle or max-redirect setting found in tool HTTP layer.
+- DNS policy finding: no explicit custom DNS resolver strategy found in tool HTTP layer.
+- Step-17 output: redirect/DNS behavior is implicit in stdlib defaults; no project-level explicit policy code located.
+
