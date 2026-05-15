@@ -154,3 +154,13 @@
 - Related HTTP gateway schema (not web_search-specific): `src/investory/gateway/schemas.py:23-35` (`TaskRequest` generic payload schema).
 - Conclusion for Step 7 output: web_search schema definition point = not present; nearest equivalent schema is `fetch_instrument_profile` tool contract.
 
+## Step B-8 Locate web_search execution entry
+
+- Scan time: 2026-05-15 23:08:12 +10:00
+- Result: no explicit `web_search` execution entry found in current codebase.
+- Equivalent tool-path first hop (registry -> handler): `src/investory/agent_core/actions/router.py:41-43` registers `fetch_then_run_instrument_brief` -> `FetchThenRunInstrumentBriefExecutor`.
+- Equivalent handler execution entry: `src/investory/agent_core/actions/executors.py:74` sets `fetcher = fetch_instrument_profile`; `src/investory/agent_core/actions/executors.py:78` performs `tool_result = self.fetcher(...)`.
+- Caller side first-hop trigger: `src/investory/agent_core/runtime/decision_flow.py:62-63` routes action and invokes executor execution.
+- HTTP gateway caller anchor: `src/investory/gateway/api.py:51-53` constructs `DecisionFlow` and calls `flow.run(...)`.
+- Step-8 output form: `web_search` execution entry = not present; current equivalent execution entry is `FetchThenRunInstrumentBriefExecutor.execute` calling `fetch_instrument_profile`.
+
