@@ -44,3 +44,35 @@
   - src\investory\gateway\api.py
   - src\investory\main.py
 
+## Step A-3 Second-round keyword scan (network governance)
+
+- Scan time: 2026-05-15 22:52:10 +10:00
+- Keywords: http|ssrf|timeout|proxy|retry|allowlist
+- Scope: src/ and docs/
+- Candidate paths with evidence and tag (高相关/待确认):
+  - [待确认] docs\0-1\Investory_第0章_模块图_目录结构_骨架职责.md :: http
+  - [待确认] docs\0-2\Investory_第0章_FastAPI_搭建计划.md :: http
+  - [待确认] docs\1-1\investory-langchain-最小任务执行器设计.md :: http,retry,timeout
+  - [待确认] docs\1-1\LLM调用失败时的错误收束.md :: retry,timeout
+  - [待确认] docs\1-1\System Prompt 与 User Prompt 设计.md :: retry,timeout
+  - [待确认] docs\1-2\investory-最小编排流程操作计划.md :: http,timeout
+  - [待确认] docs\2-2\Investory_第2-2课_结构化决策链路实施计划.md :: http
+  - [待确认] docs\3-1\Investory HTTP 工具调用实现定位计划.md :: allowlist,http,proxy,retry,ssrf,timeout
+  - [待确认] docs\3-1\Investory_instrument_profile_HTTP工具调用流程分析.html :: allowlist,http,retry,timeout
+  - [待确认] docs\3-1\Investory_instrument_profile_HTTP工具实施计划.md :: allowlist,http,retry,ssrf,timeout
+  - [待确认] docs\3-1\Investory_第3-1课_适用场景分析.md :: http
+  - [待确认] docs\3-1\Investory_第3-1课_最小工具落地实现清单.md :: http,retry
+  - [待确认] docs\3-1\worklog\http-tooling-scan.md :: http
+  - [待确认] docs\cloud\AWS\Bedrock\AgentCore\Runtime\Investory_Bedrock_AgentCore_Runtime_区别说明.md :: http
+  - [待确认] docs\cloud\Investory_课纲模块_AWS_Azure_对照表.md :: http
+  - [高相关] src\investory\agent_core\contracts\result_types.py :: retry,timeout
+  - [高相关] src\investory\agent_core\contracts\tool_contract.py :: retry
+  - [高相关] src\investory\agent_core\runtime\decision_flow.py :: retry
+  - [高相关] src\investory\agent_core\tools\instrument_profile.py :: http,retry,timeout
+  - [高相关] src\investory\agent_core\tools\net_guard.py :: http,retry,timeout
+  - [高相关] src\investory\config.py :: http,timeout
+  - [高相关] src\investory\gateway\api.py :: http,retry
+  - [高相关] src\investory\gateway\routing.py :: http
+  - [高相关] src\investory\gateway\schemas.py :: http,retry
+  - [高相关] src\investory\gateway\session.py :: http
+
