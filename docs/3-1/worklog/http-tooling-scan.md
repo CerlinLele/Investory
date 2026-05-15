@@ -130,3 +130,16 @@
 
 - Coverage check: each mapping row binds at least one source file from candidate files v1.
 
+## Step A-6 Phase A summary (fact-only)
+
+- Summary time: 2026-05-15 23:00:36 +10:00
+- 已建立检索工作日志并记录分支/时间/范围计划，见 docs/3-1/worklog/http-tooling-scan.md（开头元信息区）。
+- 已完成第一轮工具类关键词检索并记录原始命中路径清单（path-level），见 docs/3-1/worklog/http-tooling-scan.md 的 Step A-2。
+- 第一轮命中覆盖 src/ 与 docs/ 两个范围，见 docs/3-1/worklog/http-tooling-scan.md 的 Step A-2 字段 Scope 与 Raw hit paths。
+- 已完成第二轮网络治理关键词检索并记录每个候选文件的命中词证据，见 docs/3-1/worklog/http-tooling-scan.md 的 Step A-3。
+- 第二轮候选文件已按 高相关/待确认 打标并保留命中词，见 docs/3-1/worklog/http-tooling-scan.md 的 Step A-3 列表项。
+- 已将 A-2/A-3 结果合并去重并形成 候选文件 v1，总数记录为 18，见 docs/3-1/worklog/http-tooling-scan.md 的 Step A-4。
+- 候选文件 v1 已按 	ool/export/runtime/security 分组且每个文件只出现一次，见 docs/3-1/worklog/http-tooling-scan.md 的 Step A-4 分组块。
+- 已建立术语映射表 v1（Investory 命名 -> Contract/Registry/Handler/Guard），且每条映射绑定代码文件，见 docs/3-1/worklog/http-tooling-scan.md 的 Step A-5。
+- 阶段 A 的事实记录均集中在同一日志文件并按步骤分段，可按 Step A-2 至 Step A-5 顺序回溯。
+
