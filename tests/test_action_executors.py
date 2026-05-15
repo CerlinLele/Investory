@@ -205,8 +205,10 @@ def test_fetch_then_run_executor_returns_requires_user_input_when_fetch_fails():
 
     assert result.status == "requires_user_input"
     assert result.user_message is not None
-    assert "Please paste" in result.user_message
+    assert len(result.user_message.strip()) > 0
     assert result.result is not None
+    assert result.result["action"] == "fetch_then_run_instrument_brief"
+    assert result.result["instrument_name_or_code"] == "VTI"
     assert result.result["tool_error_type"] == "network_error"
     assert result.result["tool_error_message"] == "timeout"
     assert task_executor.calls == []

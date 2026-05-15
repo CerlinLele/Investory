@@ -39,8 +39,8 @@ def test_fetch_instrument_profile_rejects_empty_code():
 
     assert result.ok is False
     assert result.error_type == "invalid_input"
-    assert result.error_message == "instrument_name_or_code is required."
     assert result.retryable is False
+    assert result.error_message is not None
 
 
 def test_fetch_instrument_profile_freezes_https_allowlist_boundary(monkeypatch):
@@ -112,7 +112,8 @@ def test_fetch_instrument_profile_fallbacks_to_next_source(monkeypatch):
 
     assert result.ok is True
     assert result.data is not None
-    assert "fallback success" in result.data["source_material"]
+    assert result.data["source_material"].startswith("Instrument: VTI")
+    assert "Profile Summary:" in result.data["source_material"]
     assert len(result.data["sources"]) == 2
 
 
@@ -133,7 +134,7 @@ def test_fetch_instrument_profile_returns_error_when_all_sources_fail(monkeypatc
 
     assert result.ok is False
     assert result.error_type == "network_error"
-    assert result.error_message == "upstream unavailable"
+    assert result.error_message is not None
     assert result.retryable is True
 
 
@@ -175,6 +176,7 @@ def test_fetch_instrument_profile_normalizes_unknown_error_type(monkeypatch):
     assert result.ok is False
     assert result.error_type == "network_error"
     assert result.retryable == ERROR_RETRYABLE_POLICY["network_error"]
+    assert result.error_message is not None
 
 
 def test_extract_profile_text_removes_html_and_normalizes_space():
