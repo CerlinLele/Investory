@@ -123,3 +123,20 @@
   - `src/investory/agent_core/runtime/smoke/task.py:26`
   - Command output: `17 passed in 0.15s`.
   - Blocker output: `ModuleNotFoundError: No module named 'langchain_core'`.
+
+## Step F-1 - 更新定位文档
+- Timestamp: 2026-05-16 15:59:25 +10:00
+- Command/Action:
+  - Rewrote `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md` from pre-implementation status to post-implementation status.
+  - Replaced old conclusion "未发现 web_search" with implemented web_search chain and concrete anchors.
+  - Added provider selection and fallback anchors from `tools/web_search.py`.
+  - Updated the "5-point minimal main chain" to include gateway alias -> decision planner -> run_web_search executor -> guarded network path.
+- Files touched:
+  - `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md`
+- Result:
+  - Document now reflects actual implementation state and is directly usable for 3-1 lesson explanation.
+  - Each major conclusion is backed by `file:line` anchors.
+- Evidence anchors:
+  - `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md:5`
+  - `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md:23`
+  - `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md:77`
