@@ -73,3 +73,25 @@
   - `src/investory/agent_core/actions/executors.py:108`
   - `src/investory/agent_core/actions/router.py:45`
   - Compile check: `python -m compileall src/investory/agent_core/actions src/investory/agent_core/contracts` (passed).
+
+## Step E-5 - 任务规格与网关触发路径
+- Timestamp: 2026-05-16 14:27:00 +10:00
+- Command/Action:
+  - Added new task model file `web_search_brief.py` with input/output schemas for search payload/results.
+  - Registered `WEB_SEARCH_BRIEF_TASK` in `src/investory/agent_core/tasks.py` and included it in TASKS registry.
+  - Added gateway task aliases in `src/investory/gateway/routing.py`: `web_search` and `research_lookup` -> `web_search_brief`.
+  - Added decision planner branch to route `web_search_brief` requests to `run_web_search` action directly.
+- Files touched:
+  - `src/investory/agent_core/task_models/web_search_brief.py`
+  - `src/investory/agent_core/tasks.py`
+  - `src/investory/gateway/routing.py`
+  - `src/investory/agent_core/runtime/decision_planner.py`
+- Result:
+  - `/tasks` can now trigger the web-search tool path via `task_type=web_search` or `task_type=research_lookup` without protocol changes.
+  - Unknown task types keep original error handling through `UnknownTaskTypeError`.
+- Evidence anchors:
+  - `src/investory/agent_core/tasks.py:39`
+  - `src/investory/gateway/routing.py:19`
+  - `src/investory/agent_core/runtime/decision_planner.py:11`
+  - `src/investory/agent_core/task_models/web_search_brief.py:4`
+  - Verification: `PYTHONPATH=src` resolve_task_name(web_search/research_lookup/web_search_brief) => `web_search_brief`.

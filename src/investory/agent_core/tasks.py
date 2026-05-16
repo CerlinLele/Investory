@@ -8,6 +8,10 @@ from investory.agent_core.task_models.learning_material_summary import (
     LearningMaterialSummaryInput,
     LearningMaterialSummaryResult,
 )
+from investory.agent_core.task_models.web_search_brief import (
+    WebSearchBriefInput,
+    WebSearchBriefResult,
+)
 
 
 FINANCE_QA_TASK = TaskSpec(
@@ -31,8 +35,16 @@ INSTRUMENT_BRIEF_TASK = TaskSpec(
     output_model=InstrumentBriefResult,
 )
 
+WEB_SEARCH_BRIEF_TASK = TaskSpec(
+    name="web_search_brief",
+    prompt_name="web_search_brief",
+    input_model=WebSearchBriefInput,
+    output_model=WebSearchBriefResult,
+)
+
 TASKS = {
     FINANCE_QA_TASK.name: FINANCE_QA_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK.name: LEARNING_MATERIAL_SUMMARY_TASK,
     INSTRUMENT_BRIEF_TASK.name: INSTRUMENT_BRIEF_TASK,
+    WEB_SEARCH_BRIEF_TASK.name: WEB_SEARCH_BRIEF_TASK,
 }

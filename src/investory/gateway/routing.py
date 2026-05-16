@@ -7,6 +7,7 @@ from investory.agent_core.tasks import (
     FINANCE_QA_TASK,
     INSTRUMENT_BRIEF_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK,
+    WEB_SEARCH_BRIEF_TASK,
     TASKS,
 )
 
@@ -15,6 +16,8 @@ TASK_ALIASES = {
     "qa": FINANCE_QA_TASK.name,
     "summary": LEARNING_MATERIAL_SUMMARY_TASK.name,
     "brief": INSTRUMENT_BRIEF_TASK.name,
+    "web_search": WEB_SEARCH_BRIEF_TASK.name,
+    "research_lookup": WEB_SEARCH_BRIEF_TASK.name,
 }
 
 

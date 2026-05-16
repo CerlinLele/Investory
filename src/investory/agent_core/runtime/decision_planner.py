@@ -8,6 +8,18 @@ from investory.agent_core.runtime.input_requirements import get_missing_required
 
 class DecisionPlanner:
     def decide(self, spec: TaskSpec, payload: dict[str, Any]) -> TaskDecision:
+        if spec.name == "web_search_brief":
+            return TaskDecision(
+                action="run_web_search",
+                task_name=spec.name,
+                reason="Web search brief task should execute web_search tool directly.",
+                params={
+                    "query": str(payload["query"]).strip(),
+                    "top_k": int(payload.get("top_k", 5)),
+                    "provider_hint": payload.get("provider_hint"),
+                },
+            )
+
         missing_fields = get_missing_required_fields(spec, payload)
         if missing_fields:
             if spec.name == "instrument_brief" and missing_fields == ["source_material"]:
