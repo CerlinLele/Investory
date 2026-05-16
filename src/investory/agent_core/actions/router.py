@@ -5,6 +5,7 @@ from investory.agent_core.actions.executors import (
     AskMissingFieldsExecutor,
     FetchThenRunInstrumentBriefExecutor,
     RefuseInvestmentAdviceExecutor,
+    RunWebSearchExecutor,
     RunTaskModelExecutor,
 )
 from investory.agent_core.contracts.action_contract import ActionCall, ActionName
@@ -41,6 +42,7 @@ def _default_executors(
         "fetch_then_run_instrument_brief": FetchThenRunInstrumentBriefExecutor(
             task_executor=task_executor
         ),
+        "run_web_search": RunWebSearchExecutor(),
     }
 
 

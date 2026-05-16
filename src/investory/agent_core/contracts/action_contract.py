@@ -10,6 +10,7 @@ ActionName = Literal[
     "run_task_model",
     "refuse_investment_advice",
     "fetch_then_run_instrument_brief",
+    "run_web_search",
 ]
 
 ActionStatus = Literal["success", "failed", "requires_user_input", "refused"]

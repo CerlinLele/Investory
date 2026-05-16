@@ -51,3 +51,25 @@
   - `src/investory/config.py:184`
   - `src/investory/agent_core/tools/web_search.py:25`
   - `src/investory/agent_core/tools/web_search.py:175`
+
+## Step E-4 - 执行器与路由接线
+- Timestamp: 2026-05-16 01:36:07 +10:00
+- Command/Action:
+  - Added new action name `run_web_search` to `ActionName` contract.
+  - Added validator branch for `run_web_search` params: required `query`, optional positive `top_k`, optional non-empty `provider_hint`.
+  - Added `RunWebSearchExecutor` and wired it to call `search_web`.
+  - Registered `run_web_search` in default `ActionRouter` mapping.
+- Files touched:
+  - `src/investory/agent_core/contracts/action_contract.py`
+  - `src/investory/agent_core/actions/validator.py`
+  - `src/investory/agent_core/actions/executors.py`
+  - `src/investory/agent_core/actions/router.py`
+- Result:
+  - `ActionRouter` can route `run_web_search` to `RunWebSearchExecutor`.
+  - Executor output is returned as `ActionResult`, then backfilled to `TaskResult` by existing decision flow.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/action_contract.py:13`
+  - `src/investory/agent_core/actions/validator.py:94`
+  - `src/investory/agent_core/actions/executors.py:108`
+  - `src/investory/agent_core/actions/router.py:45`
+  - Compile check: `python -m compileall src/investory/agent_core/actions src/investory/agent_core/contracts` (passed).

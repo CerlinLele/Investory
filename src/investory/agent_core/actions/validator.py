@@ -14,6 +14,7 @@ def _ensure_action_allowed(decision: TaskDecision) -> None:
         "run_task_model",
         "refuse_investment_advice",
         "fetch_then_run_instrument_brief",
+        "run_web_search",
     }
     if decision.action not in allowed_actions:
         raise ActionValidationError(f"Unsupported action: {decision.action}")
@@ -90,6 +91,18 @@ def _validate_fetch_then_run_instrument_brief(decision: TaskDecision) -> None:
     _ensure_dict_param(decision.params, "payload")
 
 
+def _validate_run_web_search(decision: TaskDecision) -> None:
+    query = _ensure_non_empty_string_param(decision.params, "query")
+    if query is None:
+        raise ActionValidationError("run_web_search requires query.")
+
+    top_k = decision.params.get("top_k")
+    if top_k is not None and (not isinstance(top_k, int) or top_k <= 0):
+        raise ActionValidationError("top_k must be a positive integer when provided.")
+
+    _ensure_non_empty_string_param(decision.params, "provider_hint")
+
+
 def validate_decision(
     decision: TaskDecision,
     spec: TaskSpec,
@@ -107,6 +120,8 @@ def validate_decision(
         _validate_refuse_investment_advice(decision)
     elif decision.action == "fetch_then_run_instrument_brief":
         _validate_fetch_then_run_instrument_brief(decision)
+    elif decision.action == "run_web_search":
+        _validate_run_web_search(decision)
 
     return ActionCall(
         action=decision.action,

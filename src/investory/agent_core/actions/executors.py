@@ -8,6 +8,7 @@ from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.contracts.tool_contract import ToolResult
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.agent_core.tools.instrument_profile import fetch_instrument_profile
+from investory.agent_core.tools.web_search import search_web
 
 
 class ActionExecutor(Protocol):
@@ -102,6 +103,54 @@ class FetchThenRunInstrumentBriefExecutor:
         payload["source_as_of"] = tool_result.data.get("as_of")
         task_result = self.task_executor.run(spec, payload)
         return action_result_from_task_result(call, task_result)
+
+
+class RunWebSearchExecutor:
+    def __init__(
+        self,
+        searcher: Callable[[str, int, str | None], ToolResult] | None = None,
+    ) -> None:
+        self.searcher = searcher or search_web
+
+    def execute(self, call: ActionCall, spec: TaskSpec) -> ActionResult:
+        query = str(call.params["query"]).strip()
+        top_k = int(call.params.get("top_k", 5))
+        provider_hint = call.params.get("provider_hint")
+        provider_hint_value = str(provider_hint).strip() if provider_hint is not None else None
+        tool_result = self.searcher(query, top_k, provider_hint_value)
+
+        if not tool_result.ok or not tool_result.data:
+            user_message = (
+                "I could not complete web search right now. "
+                "Please retry or provide source links manually."
+            )
+            return ActionResult(
+                action=call.action,
+                task_name=call.task_name,
+                status="requires_user_input",
+                result={
+                    "action": call.action,
+                    "task_name": call.task_name,
+                    "query": query,
+                    "tool_error_type": tool_result.error_type,
+                    "tool_error_message": tool_result.error_message,
+                    "retryable": tool_result.retryable,
+                },
+                user_message=user_message,
+            )
+
+        return ActionResult(
+            action=call.action,
+            task_name=call.task_name,
+            status="success",
+            result={
+                "query": tool_result.data.get("query", query),
+                "results": list(tool_result.data.get("results") or []),
+                "provider_attempt_order": list(
+                    tool_result.data.get("provider_attempt_order") or []
+                ),
+            },
+        )
 
 
 def action_result_from_task_result(
