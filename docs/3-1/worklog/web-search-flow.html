@@ -1,0 +1,151 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web Search Flow (Agent vs Tool)</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --line: #1f2937;
+      --agent: #dbeafe;
+      --tool: #dcfce7;
+      --io: #fef3c7;
+      --text: #111827;
+      --muted: #4b5563;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #eef2ff, #f0fdf4);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 0 0 8px;
+    }
+    p {
+      margin: 0 0 16px;
+      color: var(--muted);
+    }
+    .lane-title {
+      font-weight: 700;
+      margin: 18px 0 10px;
+    }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .box {
+      background: var(--card);
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 14px;
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+    }
+    .agent { background: var(--agent); }
+    .tool { background: var(--tool); }
+    .io { background: var(--io); }
+    .arrow {
+      text-align: center;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--line);
+    }
+    .note {
+      background: #fff;
+      border-left: 4px solid #2563eb;
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-top: 8px;
+      color: #1f2937;
+      font-size: 14px;
+    }
+    .legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .tag {
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      background: #fff;
+    }
+    .agent-tag { background: var(--agent); }
+    .tool-tag { background: var(--tool); }
+    .io-tag { background: var(--io); }
+    @media (max-width: 900px) {
+      .flow {
+        grid-template-columns: 1fr;
+      }
+      .arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>web_search 流程图（Agent 决策 vs Tool 执行）</h1>
+    <p>重点：Agent 决定“是否搜、搜什么”；Tool 决定“按哪个 provider 顺序去搜并 fallback”。</p>
+
+    <div class="lane-title">上层决策链（Agent / Runtime）</div>
+    <div class="flow">
+      <div class="box io">/tasks 请求<br/>task_type=web_search</div>
+      <div class="arrow">→</div>
+      <div class="box agent">Gateway<br/>resolve_task_name()</div>
+      <div class="arrow">→</div>
+      <div class="box agent">decision_planner<br/>action=run_web_search</div>
+      <div class="arrow">→</div>
+      <div class="box agent">RunWebSearchExecutor<br/>提取 query/top_k/provider_hint</div>
+    </div>
+
+    <div class="lane-title">工具执行链（Tool / Network）</div>
+    <div class="flow">
+      <div class="box tool">search_web(query, top_k, provider_hint)</div>
+      <div class="arrow">→</div>
+      <div class="box tool">_provider_candidates()<br/>provider_hint 优先</div>
+      <div class="arrow">→</div>
+      <div class="box tool">按 web_search_provider_order<br/>逐个 provider fallback</div>
+      <div class="arrow">→</div>
+      <div class="box tool">guarded_get()<br/>allowlist + timeout + logging</div>
+    </div>
+
+    <div class="flow">
+      <div class="box tool">解析 HTML -> title/snippet/source</div>
+      <div class="arrow">→</div>
+      <div class="box io">成功: ToolResult.ok=true<br/>results + provider_attempt_order</div>
+      <div class="arrow">→</div>
+      <div class="box io">失败: ToolResult.ok=false<br/>error_type/retryable</div>
+      <div class="arrow">→</div>
+      <div class="box agent">Executor 返回 ActionResult<br/>success / requires_user_input</div>
+    </div>
+
+    <div class="note">
+      结论：本阶段已包含“具体去哪搜”的执行逻辑，但它由 Tool 层（provider_hint + provider_order）驱动，不是 planner 每轮智能选择具体 provider。
+    </div>
+
+    <div class="legend">
+      <span class="tag agent-tag">Agent / Runtime</span>
+      <span class="tag tool-tag">Tool / Network</span>
+      <span class="tag io-tag">Input / Output</span>
+    </div>
+  </div>
+</body>
+</html>
