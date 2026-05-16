@@ -95,3 +95,31 @@
   - `src/investory/agent_core/runtime/decision_planner.py:11`
   - `src/investory/agent_core/task_models/web_search_brief.py:4`
   - Verification: `PYTHONPATH=src` resolve_task_name(web_search/research_lookup/web_search_brief) => `web_search_brief`.
+
+## Step E-6 - 测试与验证
+- Timestamp: 2026-05-16 15:47:10 +10:00
+- Command/Action:
+  - Added web_search tool unit tests in `tests/test_web_search_tool.py` for success, timeout, blocked_host, and provider-all-fail paths.
+  - Added action/router/validator/planner/gateway/tasks test coverage updates for `run_web_search` and `web_search_brief` wiring.
+  - Updated smoke task defaults with `web_search_brief` payload in `src/investory/agent_core/runtime/smoke/task.py`.
+  - Ran targeted pytest set that can execute in current environment.
+- Files touched:
+  - `tests/test_web_search_tool.py`
+  - `tests/test_action_executors.py`
+  - `tests/test_action_router.py`
+  - `tests/test_action_validator.py`
+  - `tests/test_decision_planner.py`
+  - `tests/test_gateway_routing.py`
+  - `tests/test_tasks.py`
+  - `src/investory/agent_core/runtime/smoke/task.py`
+- Test result:
+  - Passed: `python -m pytest tests/test_web_search_tool.py tests/test_gateway_routing.py tests/test_tasks.py` => `17 passed`.
+  - Blocked: action-layer tests (`test_action_executors.py`, `test_action_router.py`, `test_action_validator.py`, `test_decision_planner.py`) failed at collection due to missing dependency `langchain_core` in current environment.
+- Evidence anchors:
+  - `tests/test_web_search_tool.py:1`
+  - `tests/test_action_executors.py:1`
+  - `tests/test_gateway_routing.py:1`
+  - `tests/test_tasks.py:1`
+  - `src/investory/agent_core/runtime/smoke/task.py:26`
+  - Command output: `17 passed in 0.15s`.
+  - Blocker output: `ModuleNotFoundError: No module named 'langchain_core'`.

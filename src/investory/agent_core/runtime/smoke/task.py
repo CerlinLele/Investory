@@ -23,6 +23,11 @@ DEFAULT_PAYLOADS = {
             "over a period of time. It helps investors understand downside risk."
         ),
     },
+    "web_search_brief": {
+        "query": "VTI ETF overview",
+        "top_k": 3,
+        "provider_hint": "example_search",
+    },
 }
 
 

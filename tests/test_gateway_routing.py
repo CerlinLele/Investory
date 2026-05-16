@@ -4,6 +4,7 @@ from investory.agent_core.tasks import (
     FINANCE_QA_TASK,
     INSTRUMENT_BRIEF_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK,
+    WEB_SEARCH_BRIEF_TASK,
 )
 from investory.gateway.routing import (
     UnknownTaskTypeError,
@@ -28,6 +29,11 @@ def test_resolve_task_name_accepts_internal_task_name():
     assert resolve_task_name("finance_qa") == "finance_qa"
 
 
+def test_resolve_task_name_maps_web_search_aliases():
+    assert resolve_task_name("web_search") == "web_search_brief"
+    assert resolve_task_name("research_lookup") == "web_search_brief"
+
+
 def test_resolve_task_name_strips_surrounding_whitespace():
     assert resolve_task_name("  qa  ") == "finance_qa"
 
@@ -36,6 +42,7 @@ def test_resolve_task_spec_returns_registered_task_spec():
     assert resolve_task_spec("qa") is FINANCE_QA_TASK
     assert resolve_task_spec("learning_material_summary") is LEARNING_MATERIAL_SUMMARY_TASK
     assert resolve_task_spec("instrument_brief") is INSTRUMENT_BRIEF_TASK
+    assert resolve_task_spec("web_search") is WEB_SEARCH_BRIEF_TASK
 
 
 def test_resolve_task_name_rejects_unknown_task_type():

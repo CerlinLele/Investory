@@ -7,11 +7,16 @@ from investory.agent_core.task_models.learning_material_summary import (
     LearningMaterialSummaryInput,
     LearningMaterialSummaryResult,
 )
+from investory.agent_core.task_models.web_search_brief import (
+    WebSearchBriefInput,
+    WebSearchBriefResult,
+)
 from investory.agent_core.tasks import (
     FINANCE_QA_TASK,
     INSTRUMENT_BRIEF_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK,
     TASKS,
+    WEB_SEARCH_BRIEF_TASK,
 )
 
 
@@ -41,4 +46,12 @@ def test_tasks_registry_contains_initial_tasks():
         "finance_qa": FINANCE_QA_TASK,
         "learning_material_summary": LEARNING_MATERIAL_SUMMARY_TASK,
         "instrument_brief": INSTRUMENT_BRIEF_TASK,
+        "web_search_brief": WEB_SEARCH_BRIEF_TASK,
     }
+
+
+def test_web_search_brief_task_spec_registers_models_and_prompt():
+    assert WEB_SEARCH_BRIEF_TASK.name == "web_search_brief"
+    assert WEB_SEARCH_BRIEF_TASK.prompt_name == "web_search_brief"
+    assert WEB_SEARCH_BRIEF_TASK.input_model is WebSearchBriefInput
+    assert WEB_SEARCH_BRIEF_TASK.output_model is WebSearchBriefResult

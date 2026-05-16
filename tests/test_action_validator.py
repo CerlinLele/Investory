@@ -5,7 +5,11 @@ from investory.agent_core.actions.validator import (
     validate_decision,
 )
 from investory.agent_core.contracts.action_contract import TaskDecision
-from investory.agent_core.tasks import FINANCE_QA_TASK, INSTRUMENT_BRIEF_TASK
+from investory.agent_core.tasks import (
+    FINANCE_QA_TASK,
+    INSTRUMENT_BRIEF_TASK,
+    WEB_SEARCH_BRIEF_TASK,
+)
 
 
 def test_validate_decision_builds_action_call_for_missing_fields():
@@ -203,3 +207,30 @@ def test_validate_decision_rejects_unsupported_action_from_unvalidated_model():
 
     with pytest.raises(ActionValidationError, match="Unsupported action"):
         validate_decision(decision, INSTRUMENT_BRIEF_TASK)
+
+
+def test_validate_decision_accepts_run_web_search_with_required_query():
+    decision = TaskDecision(
+        action="run_web_search",
+        task_name="web_search_brief",
+        reason="Direct web search execution.",
+        params={"query": "VTI", "top_k": 5, "provider_hint": "example_search"},
+    )
+
+    call = validate_decision(decision, WEB_SEARCH_BRIEF_TASK)
+
+    assert call.action == "run_web_search"
+    assert call.params["query"] == "VTI"
+    assert call.params["top_k"] == 5
+
+
+def test_validate_decision_rejects_run_web_search_without_query():
+    decision = TaskDecision(
+        action="run_web_search",
+        task_name="web_search_brief",
+        reason="Direct web search execution.",
+        params={"top_k": 5},
+    )
+
+    with pytest.raises(ActionValidationError, match="query"):
+        validate_decision(decision, WEB_SEARCH_BRIEF_TASK)

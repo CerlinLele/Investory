@@ -3,7 +3,11 @@ from investory.agent_core.runtime.decision_planner import (
     DecisionPlanner,
     build_task_decision,
 )
-from investory.agent_core.tasks import FINANCE_QA_TASK, INSTRUMENT_BRIEF_TASK
+from investory.agent_core.tasks import (
+    FINANCE_QA_TASK,
+    INSTRUMENT_BRIEF_TASK,
+    WEB_SEARCH_BRIEF_TASK,
+)
 
 
 def test_decision_planner_routes_instrument_brief_to_fetch_then_run_when_only_source_missing():
@@ -103,3 +107,18 @@ def test_decision_planner_output_can_be_validated_into_action_call():
     assert call.params == {"payload": payload}
     assert call.decision_reason == decision.reason
     assert call.request_id == "req_123"
+
+
+def test_decision_planner_routes_web_search_brief_to_run_web_search():
+    decision = DecisionPlanner().decide(
+        WEB_SEARCH_BRIEF_TASK,
+        {"query": "VTI", "top_k": 3, "provider_hint": "example_search"},
+    )
+
+    assert decision.action == "run_web_search"
+    assert decision.task_name == "web_search_brief"
+    assert decision.params == {
+        "query": "VTI",
+        "top_k": 3,
+        "provider_hint": "example_search",
+    }

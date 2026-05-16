@@ -2,6 +2,7 @@ from investory.agent_core.actions.executors import (
     AskMissingFieldsExecutor,
     FetchThenRunInstrumentBriefExecutor,
     RefuseInvestmentAdviceExecutor,
+    RunWebSearchExecutor,
     RunTaskModelExecutor,
 )
 from investory.agent_core.contracts.action_contract import ActionCall
@@ -212,3 +213,64 @@ def test_fetch_then_run_executor_returns_requires_user_input_when_fetch_fails():
     assert result.result["tool_error_type"] == "network_error"
     assert result.result["tool_error_message"] == "timeout"
     assert task_executor.calls == []
+
+
+def test_run_web_search_executor_returns_successful_results():
+    def fake_searcher(query: str, top_k: int, provider_hint: str | None) -> ToolResult:
+        assert query == "VTI"
+        assert top_k == 3
+        assert provider_hint == "example_search"
+        return ToolResult(
+            tool_name="web_search",
+            ok=True,
+            data={
+                "query": "VTI",
+                "results": [
+                    {
+                        "title": "Mock Result",
+                        "url": "https://example.com/mock",
+                        "snippet": "mock snippet",
+                        "source": "example.com",
+                        "provider": "example_search",
+                    }
+                ],
+                "provider_attempt_order": ["example_search"],
+            },
+        )
+
+    call = ActionCall(
+        action="run_web_search",
+        task_name="web_search_brief",
+        params={"query": "VTI", "top_k": 3, "provider_hint": "example_search"},
+        decision_reason="Run web search tool.",
+    )
+    result = RunWebSearchExecutor(searcher=fake_searcher).execute(call, INSTRUMENT_BRIEF_TASK)
+
+    assert result.status == "success"
+    assert result.result is not None
+    assert result.result["query"] == "VTI"
+    assert len(result.result["results"]) == 1
+
+
+def test_run_web_search_executor_returns_requires_user_input_when_search_fails():
+    def fake_searcher(query: str, top_k: int, provider_hint: str | None) -> ToolResult:
+        return ToolResult(
+            tool_name="web_search",
+            ok=False,
+            error_type="network_error",
+            error_message="timeout",
+            retryable=True,
+        )
+
+    call = ActionCall(
+        action="run_web_search",
+        task_name="web_search_brief",
+        params={"query": "VTI"},
+        decision_reason="Run web search tool.",
+    )
+    result = RunWebSearchExecutor(searcher=fake_searcher).execute(call, INSTRUMENT_BRIEF_TASK)
+
+    assert result.status == "requires_user_input"
+    assert result.result is not None
+    assert result.result["tool_error_type"] == "network_error"
+    assert result.result["retryable"] is True

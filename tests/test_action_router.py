@@ -4,6 +4,7 @@ from investory.agent_core.actions.executors import (
     AskMissingFieldsExecutor,
     FetchThenRunInstrumentBriefExecutor,
     RefuseInvestmentAdviceExecutor,
+    RunWebSearchExecutor,
     RunTaskModelExecutor,
 )
 from investory.agent_core.actions.router import ActionRouter, ActionRoutingError
@@ -42,6 +43,12 @@ def test_router_finds_fetch_then_run_instrument_brief_executor():
     executor = ActionRouter().route(_call("fetch_then_run_instrument_brief"))
 
     assert isinstance(executor, FetchThenRunInstrumentBriefExecutor)
+
+
+def test_router_finds_run_web_search_executor():
+    executor = ActionRouter().route(_call("run_web_search"))
+
+    assert isinstance(executor, RunWebSearchExecutor)
 
 
 def test_router_rejects_unregistered_action():
