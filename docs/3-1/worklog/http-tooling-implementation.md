@@ -171,6 +171,11 @@
   - 返回结果里的 `provider_attempt_order` 记录了本次实际尝试顺序，`results[*].provider` 记录每条结果来自哪个 provider。
 - Why it exists:
   - 把“搜索入口策略”从业务调用参数里分离出来，便于后续新增 provider 或调优顺序时只改配置/工具层，而不改上层 action/task 协议。
+- Real-world examples:
+  - `provider=google_news`：可映射到新闻搜索入口，运行时可能生成 `https://news.google.com/search?q=...`。
+  - `provider=bing_web`：可映射到网页搜索入口，运行时可能生成 `https://www.bing.com/search?q=...`。
+  - `provider=sec_edgar`：可映射到监管披露入口，运行时可能生成 `https://www.sec.gov/...`。
+  - 说明：`provider` 表示“渠道/策略标识”，`url` 表示“本次请求的具体地址”；同一 provider 在不同 query 下会生成不同 url。
 - Evidence anchors:
   - `src/investory/agent_core/tools/web_search.py:79`
   - `src/investory/agent_core/tools/web_search.py:86`
