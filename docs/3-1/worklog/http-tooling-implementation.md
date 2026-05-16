@@ -157,3 +157,21 @@
 - Evidence anchors:
   - `docs/3-1/delivery-checklist.md:1`
   - `docs/3-1/PR_DESCRIPTION.md:1`
+
+## 术语澄清 - provider 在本项目中的含义
+- Timestamp: 2026-05-16 16:20:00 +10:00
+- Definition:
+  - `provider` 不是通用“搜索引擎”抽象名词，而是 `web_search` 工具内部定义的“候选数据源适配器标识”。
+  - 每个 `provider` 对应一组固定行为：如何构造目标 URL、命中哪些 host、以及返回结果中标记的 `provider` 字段值。
+  - 当前实现里 provider 候选在 `src/investory/agent_core/tools/web_search.py::_provider_candidates(...)` 中声明（例如 `example_search`、`example_instruments`）。
+- Runtime behavior:
+  - `provider_hint`：调用方给出的“优先尝试哪个 provider”的提示；仅当该值是已支持 provider 时生效。
+  - `web_search_provider_order`：配置中的默认 provider 尝试顺序。
+  - 最终顺序规则：`provider_hint`（若有效）优先，其后按 `web_search_provider_order` 依次 fallback。
+  - 返回结果里的 `provider_attempt_order` 记录了本次实际尝试顺序，`results[*].provider` 记录每条结果来自哪个 provider。
+- Why it exists:
+  - 把“搜索入口策略”从业务调用参数里分离出来，便于后续新增 provider 或调优顺序时只改配置/工具层，而不改上层 action/task 协议。
+- Evidence anchors:
+  - `src/investory/agent_core/tools/web_search.py:79`
+  - `src/investory/agent_core/tools/web_search.py:86`
+  - `src/investory/agent_core/tools/web_search.py:200`
