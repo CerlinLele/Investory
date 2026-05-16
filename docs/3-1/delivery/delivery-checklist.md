@@ -12,9 +12,9 @@
   - 已通过：`tests/test_web_search_tool.py`、`tests/test_gateway_routing.py`、`tests/test_tasks.py`
   - 阻塞：`langchain_core` 缺失导致 action 相关测试在 collection 阶段报错
 - Docs: 完成
-  - 执行计划：`docs/3-1/Investory_HTTP_工具补实现执行计划.md`
-  - 定位文档（已更新为新实现）：`docs/3-1/Investory HTTP 工具调用逻辑代码定位.md`
-  - 本清单与 PR 草稿：`docs/3-1/delivery-checklist.md`、`docs/3-1/PR_DESCRIPTION.md`
+  - 执行计划：`docs/3-1/plans/Investory_HTTP_工具补实现执行计划.md`
+  - 定位文档（已更新为新实现）：`docs/3-1/analysis/Investory HTTP 工具调用逻辑代码定位.md`
+  - 本清单与 PR 草稿：`docs/3-1/delivery/delivery-checklist.md`、`docs/3-1/delivery/PR_DESCRIPTION.md`
 - Worklog: 完成
   - `docs/3-1/worklog/http-tooling-implementation.md` 覆盖 E-1 ~ F-2
 
@@ -47,7 +47,7 @@
   - `tests/test_tasks.py`
   - `src/investory/agent_core/runtime/smoke/task.py`
 - Docs
-  - `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md`
+  - `docs/3-1/analysis/Investory HTTP 工具调用逻辑代码定位.md`
   - `docs/3-1/worklog/http-tooling-implementation.md`
 
 ## 3) 风险清单

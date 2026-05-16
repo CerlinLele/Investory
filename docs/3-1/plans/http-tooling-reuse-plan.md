@@ -74,7 +74,7 @@ run_guarded_candidates(
 3. 形成“行为不变清单”（错误码、日志、返回字段）。
 
 交付物：
-- `docs/3-1/http-tooling-reuse-analysis.md`（建议新增）
+- `docs/3-1/analysis/http-tooling-reuse-analysis.md`（建议新增）
 
 ## Step 2 - 先补测试锁行为
 

@@ -127,19 +127,19 @@
 ## Step F-1 - 更新定位文档
 - Timestamp: 2026-05-16 15:59:25 +10:00
 - Command/Action:
-  - Rewrote `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md` from pre-implementation status to post-implementation status.
+  - Rewrote `docs/3-1/analysis/Investory HTTP 工具调用逻辑代码定位.md` from pre-implementation status to post-implementation status.
   - Replaced old conclusion "未发现 web_search" with implemented web_search chain and concrete anchors.
   - Added provider selection and fallback anchors from `tools/web_search.py`.
   - Updated the "5-point minimal main chain" to include gateway alias -> decision planner -> run_web_search executor -> guarded network path.
 - Files touched:
-  - `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md`
+  - `docs/3-1/analysis/Investory HTTP 工具调用逻辑代码定位.md`
 - Result:
   - Document now reflects actual implementation state and is directly usable for 3-1 lesson explanation.
   - Each major conclusion is backed by `file:line` anchors.
 - Evidence anchors:
-  - `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md:5`
-  - `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md:23`
-  - `docs/3-1/Investory HTTP 工具调用逻辑代码定位.md:77`
+  - `docs/3-1/analysis/Investory HTTP 工具调用逻辑代码定位.md:5`
+  - `docs/3-1/analysis/Investory HTTP 工具调用逻辑代码定位.md:23`
+  - `docs/3-1/analysis/Investory HTTP 工具调用逻辑代码定位.md:77`
 
 ## Step F-2 - 交付检查清单
 - Timestamp: 2026-05-16 16:09:18 +10:00
@@ -148,15 +148,15 @@
   - Compiled change-file inventory and risk list for reviewer handoff.
   - Drafted PR description for merge review.
 - Files touched:
-  - `docs/3-1/delivery-checklist.md`
-  - `docs/3-1/PR_DESCRIPTION.md`
+  - `docs/3-1/delivery/delivery-checklist.md`
+  - `docs/3-1/delivery/PR_DESCRIPTION.md`
   - `docs/3-1/worklog/http-tooling-implementation.md`
 - Result:
   - Delivery checklist completed with completeness status, change list, and risk list.
   - PR description draft is ready for direct review usage.
 - Evidence anchors:
-  - `docs/3-1/delivery-checklist.md:1`
-  - `docs/3-1/PR_DESCRIPTION.md:1`
+  - `docs/3-1/delivery/delivery-checklist.md:1`
+  - `docs/3-1/delivery/PR_DESCRIPTION.md:1`
 
 ## 术语澄清 - provider 在本项目中的含义
 - Timestamp: 2026-05-16 16:20:00 +10:00
