@@ -36,66 +36,135 @@
 
 ## 3. 实施步骤
 
-## Step A - 基线锁定
+## Step A - 基线锁定（不改实现）
 
-1. 记录当前 `fetch_instrument_profile` 行为快照：
-- 成功字段结构
-- 错误映射
-- fallback 顺序语义
-2. 补齐/确认测试：
-- web_search 调用前置失败时的错误收敛
-- 有候选但解析失败时 parse_error 语义
-- 无候选时 not_found 语义
+1. A1: 列出当前行为锚点
+- 输入：当前 `instrument_profile.py` 与现有测试。
+- 产出：成功字段、失败映射、fallback 顺序的代码锚点清单。
+
+2. A2: 锁定现有测试覆盖
+- 运行：
+  - `tests/test_instrument_profile_tool.py`
+  - `tests/test_web_search_tool.py`（确保前置工具行为稳定）
+- 记录：通过数、失败原因（若依赖缺失）。
+
+3. A3: 补缺口测试（仅在缺口存在时）
+- 新增场景：
+  - web_search 前置失败时的 error fold。
+  - 有候选但提取不足时 parse_error。
+  - 无候选可用时 not_found。
+
+完成定义：
+- 当前行为被测试显式锁定，并记录到 worklog。
 
 交付物：
 - 测试基线报告（worklog）
 
-## Step B - 抽取 profile 专用候选组装接口
+## Step B - 候选装配层抽取（adapter）
 
-1. 在 `instrument_profile` 内新增候选来源装配函数：
-- 输入：`web_search` 返回结果
-- 输出：`Candidate` 列表（去重、顺序保留）
-2. 明确候选过滤规则：
-- URL 合法性
-- source/domain 白名单策略
+1. B1: 定义 `web_search -> profile candidates` 适配函数
+- 建议函数：`_build_profile_candidates_from_search(...)`
+- 输入：`search_web` 返回 `results`。
+- 输出：`list[Candidate]`（`id` 与 `url`）。
+
+2. B2: 设计并实现去重策略
+- 规则：按 URL 去重，保留首出现顺序。
+- 目标：不打乱 provider 原始优先级。
+
+3. B3: 过滤规则落地
+- 规则：
+  - URL 非空、https、可解析 hostname。
+  - host 在工具 allowlist 可接受范围内。
+- 行为：过滤项不抛异常，记录为候选裁剪。
+
+4. B4: 为适配函数补单测
+- 场景：
+  - 空 results。
+  - 重复 URL。
+  - 非法 URL / 非 https URL。
+  - 多 provider 顺序保持。
+
+完成定义：
+- adapter 层独立可测，输入输出契约固定。
 
 交付物：
-- 新的候选装配函数 + 单测
+- 候选装配函数 + 单测
 
-## Step C - 将 web_search 作为前置召回层接入
+## Step C - 接入 web_search 前置召回
 
-1. `instrument_profile` 内注入 `searcher`（默认指向 `search_web`）
-2. 调用 `search_web` 获取候选 URL
-3. 将候选 URL 输入 `run_guarded_candidates` 执行提取
-4. 若 `search_web` 失败，按策略映射到 `fetch_instrument_profile` 错误语义
+1. C1: 在 `fetch_instrument_profile` 增加可注入 `searcher`
+- 默认：`search_web`。
+- 测试：可 monkeypatch/注入 fake searcher。
+
+2. C2: 前置调用 `search_web`
+- query：`instrument_name_or_code`。
+- 参数策略：`top_k` 默认值明确（可常量化），`provider_hint` 可选。
+
+3. C3: 将 search results 映射为 profile candidates
+- 调用 Step B adapter。
+- 若 candidates 为空，走 `not_found` 语义。
+
+4. C4: 用 `run_guarded_candidates` 执行提取
+- 保持当前 parse threshold：
+  - `MIN_SOURCE_MATERIAL_CHARS`
+- 保持 `source_material` 拼装规则不变。
+
+5. C5: 错误映射对齐
+- `search_web` 失败：
+  - 归一到 `instrument_profile` 的 error/retryable 策略。
+- 抓取/解析失败：
+  - 继续沿用 `build_failure_result` 收敛。
+
+完成定义：
+- 主流程切换到“search-first + extract-second”，对外 schema 不变。
 
 交付物：
 - `instrument_profile` 主流程迁移完成
-- 兼容现有调用点
+- 兼容现有调用点（actions/executors）
 
-## Step D - 行为兼容与回归
+## Step D - 回归验证（工具层 + 调用链）
 
-1. 重点回归：
+1. D1: 工具层回归
 - `tests/test_instrument_profile_tool.py`
 - `tests/test_web_search_tool.py`
 - `tests/test_http_runner.py`
-- action 层相关 `fetch_then_run_instrument_brief` 路径
-2. 验证点：
-- 输出 schema 不变
-- retryable 语义不变
-- 失败文案符合预期
+
+2. D2: action 链路回归
+- `fetch_then_run_instrument_brief` 相关测试：
+  - 执行器成功路径
+  - 执行器失败回传路径
+
+3. D3: 关键验收断言
+- 输出 schema 不变。
+- `error_type/retryable` 不变。
+- `sources` 字段顺序稳定（与候选顺序一致）。
+- 用户可见失败文案符合既有语义。
+
+完成定义：
+- 相关测试通过；若因环境依赖阻塞，worklog 记录阻塞项与复跑命令。
 
 交付物：
 - 回归结果记录
 
-## Step E - 文档与风险更新
+## Step E - 文档与发布准备
 
-1. 更新 `docs/3-1/plans/http-tooling-reuse-plan.md` 的扩展策略说明
-2. 更新 `docs/3-1/worklog/http-tooling-reuse-worklog.md`
-3. 增加“web_search 作为底座工具”的调用链说明
+1. E1: 更新计划文档
+- 在 `http-tooling-reuse-plan.md` 增加本次扩展路径锚点和边界说明。
+
+2. E2: 更新 worklog
+- 记录每个步骤的命令、文件、测试结果、阻塞项。
+
+3. E3: 更新分析文档
+- 补一页“search-first profile flow”说明（输入/输出/失败收敛图）。
+
+4. E4: PR 描述补充
+- 增加“行为兼容性声明”与“已知风险/回滚方式”。
+
+完成定义：
+- 文档可追踪到代码锚点、测试证据、风险与扩展方式。
 
 交付物：
-- 完整文档锚点 + worklog
+- 完整文档锚点 + worklog + PR 更新稿
 
 ## 4. 风险与规避
 
