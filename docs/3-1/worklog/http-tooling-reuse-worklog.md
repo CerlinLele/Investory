@@ -93,3 +93,29 @@
   - Result: `13 passed` + `8 passed` (total `21 passed`)
 - Result:
   - `instrument_profile` now reuses shared HTTP execution skeleton without changing externally observable result schema.
+
+## 2026-05-17 - Post Step 5 Dedup Pass (Shared tooling common functions)
+
+- Timestamp: 2026-05-17 (Australia/Sydney)
+- Plan linkage: `docs/3-1/plans/http-tooling-reuse-plan.md` section `4.1 实施补充（2026-05-17）`
+- Actions:
+  - Added `src/investory/agent_core/tools/http_tooling_common.py` as a shared helper module.
+  - Moved duplicated HTML normalization into `normalize_html_text`.
+  - Moved duplicated error result/failure fold construction into:
+    - `build_error_result`
+    - `build_failure_result`
+  - Updated both tools to reuse these helpers while keeping output/error semantics unchanged.
+- Files touched:
+  - `src/investory/agent_core/tools/http_tooling_common.py` (created)
+  - `src/investory/agent_core/tools/instrument_profile.py` (updated)
+  - `src/investory/agent_core/tools/web_search.py` (updated)
+  - `docs/3-1/plans/http-tooling-reuse-plan.md` (updated)
+  - `docs/3-1/worklog/http-tooling-reuse-worklog.md` (updated)
+- Test baseline result:
+  - Commands:
+    - `pytest -q tests/test_instrument_profile_tool.py`
+    - `pytest -q tests/test_web_search_tool.py`
+    - `pytest -q tests/test_http_runner.py`
+  - Result: `13 passed` + `6 passed` + `2 passed` (total `21 passed`)
+- Result:
+  - Removed remaining shared logic duplication between `instrument_profile` and `web_search` at helper-method level, without changing externally observable behavior.

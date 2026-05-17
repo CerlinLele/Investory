@@ -1,5 +1,4 @@
 import re
-from typing import Literal
 from urllib.parse import quote_plus, urlparse
 
 from investory.agent_core.contracts.tool_contract import ToolResult
@@ -8,17 +7,15 @@ from investory.agent_core.tools.http_runner import (
     ParseOutcome,
     run_guarded_candidates,
 )
+from investory.agent_core.tools.http_tooling_common import (
+    DEFAULT_ERROR_RETRYABLE_POLICY,
+    ErrorType,
+    build_error_result,
+    build_failure_result,
+    normalize_html_text,
+)
 from investory.agent_core.tools.net_guard import GuardedHttpResult, guarded_get
 from investory.config import load_config
-
-ErrorType = Literal[
-    "invalid_input",
-    "blocked_host",
-    "timeout",
-    "network_error",
-    "parse_error",
-    "not_found",
-]
 
 TOOL_NAME = "web_search"
 _APP_CONFIG = load_config()
@@ -27,14 +24,7 @@ DEFAULT_TIMEOUT_SECONDS = _APP_CONFIG.web_search_timeout_seconds
 TOOL_USER_AGENT = _APP_CONFIG.tool_user_agent
 MAX_TOP_K = max(1, _APP_CONFIG.web_search_max_results)
 DEFAULT_TOP_K = MAX_TOP_K
-ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = {
-    "invalid_input": False,
-    "blocked_host": False,
-    "timeout": True,
-    "network_error": True,
-    "parse_error": False,
-    "not_found": False,
-}
+ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = DEFAULT_ERROR_RETRYABLE_POLICY.copy()
 
 # Provider order is externally configurable for fallback governance.
 PROVIDER_ORDER: tuple[str, ...] = _APP_CONFIG.web_search_provider_order
@@ -49,12 +39,11 @@ def _clamp_top_k(top_k: int) -> int:
 
 
 def _build_error_result(error_type: ErrorType, error_message: str) -> ToolResult:
-    return ToolResult(
+    return build_error_result(
         tool_name=TOOL_NAME,
-        ok=False,
         error_type=error_type,
         error_message=error_message,
-        retryable=ERROR_RETRYABLE_POLICY[error_type],
+        error_retryable_policy=ERROR_RETRYABLE_POLICY,
     )
 
 
@@ -67,13 +56,7 @@ def _parse_title(raw_text: str, *, fallback: str) -> str:
 
 
 def _extract_snippet(raw_text: str, *, max_chars: int = 240) -> str:
-    text = re.sub(r"<script[\s\S]*?</script>", " ", raw_text, flags=re.IGNORECASE)
-    text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"&nbsp;|&#160;", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"&amp;", "&", text, flags=re.IGNORECASE)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:max_chars]
+    return normalize_html_text(raw_text)[:max_chars]
 
 
 def _provider_candidates(query: str, provider_hint: str | None) -> list[Candidate]:
@@ -104,21 +87,12 @@ def _as_result_item(*, provider: str, url: str, html: str, query: str) -> dict[s
 
 
 def _build_failure_result(last_error: GuardedHttpResult | None) -> ToolResult:
-    if last_error is None:
-        return _build_error_result(
-            error_type="not_found",
-            error_message="No reachable search provider found.",
-        )
-    raw_error_type = (last_error.error_type or "network_error").lower()
-    error_type: ErrorType = (
-        raw_error_type if raw_error_type in ERROR_RETRYABLE_POLICY else "network_error"
-    )
-    return ToolResult(
+    return build_failure_result(
         tool_name=TOOL_NAME,
-        ok=False,
-        error_type=error_type,
-        error_message=last_error.error_message or "Web search failed.",
-        retryable=ERROR_RETRYABLE_POLICY[error_type],
+        last_error=last_error,
+        not_found_message="No reachable search provider found.",
+        default_error_message="Web search failed.",
+        error_retryable_policy=ERROR_RETRYABLE_POLICY,
     )
 
 

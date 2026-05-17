@@ -1,6 +1,4 @@
 from datetime import date
-import re
-from typing import Literal
 
 from investory.agent_core.contracts.tool_contract import ToolResult
 from investory.config import load_config
@@ -9,16 +7,15 @@ from investory.agent_core.tools.http_runner import (
     ParseOutcome,
     run_guarded_candidates,
 )
+from investory.agent_core.tools.http_tooling_common import (
+    DEFAULT_ERROR_RETRYABLE_POLICY,
+    ErrorType,
+    build_error_result,
+    build_failure_result,
+    normalize_html_text,
+)
 from investory.agent_core.tools.net_guard import GuardedHttpResult, guarded_get
 
-ErrorType = Literal[
-    "invalid_input",
-    "blocked_host",
-    "timeout",
-    "network_error",
-    "parse_error",
-    "not_found",
-]
 TOOL_NAME = "fetch_instrument_profile"
 
 _APP_CONFIG = load_config()
@@ -27,25 +24,11 @@ DEFAULT_TIMEOUT_SECONDS = _APP_CONFIG.tool_http_timeout_seconds
 TOOL_USER_AGENT = _APP_CONFIG.tool_user_agent
 MAX_SOURCE_MATERIAL_CHARS = 3000
 MIN_SOURCE_MATERIAL_CHARS = 40
-ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = {
-    "invalid_input": False,
-    "blocked_host": False,
-    "timeout": True,
-    "network_error": True,
-    "parse_error": False,
-    "not_found": False,
-}
+ERROR_RETRYABLE_POLICY: dict[ErrorType, bool] = DEFAULT_ERROR_RETRYABLE_POLICY.copy()
 
 
 def _extract_profile_text(raw_text: str) -> str:
-    text = raw_text or ""
-    text = re.sub(r"<script[\s\S]*?</script>", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"&nbsp;|&#160;", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"&amp;", "&", text, flags=re.IGNORECASE)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:MAX_SOURCE_MATERIAL_CHARS]
+    return normalize_html_text(raw_text)[:MAX_SOURCE_MATERIAL_CHARS]
 
 
 def _build_source_material(instrument_name_or_code: str, profile_text: str) -> str:
@@ -76,32 +59,21 @@ def _build_candidate_sources(normalized: str) -> list[Candidate]:
 def _build_failure_result(
     normalized: str, last_error: GuardedHttpResult | None
 ) -> ToolResult:
-    if last_error is None:
-        return _build_error_result(
-            error_type="not_found",
-            error_message=f"No reachable source found for '{normalized}'.",
-        )
-
-    error_type = (last_error.error_type or "network_error").lower()
-    if error_type not in ERROR_RETRYABLE_POLICY:
-        error_type = "network_error"
-
-    return ToolResult(
+    return build_failure_result(
         tool_name=TOOL_NAME,
-        ok=False,
-        error_type=error_type,
-        error_message=last_error.error_message or "Failed to fetch instrument profile.",
-        retryable=ERROR_RETRYABLE_POLICY[error_type],
+        last_error=last_error,
+        not_found_message=f"No reachable source found for '{normalized}'.",
+        default_error_message="Failed to fetch instrument profile.",
+        error_retryable_policy=ERROR_RETRYABLE_POLICY,
     )
 
 
 def _build_error_result(error_type: ErrorType, error_message: str) -> ToolResult:
-    return ToolResult(
+    return build_error_result(
         tool_name=TOOL_NAME,
-        ok=False,
         error_type=error_type,
         error_message=error_message,
-        retryable=ERROR_RETRYABLE_POLICY[error_type],
+        error_retryable_policy=ERROR_RETRYABLE_POLICY,
     )
 
 
