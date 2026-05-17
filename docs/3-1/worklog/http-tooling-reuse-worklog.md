@@ -53,3 +53,23 @@
   - Result: `21 passed in 0.17s`
 - Result:
   - Shared execution skeleton introduced and verified without changing tool-level business payload code yet.
+
+## 2026-05-17 - Step 4 Completed (Migrate web_search to shared runner)
+
+- Timestamp: 2026-05-17 (Australia/Sydney)
+- Plan step: `Step 4 - Migrate web_search to shared layer`
+- Actions:
+  - Refactored `web_search.search_web` to reuse `run_guarded_candidates` from `http_runner`.
+  - Preserved tool-layer payload shape: `query`, `results`, `provider_attempt_order`.
+  - Preserved existing failure fold semantics via `_build_failure_result(last_error)`.
+  - Kept `guarded_get` injection point in `web_search` to maintain existing test monkeypatch contract.
+- Files touched:
+  - `src/investory/agent_core/tools/web_search.py` (updated)
+  - `docs/3-1/worklog/http-tooling-reuse-worklog.md` (updated)
+- Test baseline result:
+  - Commands:
+    - `pytest -q tests/test_web_search_tool.py`
+    - `pytest -q tests/test_http_runner.py tests/test_instrument_profile_tool.py`
+  - Result: `6 passed` + `15 passed` (total `21 passed`)
+- Result:
+  - `web_search` now reuses shared HTTP execution skeleton without changing externally observable result schema.

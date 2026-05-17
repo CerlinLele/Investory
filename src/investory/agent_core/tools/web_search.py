@@ -1,14 +1,14 @@
 import re
-import time
 from typing import Literal
 from urllib.parse import quote_plus, urlparse
 
 from investory.agent_core.contracts.tool_contract import ToolResult
-from investory.agent_core.tools.net_guard import (
-    GuardedHttpResult,
-    guarded_get,
-    log_http_attempt,
+from investory.agent_core.tools.http_runner import (
+    Candidate,
+    ParseOutcome,
+    run_guarded_candidates,
 )
+from investory.agent_core.tools.net_guard import GuardedHttpResult, guarded_get
 from investory.config import load_config
 
 ErrorType = Literal[
@@ -76,7 +76,7 @@ def _extract_snippet(raw_text: str, *, max_chars: int = 240) -> str:
     return text[:max_chars]
 
 
-def _provider_candidates(query: str, provider_hint: str | None) -> list[tuple[str, str]]:
+def _provider_candidates(query: str, provider_hint: str | None) -> list[Candidate]:
     normalized_query = quote_plus(query.strip())
     candidates = {
         "example_search": f"https://www.example.com/search?q={normalized_query}",
@@ -88,7 +88,7 @@ def _provider_candidates(query: str, provider_hint: str | None) -> list[tuple[st
         ordered.append(provider_hint)
     ordered.extend([name for name in PROVIDER_ORDER if name not in ordered])
 
-    return [(provider, candidates[provider]) for provider in ordered if provider in candidates]
+    return [Candidate(id=provider, url=candidates[provider]) for provider in ordered if provider in candidates]
 
 
 def _as_result_item(*, provider: str, url: str, html: str, query: str) -> dict[str, str]:
@@ -131,74 +131,41 @@ def search_web(query: str, top_k: int = DEFAULT_TOP_K, provider_hint: str | None
         )
 
     capped_top_k = _clamp_top_k(top_k)
-    results: list[dict[str, str]] = []
-    attempted_providers: list[str] = []
-    last_error: GuardedHttpResult | None = None
-
-    for provider, url in _provider_candidates(normalized_query, provider_hint):
-        started_at = time.perf_counter()
-        attempt = guarded_get(
-            url,
-            timeout=DEFAULT_TIMEOUT_SECONDS,
-            allowed_hosts=ALLOWED_HOSTS,
-            user_agent=TOOL_USER_AGENT,
-        )
-        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-        host = urlparse(url).hostname or "unknown"
-        attempted_providers.append(provider)
-
-        if not attempt.ok:
-            log_http_attempt(
-                tool_name=TOOL_NAME,
-                host=host,
-                elapsed_ms=elapsed_ms,
-                success=False,
-                error_type=attempt.error_type,
-            )
-            last_error = attempt
-            continue
-
-        log_http_attempt(
-            tool_name=TOOL_NAME,
-            host=host,
-            elapsed_ms=elapsed_ms,
-            success=True,
-            error_type=None,
-        )
+    def _parse_success(candidate: Candidate, html: str) -> ParseOutcome:
         result_item = _as_result_item(
-            provider=provider,
-            url=url,
-            html=attempt.text or "",
+            provider=candidate.id,
+            url=candidate.url,
+            html=html,
             query=normalized_query,
         )
         if not result_item["snippet"]:
-            log_http_attempt(
-                tool_name=TOOL_NAME,
-                host=host,
-                elapsed_ms=elapsed_ms,
-                success=False,
-                error_type="parse_error",
-            )
-            last_error = GuardedHttpResult(
+            return ParseOutcome(
                 ok=False,
                 error_type="parse_error",
-                error_message=f"Provider '{provider}' returned empty content.",
-                retryable=False,
+                error_message=f"Provider '{candidate.id}' returned empty content.",
             )
-            continue
-        results.append(result_item)
-        if len(results) >= capped_top_k:
-            break
+        return ParseOutcome(ok=True, item=result_item)
 
-    if not results:
-        return _build_failure_result(last_error)
+    outcome = run_guarded_candidates(
+        tool_name=TOOL_NAME,
+        candidates=_provider_candidates(normalized_query, provider_hint),
+        timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+        allowed_hosts=ALLOWED_HOSTS,
+        user_agent=TOOL_USER_AGENT,
+        parse_success=_parse_success,
+        max_successes=capped_top_k,
+        guarded_get_fn=guarded_get,
+    )
+
+    if not outcome.items:
+        return _build_failure_result(outcome.last_error)
 
     return ToolResult(
         tool_name=TOOL_NAME,
         ok=True,
         data={
             "query": normalized_query,
-            "results": results,
-            "provider_attempt_order": attempted_providers,
+            "results": outcome.items,
+            "provider_attempt_order": outcome.attempt_order,
         },
     )
