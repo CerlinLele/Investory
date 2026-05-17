@@ -73,3 +73,23 @@
   - Result: `6 passed` + `15 passed` (total `21 passed`)
 - Result:
   - `web_search` now reuses shared HTTP execution skeleton without changing externally observable result schema.
+
+## 2026-05-17 - Step 5 Completed (Migrate instrument_profile to shared runner)
+
+- Timestamp: 2026-05-17 (Australia/Sydney)
+- Plan step: `Step 5 - Migrate instrument_profile to shared layer`
+- Actions:
+  - Refactored `fetch_instrument_profile` to reuse `run_guarded_candidates` from `http_runner`.
+  - Converted candidate source list to `Candidate` objects while preserving URL attempt order in returned `sources`.
+  - Preserved parse-error threshold logic and failure fold semantics.
+  - Kept `guarded_get` injection point in `instrument_profile` to maintain existing test monkeypatch contract.
+- Files touched:
+  - `src/investory/agent_core/tools/instrument_profile.py` (updated)
+  - `docs/3-1/worklog/http-tooling-reuse-worklog.md` (updated)
+- Test baseline result:
+  - Commands:
+    - `pytest -q tests/test_instrument_profile_tool.py`
+    - `pytest -q tests/test_web_search_tool.py tests/test_http_runner.py`
+  - Result: `13 passed` + `8 passed` (total `21 passed`)
+- Result:
+  - `instrument_profile` now reuses shared HTTP execution skeleton without changing externally observable result schema.

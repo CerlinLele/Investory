@@ -1,16 +1,15 @@
 from datetime import date
 import re
-import time
 from typing import Literal
-from urllib.parse import urlparse
 
 from investory.agent_core.contracts.tool_contract import ToolResult
 from investory.config import load_config
-from investory.agent_core.tools.net_guard import (
-    GuardedHttpResult,
-    guarded_get,
-    log_http_attempt,
+from investory.agent_core.tools.http_runner import (
+    Candidate,
+    ParseOutcome,
+    run_guarded_candidates,
 )
+from investory.agent_core.tools.net_guard import GuardedHttpResult, guarded_get
 
 ErrorType = Literal[
     "invalid_input",
@@ -57,11 +56,20 @@ def _build_source_material(instrument_name_or_code: str, profile_text: str) -> s
     return summary[:MAX_SOURCE_MATERIAL_CHARS]
 
 
-def _build_candidate_sources(normalized: str) -> list[str]:
+def _build_candidate_sources(normalized: str) -> list[Candidate]:
     return [
-        f"https://example.com/instruments/{normalized}",
-        f"https://www.example.com/search?q={normalized}",
-        "https://example.com/factsheet",
+        Candidate(
+            id=f"https://example.com/instruments/{normalized}",
+            url=f"https://example.com/instruments/{normalized}",
+        ),
+        Candidate(
+            id=f"https://www.example.com/search?q={normalized}",
+            url=f"https://www.example.com/search?q={normalized}",
+        ),
+        Candidate(
+            id="https://example.com/factsheet",
+            url="https://example.com/factsheet",
+        ),
     ]
 
 
@@ -105,66 +113,38 @@ def fetch_instrument_profile(instrument_name_or_code: str) -> ToolResult:
             error_message="instrument_name_or_code is required.",
         )
 
-    sources = _build_candidate_sources(normalized)
-    attempted_sources: list[str] = []
-    last_error: GuardedHttpResult | None = None
-
-    for source in sources:
-        started_at = time.perf_counter()
-        result = guarded_get(
-            source,
-            timeout=DEFAULT_TIMEOUT_SECONDS,
-            allowed_hosts=ALLOWED_HOSTS,
-            user_agent=TOOL_USER_AGENT,
-        )
-        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-        host = urlparse(source).hostname or "unknown"
-        attempted_sources.append(source)
-        if not result.ok:
-            log_http_attempt(
-                tool_name=TOOL_NAME,
-                host=host,
-                elapsed_ms=elapsed_ms,
-                success=False,
-                error_type=result.error_type,
-            )
-            last_error = result
-            continue
-
-        extracted = _extract_profile_text(result.text or "")
+    def _parse_success(candidate: Candidate, text: str) -> ParseOutcome:
+        extracted = _extract_profile_text(text)
         source_material = _build_source_material(normalized, extracted)
         if len(extracted) < MIN_SOURCE_MATERIAL_CHARS:
-            log_http_attempt(
-                tool_name=TOOL_NAME,
-                host=host,
-                elapsed_ms=elapsed_ms,
-                success=False,
-                error_type="parse_error",
-            )
-            last_error = GuardedHttpResult(
+            return ParseOutcome(
                 ok=False,
                 error_type="parse_error",
-                error_message=f"Insufficient source content from '{source}'.",
-                retryable=False,
+                error_message=f"Insufficient source content from '{candidate.url}'.",
             )
-            continue
-        log_http_attempt(
-            tool_name=TOOL_NAME,
-            host=host,
-            elapsed_ms=elapsed_ms,
-            success=True,
-            error_type=None,
-        )
+        return ParseOutcome(ok=True, item=source_material)
 
-        return ToolResult(
-            tool_name=TOOL_NAME,
-            ok=True,
-            data={
-                "instrument_name_or_code": normalized,
-                "source_material": source_material,
-                "sources": attempted_sources,
-                "as_of": date.today().isoformat(),
-            },
-        )
+    outcome = run_guarded_candidates(
+        tool_name=TOOL_NAME,
+        candidates=_build_candidate_sources(normalized),
+        timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+        allowed_hosts=ALLOWED_HOSTS,
+        user_agent=TOOL_USER_AGENT,
+        parse_success=_parse_success,
+        max_successes=1,
+        guarded_get_fn=guarded_get,
+    )
 
-    return _build_failure_result(normalized, last_error)
+    if not outcome.items:
+        return _build_failure_result(normalized, outcome.last_error)
+
+    return ToolResult(
+        tool_name=TOOL_NAME,
+        ok=True,
+        data={
+            "instrument_name_or_code": normalized,
+            "source_material": outcome.items[0],
+            "sources": outcome.attempt_order,
+            "as_of": date.today().isoformat(),
+        },
+    )
