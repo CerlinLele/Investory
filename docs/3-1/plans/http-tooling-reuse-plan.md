@@ -115,6 +115,27 @@ run_guarded_candidates(
 交付物：
 - `instrument_profile.py` 精简版本。
 
+## Step 5.1 - 实施补充（2026-05-17）
+
+在 Step 3-5 完成后，仍识别到 `instrument_profile.py` 与 `web_search.py` 存在“工具级重复”：
+
+1. HTML 文本清洗逻辑重复。
+2. `error_type/retryable` 错误收敛与 `ToolResult` 构造重复。
+
+为进一步降低重复且保持行为不变，新增共享模块：
+
+- `src/investory/agent_core/tools/http_tooling_common.py`
+  - `normalize_html_text`
+  - `build_error_result`
+  - `build_failure_result`
+  - `DEFAULT_ERROR_RETRYABLE_POLICY`
+
+并在两个工具中替换本地重复实现为共享调用，不改变：
+
+- 成功 payload 字段结构；
+- `error_type/retryable` 语义；
+- fallback 顺序语义与测试契约（`guarded_get` monkeypatch 注入点保留）。
+
 ## Step 6 - 回归与文档更新
 
 1. 全量跑相关测试：tools/action/router/tasks/gateway。
