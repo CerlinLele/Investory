@@ -16,3 +16,22 @@
 - Result:
   - Step 1 deliverable completed and saved.
   - No code under `src/` changed.
+
+## 2026-05-17 - Step 2 Completed (Lock behavior with tests)
+
+- Timestamp: 2026-05-17 (Australia/Sydney)
+- Plan step: `Step 2 - Lock behavior with tests before extraction`
+- Actions:
+  - Reviewed existing tool tests to avoid duplicate scenarios.
+  - Added web_search behavior-lock tests for:
+    - fallback semantics: first provider fails, next provider succeeds, attempt order preserved.
+    - parse_error semantics: successful HTTP response with empty extracted content converges to `parse_error`.
+  - Ran focused baseline suite for both tools.
+- Files touched:
+  - `tests/test_web_search_tool.py` (updated)
+  - `docs/3-1/worklog/http-tooling-reuse-worklog.md` (updated)
+- Test baseline result:
+  - Command: `pytest -q tests/test_web_search_tool.py tests/test_instrument_profile_tool.py`
+  - Result: `19 passed in 0.16s`
+- Result:
+  - Step 2 behavior lock completed for fallback ordering, failure convergence, and parse_error semantics.
