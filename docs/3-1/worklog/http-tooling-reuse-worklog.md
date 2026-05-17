@@ -35,3 +35,21 @@
   - Result: `19 passed in 0.16s`
 - Result:
   - Step 2 behavior lock completed for fallback ordering, failure convergence, and parse_error semantics.
+
+## 2026-05-17 - Step 3 Completed (Introduce shared execution skeleton)
+
+- Timestamp: 2026-05-17 (Australia/Sydney)
+- Plan step: `Step 3 - Introduce shared HTTP candidate runner (no behavior change)`
+- Actions:
+  - Added shared runner module `http_runner.py` for ordered candidate execution, guarded HTTP fetch, attempt logging, parse-failure convergence, and last-error tracking.
+  - Added unit tests for shared runner fallback and parse-error convergence behavior.
+  - Ran focused regression suite for shared runner + both existing tool test files.
+- Files touched:
+  - `src/investory/agent_core/tools/http_runner.py` (created)
+  - `tests/test_http_runner.py` (created)
+  - `docs/3-1/worklog/http-tooling-reuse-worklog.md` (updated)
+- Test baseline result:
+  - Command: `pytest -q tests/test_http_runner.py tests/test_web_search_tool.py tests/test_instrument_profile_tool.py`
+  - Result: `21 passed in 0.17s`
+- Result:
+  - Shared execution skeleton introduced and verified without changing tool-level business payload code yet.
