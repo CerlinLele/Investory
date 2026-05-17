@@ -119,3 +119,27 @@
   - Result: `13 passed` + `6 passed` + `2 passed` (total `21 passed`)
 - Result:
   - Removed remaining shared logic duplication between `instrument_profile` and `web_search` at helper-method level, without changing externally observable behavior.
+
+## 2026-05-17 - Step 6 Completed (Regression and docs update)
+
+- Timestamp: 2026-05-17 (Australia/Sydney)
+- Plan step: `Step 6 - Regression and documentation updates`
+- Actions:
+  - Ran related regression tests for tools/action/router/tasks/gateway scope in current environment.
+  - Updated reuse plan with shared call-chain anchors (`http_runner` + `http_tooling_common`) and extension guidance for new HTTP tools.
+  - Kept behavior-safety emphasis: tool layer owns payload/parse policy, shared layer owns execution skeleton and error fold helpers.
+- Files touched:
+  - `docs/3-1/plans/http-tooling-reuse-plan.md` (updated)
+  - `docs/3-1/worklog/http-tooling-reuse-worklog.md` (updated)
+- Test baseline result:
+  - Passed:
+    - `pytest -q tests/test_web_search_tool.py tests/test_instrument_profile_tool.py tests/test_http_runner.py`
+    - Result: `21 passed in 0.20s`
+  - Blocked in current environment:
+    - `pytest -q tests/test_action_router.py tests/test_action_executors.py tests/test_action_validator.py tests/test_action_decision.py tests/test_action_contract.py`
+    - Reason: `ModuleNotFoundError: No module named 'langchain_core'`
+    - `pytest -q tests/test_tasks.py tests/test_gateway_routing.py tests/test_gateway_schemas.py tests/test_gateway_api.py tests/test_gateway_task_api.py tests/test_gateway_session.py`
+    - Reason: `ModuleNotFoundError: No module named 'fastapi'` during gateway API test collection
+- Result:
+  - Step 6 documentation deliverables completed.
+  - Full cross-module regression is partially blocked by missing optional runtime dependencies in this environment.

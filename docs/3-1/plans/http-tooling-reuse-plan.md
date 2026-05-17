@@ -145,6 +145,25 @@ run_guarded_candidates(
 交付物：
 - 更新后的 worklog + 定位文档 + PR 描述。
 
+Step 6 文档锚点（调用链）：
+- `src/investory/agent_core/tools/http_runner.py`
+  - `run_guarded_candidates`：共享候选执行骨架（guarded_get + logging + parse_error 收敛）。
+- `src/investory/agent_core/tools/http_tooling_common.py`
+  - `normalize_html_text`：共享 HTML 文本清洗。
+  - `build_error_result` / `build_failure_result`：共享错误结果与 last_error 收敛。
+- `src/investory/agent_core/tools/web_search.py`
+  - `search_web`：业务层解析回调 + payload (`query/results/provider_attempt_order`) 组装。
+- `src/investory/agent_core/tools/instrument_profile.py`
+  - `fetch_instrument_profile`：业务层解析阈值 + payload (`instrument_name_or_code/source_material/sources/as_of`) 组装。
+
+Step 6 风险补充（新增工具扩展方式）：
+- 新增 HTTP 工具时，优先复用 `run_guarded_candidates`，仅在工具层实现：
+  - candidates 构造；
+  - parse_success 规则；
+  - 成功 payload 组装；
+  - not_found/default error message。
+- 若新工具出现与现有语义冲突的错误策略，不要在工具内复制 `_build_failure_result`，应先评估在 `http_tooling_common.py` 增加可配置参数以保持策略集中。
+
 ## 5. 风险与规避
 
 - 风险 1：错误语义回归（`error_type/retryable` 改变）。
