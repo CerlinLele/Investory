@@ -5,6 +5,7 @@ from pydantic import BaseModel, ValidationError
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime import task_executor
 from investory.agent_core.runtime.task_executor import TaskExecutor
+from investory.agent_core.runtime.request_runner import ModelCallError
 
 
 class QuestionInput(BaseModel):
@@ -14,6 +15,12 @@ class QuestionInput(BaseModel):
 
 class AnswerResult(BaseModel):
     answer: str
+
+
+class ProviderError(Exception):
+    def __init__(self, message: str, *, status_code: int) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class FakeRunner:
@@ -156,3 +163,30 @@ def test_task_executor_returns_model_call_error(monkeypatch):
     assert result.error is not None
     assert result.error.error_type == "timeout"
     assert result.error.stage == "model_call"
+
+
+def test_task_executor_preserves_model_call_retry_count(monkeypatch):
+    monkeypatch.setattr(task_executor, "load_prompt_text", _load_prompt_text)
+    runner = FakeRunner(
+        exc=ModelCallError(
+            ProviderError("too many requests", status_code=429),
+            retry_count=2,
+        ),
+    )
+    executor = TaskExecutor(runner=runner)
+
+    result = executor.run(
+        _spec(),
+        {
+            "material_text": "Maximum drawdown is a peak-to-trough decline.",
+            "question": "What is maximum drawdown?",
+        },
+    )
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_type == "rate_limited"
+    assert result.error.stage == "model_call"
+    assert result.error.retryable is True
+    assert result.error.status_code == 429
+    assert result.error.retry_count == 2

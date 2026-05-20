@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from investory.agent_core.contracts.result_types import TaskResult, normalize_task_error
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime.prompt_loader import load_prompt_text
-from investory.agent_core.runtime.request_runner import RequestRunner
+from investory.agent_core.runtime.request_runner import ModelCallError, RequestRunner
 
 
 class TaskExecutor:
@@ -60,6 +60,16 @@ class TaskExecutor:
                 ok=False,
                 task_name=spec.name,
                 error=normalize_task_error(exc, stage="output_validation"),
+            )
+        except ModelCallError as exc:
+            return TaskResult(
+                ok=False,
+                task_name=spec.name,
+                error=normalize_task_error(
+                    exc.original,
+                    stage="model_call",
+                    retry_count=exc.retry_count,
+                ),
             )
         except Exception as exc:
             return TaskResult(
