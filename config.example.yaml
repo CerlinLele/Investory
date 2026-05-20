@@ -10,6 +10,8 @@ models:
   active_provider: openai
   default_model: gpt-5.4-mini
   temperature: 0
+  # Investory runtime retry limit. Provider SDK retries are disabled.
+  # 2 means one initial model call plus up to two retries.
   max_retries: 2
   providers:
     openai:

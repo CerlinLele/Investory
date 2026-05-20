@@ -30,6 +30,8 @@
 
 错误收束的关键是：每一次失败后，系统都更接近一个确定结果，而不是进入无限重试。
 
+Investory 当前实现边界：provider SDK 自带重试关闭；`RequestRunner` 先发起一次模型调用，失败后根据错误码和异常类型判断是否重试。`INVESTORY_LLM_MAX_RETRIES=2` 表示初始调用之外最多再重试 2 次。`TaskError.retryable` 是最终错误收束后的判断信号，不等于一定已经发生重试；`TaskError.retry_count` 记录 Investory runtime 实际执行的重试次数。
+
 ## 3. 区分 retry、fallback、degrade
 
 LLM 调用失败时，可以分三层处理。
@@ -212,7 +214,7 @@ AI 服务暂时繁忙，系统已自动重试但仍未成功。请稍后再试�
 - API Key 分环境管理，没有暴露到前端。
 - 请求有 timeout、cancel 和最大重试次数。
 - `401 / 403 / 429 / 5xx / timeout` 有不同处理逻辑。
-- `429 / 5xx` 使用指数退避重试。
+- `429 / 5xx` 使用 Investory runtime 控制的指数退避重试，provider SDK retry 保持关闭，避免双重重试。
 - streaming 首 token 前和首 token 后的失败策略不同。
 - 有 fallback 和功能降级方案。
 - 日志包含 request id、模型、延迟、token、错误码、重试次数。

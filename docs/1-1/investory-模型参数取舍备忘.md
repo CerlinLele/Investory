@@ -25,6 +25,8 @@ TaskSpec
 INVESTORY_LLM_PROVIDER=openai
 INVESTORY_DEFAULT_MODEL=gpt-5.4-mini
 INVESTORY_LLM_TEMPERATURE=0
+# Investory-controlled model-call retries after inspecting provider errors.
+# 2 means one initial call plus up to two retries.
 INVESTORY_LLM_MAX_RETRIES=2
 ```
 
@@ -35,7 +37,7 @@ INVESTORY_LLM_MAX_RETRIES=2
 | `provider` | 需要 | 决定使用 OpenAI、Anthropic 还是 Gemini 等 provider |
 | `model` | 需要 | 决定具体调用的模型 ID |
 | `temperature` | 需要 | 最小任务执行器优先追求稳定、可评估，默认用 `0` |
-| `max_retries` | 需要 | 模型 API 调用失败时提供基础重试能力 |
+| `max_retries` | 需要 | 由 Investory runtime 控制模型调用的有限重试；provider SDK 自带重试关闭 |
 
 ## 当前阶段暂时不加的参数
 
@@ -86,9 +88,10 @@ INVESTORY_LLM_LOGPROBS=
 更合适的演进方式是：
 
 1. 先实现 `llm_provider`、`default_model`、`llm_temperature`、`llm_max_retries`。
-2. 在 `model_factory.py` 中真正消费这些参数。
-3. 等具体任务暴露出长度、重复、创意或置信度问题后，再增加对应参数。
-4. 每增加一个参数，都要明确它被哪个 runtime 组件消费，以及通过什么测试或 eval 验证有效。
+2. 在 `model_factory.py` 中消费 provider、model、temperature，并固定 provider SDK `max_retries=0`。
+3. 在 `RequestRunner` 中消费 `llm_max_retries`，根据错误码和异常类型做显式有限重试。
+4. 等具体任务暴露出长度、重复、创意或置信度问题后，再增加对应参数。
+5. 每增加一个参数，都要明确它被哪个 runtime 组件消费，以及通过什么测试或 eval 验证有效。
 
 一句话结论：
 

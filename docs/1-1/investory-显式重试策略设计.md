@@ -2,7 +2,7 @@
 
 ## 背景
 
-当前最小任务执行器把 `INVESTORY_LLM_MAX_RETRIES` 读入 `AppConfig.llm_max_retries` 后，在 `model_factory.py` 中作为 `max_retries` 传给 LangChain provider wrapper。
+调整前，最小任务执行器把 `INVESTORY_LLM_MAX_RETRIES` 读入 `AppConfig.llm_max_retries` 后，在 `model_factory.py` 中作为 `max_retries` 传给 LangChain provider wrapper。
 
 这意味着一次模型调用进入 provider SDK 后，provider SDK 会先根据自己的规则决定是否自动重试。等异常最终冒回 Investory 时，`TaskExecutor` 才会调用 `normalize_task_error()` 生成 `TaskError.retryable`。
 
@@ -285,25 +285,40 @@ except Exception as exc:
 
 ### Step 5: 统一 status code 提取逻辑
 
-当前 `result_types.py` 里已有 `_extract_status_code()`。
+当前 `contracts/result_types.py` 里已有 `_extract_status_code()`。
 
-为了避免重复，可以有两种选择：
+为了避免重复，同时保持目录分层方向正确，status code 提取逻辑应该保留在 `contracts` 侧：
 
-1. 把 `_extract_status_code()` 移到 `retry_policy.py` 并在 `result_types.py` 复用。
-2. 第一版允许轻微重复，后续再整理。
-
-建议采用第 1 种，让 status code 提取成为 runtime 通用能力。
+- `contracts/result_types.py` 是通用错误契约，可以提供公共 `extract_status_code()`。
+- `runtime/retry_policy.py` 是运行时策略，应该复用 `contracts` 里的提取函数。
+- 不要让 `contracts/result_types.py` 反向 import `runtime/retry_policy.py`。
 
 最终结构：
 
 ```text
-src/investory/agent_core/runtime/retry_policy.py
+src/investory/agent_core/contracts/result_types.py
   extract_status_code()
+  normalize_task_error()
+```
+
+```text
+src/investory/agent_core/runtime/retry_policy.py
+  from investory.agent_core.contracts.result_types import extract_status_code
   is_retryable_model_error()
   calculate_retry_delay()
 ```
 
-`result_types.py` 从 `retry_policy.py` 导入 `extract_status_code()`。
+这样依赖方向保持为：
+
+```text
+runtime -> contracts
+```
+
+而不是：
+
+```text
+contracts -> runtime
+```
 
 ### Step 6: 更新测试
 
@@ -351,6 +366,7 @@ INVESTORY_LLM_MAX_RETRIES=2
 - `docs/1-1/investory-langchain-最小任务执行器设计.md`
 - `docs/1-1/investory-模型参数取舍备忘.md`
 - `docs/1-1/LLM调用失败时的错误收束.md`
+- `docs/1-1/investory-显式重试策略设计.md`
 
 重点说明：
 
