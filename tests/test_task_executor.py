@@ -5,7 +5,10 @@ from pydantic import BaseModel, ValidationError
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime import task_executor
 from investory.agent_core.runtime.task_executor import TaskExecutor
-from investory.agent_core.runtime.request_runner import ModelCallError
+from investory.agent_core.runtime.request_runner import (
+    ModelCallError,
+    StructuredOutputError,
+)
 
 
 class QuestionInput(BaseModel):
@@ -190,3 +193,33 @@ def test_task_executor_preserves_model_call_retry_count(monkeypatch):
     assert result.error.retryable is True
     assert result.error.status_code == 429
     assert result.error.retry_count == 2
+
+
+def test_task_executor_preserves_structured_output_retry_count(monkeypatch):
+    monkeypatch.setattr(task_executor, "load_prompt_text", _load_prompt_text)
+    try:
+        AnswerResult.model_validate({})
+    except ValidationError as exc:
+        validation_error = exc
+    runner = FakeRunner(
+        exc=StructuredOutputError(
+            validation_error,
+            retry_count=1,
+        ),
+    )
+    executor = TaskExecutor(runner=runner)
+
+    result = executor.run(
+        _spec(),
+        {
+            "material_text": "Maximum drawdown is a peak-to-trough decline.",
+            "question": "What is maximum drawdown?",
+        },
+    )
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_type == "structured_output_failed"
+    assert result.error.stage == "output_validation"
+    assert result.error.retryable is True
+    assert result.error.retry_count == 1

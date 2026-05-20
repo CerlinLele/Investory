@@ -4,7 +4,11 @@ import pytest
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, ValidationError
 
-from investory.agent_core.runtime.request_runner import ModelCallError, RequestRunner
+from investory.agent_core.runtime.request_runner import (
+    ModelCallError,
+    RequestRunner,
+    StructuredOutputError,
+)
 
 
 class AnswerResult(BaseModel):
@@ -154,7 +158,56 @@ def test_request_runner_retries_timeout_then_returns_success():
     assert delays == [0.5]
 
 
-def test_request_runner_reraises_validation_error_without_retry():
+def test_request_runner_retries_validation_error_then_returns_success():
+    try:
+        AnswerResult.model_validate({})
+    except ValidationError as exc:
+        validation_error = exc
+
+    expected_result = AnswerResult(answer="Recovered after schema failure.")
+    structured_model = FakeStructuredModel(validation_error, expected_result)
+    chat_model = FakeChatModel(structured_model)
+    delays: list[float] = []
+    runner = RequestRunner(
+        model=chat_model,
+        max_retries=2,
+        sleep_fn=delays.append,
+    )
+    messages = [HumanMessage(content="What is Investory?")]
+
+    result = runner.run(messages, AnswerResult)
+
+    assert result == expected_result
+    assert structured_model.invoke_count == 2
+    assert delays == []
+
+
+def test_request_runner_raises_structured_output_error_after_retry_limit():
+    try:
+        AnswerResult.model_validate({})
+    except ValidationError as exc:
+        validation_error = exc
+
+    structured_model = FakeStructuredModel(validation_error, validation_error)
+    chat_model = FakeChatModel(structured_model)
+    delays: list[float] = []
+    runner = RequestRunner(
+        model=chat_model,
+        max_retries=2,
+        structured_output_max_retries=1,
+        sleep_fn=delays.append,
+    )
+    messages = [HumanMessage(content="What is Investory?")]
+
+    with pytest.raises(StructuredOutputError) as exc_info:
+        runner.run(messages, AnswerResult)
+
+    assert exc_info.value.retry_count == 1
+    assert structured_model.invoke_count == 2
+    assert delays == []
+
+
+def test_request_runner_can_disable_structured_output_retry():
     try:
         AnswerResult.model_validate({})
     except ValidationError as exc:
@@ -166,12 +219,14 @@ def test_request_runner_reraises_validation_error_without_retry():
     runner = RequestRunner(
         model=chat_model,
         max_retries=2,
+        structured_output_max_retries=0,
         sleep_fn=delays.append,
     )
     messages = [HumanMessage(content="What is Investory?")]
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(StructuredOutputError) as exc_info:
         runner.run(messages, AnswerResult)
 
+    assert exc_info.value.retry_count == 0
     assert structured_model.invoke_count == 1
     assert delays == []
