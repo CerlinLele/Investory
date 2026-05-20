@@ -27,6 +27,7 @@ INVESTORY_DEFAULT_MODEL=gpt-5.4-mini
 INVESTORY_LLM_TEMPERATURE=0
 # Investory-controlled model-call retries after inspecting provider errors.
 # 2 means one initial call plus up to two retries.
+# Structured output validation has a separate in-code retry limit.
 INVESTORY_LLM_MAX_RETRIES=2
 ```
 
@@ -37,7 +38,9 @@ INVESTORY_LLM_MAX_RETRIES=2
 | `provider` | 需要 | 决定使用 OpenAI、Anthropic 还是 Gemini 等 provider |
 | `model` | 需要 | 决定具体调用的模型 ID |
 | `temperature` | 需要 | 最小任务执行器优先追求稳定、可评估，默认用 `0` |
-| `max_retries` | 需要 | 由 Investory runtime 控制模型调用的有限重试；provider SDK 自带重试关闭 |
+| `max_retries` | 需要 | 由 Investory runtime 控制 provider 短暂失败的有限重试；provider SDK 自带重试关闭 |
+
+说明：`INVESTORY_LLM_MAX_RETRIES` 只用于 `429 / 5xx / timeout` 等 provider transient failure。结构化输出校验失败由 `RequestRunner.structured_output_max_retries=1` 独立控制，当前不放入 `.env`，避免把 schema 契约失败和 provider 网络/服务失败混成同一个参数。
 
 ## 当前阶段暂时不加的参数
 
@@ -90,8 +93,9 @@ INVESTORY_LLM_LOGPROBS=
 1. 先实现 `llm_provider`、`default_model`、`llm_temperature`、`llm_max_retries`。
 2. 在 `model_factory.py` 中消费 provider、model、temperature，并固定 provider SDK `max_retries=0`。
 3. 在 `RequestRunner` 中消费 `llm_max_retries`，根据错误码和异常类型做显式有限重试。
-4. 等具体任务暴露出长度、重复、创意或置信度问题后，再增加对应参数。
-5. 每增加一个参数，都要明确它被哪个 runtime 组件消费，以及通过什么测试或 eval 验证有效。
+4. 在 `RequestRunner` 中用 `structured_output_max_retries=1` 独立处理结构化输出校验失败，暂不暴露为环境变量。
+5. 等具体任务暴露出长度、重复、创意或置信度问题后，再增加对应参数。
+6. 每增加一个参数，都要明确它被哪个 runtime 组件消费，以及通过什么测试或 eval 验证有效。
 
 一句话结论：
 

@@ -199,6 +199,7 @@ INVESTORY_DEFAULT_MODEL=gpt-5.4-mini
 INVESTORY_LLM_TEMPERATURE=0
 # Investory-controlled model-call retries after inspecting provider errors.
 # 2 means one initial call plus up to two retries.
+# Structured output validation has a separate in-code retry limit.
 INVESTORY_LLM_MAX_RETRIES=2
 
 # OpenAI
@@ -227,6 +228,7 @@ models:
   temperature: 0
   # Investory runtime retry limit. Provider SDK retries are disabled.
   # 2 means one initial model call plus up to two retries.
+  # Structured output validation has a separate in-code retry limit.
   max_retries: 2
   providers:
     openai:
@@ -739,11 +741,20 @@ from langchain_core.messages import BaseMessage
 from pydantic import BaseModel
 
 from investory.agent_core.runtime.model_factory import create_chat_model
+from investory.config import load_config
 
 
 class RequestRunner:
-    def __init__(self, model=None) -> None:
-        self.model = model or create_chat_model()
+    def __init__(
+        self,
+        model=None,
+        max_retries: int | None = None,
+        structured_output_max_retries: int = 1,
+    ) -> None:
+        config = load_config()
+        self.model = model or create_chat_model(config)
+        self.max_retries = config.llm_max_retries if max_retries is None else max_retries
+        self.structured_output_max_retries = structured_output_max_retries
 
     def run(
         self,
@@ -856,7 +867,7 @@ error=normalize_task_error(
 - 输入校验失败：`input_validation_failed`，不重试。
 - prompt 文件缺失或构造失败：`prompt_load_failed`，不重试，提示任务配置不可用。
 - 模型调用失败：`RequestRunner` 先根据 status code 或异常内容做有限重试；最终仍失败后，再归一化为鉴权、限流、服务不可用、超时或未知错误。
-- 结构化输出校验失败：`structured_output_failed`，不进入普通 provider retry loop；后续可由上层做一次有限修复或重试。
+- 结构化输出校验失败：`RequestRunner` 使用独立的 `structured_output_max_retries=1` 做一次同 prompt 有限重试；仍失败后归一化为 `structured_output_failed`，不进入普通 provider retry loop。
 - 不返回原始异常堆栈、API key、完整 prompt 或未脱敏业务数据给用户。
 
 ### Step 10：新增 prompt 文件
