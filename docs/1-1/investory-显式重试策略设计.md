@@ -89,18 +89,23 @@ INVESTORY_LLM_MAX_RETRIES=2
 
 ### 结构化输出失败
 
-`output_validation` / `structured_output_failed` 第一版先不放进普通 retry loop。
+`output_validation` / `structured_output_failed` 不应该放进普通 HTTP/status retry loop。
 
-原因是它不是纯 provider 网络错误，而是模型输出没有满足结构化契约。后续可以单独设计 repair call、prompt 修复或一次有限重试，但不要和 HTTP/status retry 混在一起。
+原因是它不是纯 provider 网络错误，而是模型输出没有满足结构化契约。它可以考虑一次独立的有限重试，但必须和 `429 / 5xx / timeout` 这类 provider transient retry 分开。
 
-当前建议仍然返回：
+建议第一版策略：
+
+- 普通模型调用错误：由 `INVESTORY_LLM_MAX_RETRIES` 控制，例如 `2` 表示初始调用之外最多再重试 2 次。
+- 结构化输出失败：单独允许最多 `1` 次重试，先不暴露成 env 配置。
+- 结构化输出重试不使用 provider retry policy，不参与 `is_retryable_model_error()`。
+- 重试仍失败后返回：
 
 ```text
 error_type=structured_output_failed
 retryable=True
 ```
 
-这表示上层理论上可以做有限修复或重试，但第一版 `RequestRunner` 不自动处理它。
+这表示上层理论上仍可做 repair call、人工复核或更复杂的修复流程。
 
 ## Implementation Steps
 
@@ -283,7 +288,103 @@ except Exception as exc:
     )
 ```
 
-### Step 5: 统一 status code 提取逻辑
+### Step 5: 结构化输出失败的有限重试
+
+结构化输出失败要单独处理，不复用 `ModelCallError`。
+
+建议在 `src/investory/agent_core/runtime/request_runner.py` 新增：
+
+```python
+class StructuredOutputError(Exception):
+    def __init__(self, original: ValidationError, retry_count: int) -> None:
+        super().__init__(str(original))
+        self.original = original
+        self.retry_count = retry_count
+```
+
+然后让 `RequestRunner` 接收一个独立参数：
+
+```python
+class RequestRunner:
+    def __init__(
+        self,
+        model=None,
+        max_retries: int | None = None,
+        structured_output_max_retries: int = 1,
+        sleep_fn: Callable[[float], None] = sleep,
+    ) -> None:
+        ...
+        self.structured_output_max_retries = structured_output_max_retries
+```
+
+`run()` 里维护两个独立计数：
+
+```python
+model_retry_count = 0
+structured_output_retry_count = 0
+
+while True:
+    try:
+        return structured_model.invoke(messages)
+    except ValidationError as exc:
+        if structured_output_retry_count >= self.structured_output_max_retries:
+            raise StructuredOutputError(
+                exc,
+                structured_output_retry_count,
+            ) from exc
+
+        structured_output_retry_count += 1
+        continue
+    except Exception as exc:
+        if model_retry_count >= self.max_retries:
+            raise ModelCallError(exc, model_retry_count) from exc
+
+        if not is_retryable_model_error(exc):
+            raise ModelCallError(exc, model_retry_count) from exc
+
+        self.sleep_fn(calculate_retry_delay(model_retry_count))
+        model_retry_count += 1
+```
+
+说明：
+
+- `structured_output_max_retries=1` 表示初始结构化调用失败后，再尝试 1 次。
+- 结构化输出重试可以先不 sleep，因为它不是限流或服务端短暂不可用。
+- 如果后续能拿到原始模型文本，可以把第二次调用升级为 repair call；第一版先只做同 prompt 的一次有限重试。
+- 这类失败最终仍归一化为 `output_validation` 阶段，而不是 `model_call` 阶段。
+
+`TaskExecutor` 需要额外捕获 `StructuredOutputError`：
+
+```python
+from investory.agent_core.runtime.request_runner import (
+    ModelCallError,
+    RequestRunner,
+    StructuredOutputError,
+)
+
+...
+
+except StructuredOutputError as exc:
+    return TaskResult(
+        ok=False,
+        task_name=spec.name,
+        error=normalize_task_error(
+            exc.original,
+            stage="output_validation",
+            retry_count=exc.retry_count,
+        ),
+    )
+except ValidationError as exc:
+    return TaskResult(
+        ok=False,
+        task_name=spec.name,
+        error=normalize_task_error(exc, stage="output_validation"),
+    )
+```
+
+`ValidationError` 兜底分支保留，方便测试 fake runner 或未来其他 structured output 实现直接抛出 Pydantic 错误。
+
+### Step 6: 统一 status code 提取逻辑
 
 当前 `contracts/result_types.py` 里已有 `_extract_status_code()`。
 
@@ -320,7 +421,7 @@ runtime -> contracts
 contracts -> runtime
 ```
 
-### Step 6: 更新测试
+### Step 7: 更新测试
 
 更新 `tests/test_model_factory.py`：
 
@@ -336,12 +437,16 @@ contracts -> runtime
 - `401` 不重试，直接抛出 `ModelCallError(retry_count=0)`。
 - `400` 不重试。
 - `TimeoutError` 会重试。
+- `ValidationError` 第一次失败、第二次成功时返回成功结果。
+- `ValidationError` 达到 `structured_output_max_retries` 后抛出 `StructuredOutputError`，且 `retry_count` 正确。
+- `structured_output_max_retries=0` 时，结构化输出失败不重试。
 
 更新 `tests/test_task_executor.py`：
 
 - `ModelCallError` 传入后，最终 `TaskResult.error.retry_count` 等于实际重试次数。
 - `429` 最终失败时仍归一化为 `rate_limited` 且 `retryable=True`。
 - `401` 最终失败时归一化为 `provider_auth_error` 且 `retryable=False`。
+- `StructuredOutputError` 传入后，最终 `TaskResult.error.error_type=structured_output_failed`，`stage=output_validation`，并保留结构化输出重试次数。
 
 新增 `tests/test_retry_policy.py`：
 
@@ -351,7 +456,7 @@ contracts -> runtime
 - `400 / 401 / 403 / 404 / 422` 不可重试。
 - timeout message 可重试。
 
-### Step 7: 更新文档和 env 注释
+### Step 8: 更新文档和 env 注释
 
 更新 `.env.example`：
 
@@ -374,6 +479,7 @@ INVESTORY_LLM_MAX_RETRIES=2
 - Investory runtime 根据错误类型做有限重试。
 - `retryable` 是错误收束结果，不等于一定已经发生重试。
 - `retry_count` 记录 Investory runtime 实际执行的重试次数。
+- 结构化输出失败使用独立的 `structured_output_max_retries=1`，不和 provider HTTP/status retry 共用配置。
 
 ## 第一版不做的事
 
@@ -381,7 +487,7 @@ INVESTORY_LLM_MAX_RETRIES=2
 
 - 不做 fallback provider。
 - 不做 streaming retry。
-- 不做 structured output repair call。
+- 不做 structured output repair call；第一版只做同 prompt 的一次有限重试。
 - 不做总 deadline。
 - 不做成本预算控制。
 - 不做复杂 observability event。
@@ -395,10 +501,11 @@ INVESTORY_LLM_MAX_RETRIES=2
 3. 只有 retry policy 判定可重试时才重试。
 4. 重试次数不超过 `INVESTORY_LLM_MAX_RETRIES`。
 5. 不可重试错误不会重试。
-6. 最终失败时 `TaskError.retry_count` 能反映实际重试次数。
-7. 现有 `TaskResult` 成功/失败结构保持不变。
-8. 单元测试覆盖 retry policy、request runner 和 task executor 的关键路径。
+6. 结构化输出失败最多独立重试 1 次，且不使用 provider retry policy。
+7. 最终失败时 `TaskError.retry_count` 能反映对应阶段实际执行的重试次数。
+8. 现有 `TaskResult` 成功/失败结构保持不变。
+9. 单元测试覆盖 retry policy、request runner 和 task executor 的关键路径。
 
 ## 一句话结论
 
-Investory 应该关闭 provider SDK 自动重试，在 `RequestRunner` 里根据错误码和异常类型做显式、有限、可观测的重试；`TaskExecutor` 只负责把最终失败收束成统一的 `TaskError`。
+Investory 应该关闭 provider SDK 自动重试，在 `RequestRunner` 里把 provider transient retry 和 structured output retry 分开处理；`TaskExecutor` 只负责把最终失败收束成统一的 `TaskError`。
