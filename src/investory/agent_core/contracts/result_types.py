@@ -46,7 +46,7 @@ class TaskResult(BaseModel):
     error: TaskError | None = None
 
 
-def _extract_status_code(exc: Exception) -> int | None:
+def extract_status_code(exc: Exception) -> int | None:
     status_code = getattr(exc, "status_code", None)
     if isinstance(status_code, int):
         return status_code
@@ -98,7 +98,7 @@ def normalize_task_error(
     retry_count: int = 0,
     fallback_used: bool = False,
 ) -> TaskError:
-    status_code = _extract_status_code(exc)
+    status_code = extract_status_code(exc)
     raw_message = str(exc)
     normalized_message = raw_message.lower()
     common = {

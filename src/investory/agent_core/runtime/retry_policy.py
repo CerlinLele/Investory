@@ -1,21 +1,8 @@
 """Retry policy helpers for model calls."""
 
+from investory.agent_core.contracts.result_types import extract_status_code
+
 RETRYABLE_STATUS_CODES = {408, 409, 429}
-
-
-def extract_status_code(exc: Exception) -> int | None:
-    """Extract a provider HTTP status code from common exception shapes."""
-
-    status_code = getattr(exc, "status_code", None)
-    if isinstance(status_code, int):
-        return status_code
-
-    response = getattr(exc, "response", None)
-    response_status = getattr(response, "status_code", None)
-    if isinstance(response_status, int):
-        return response_status
-
-    return None
 
 
 def is_retryable_model_error(exc: Exception) -> bool:
