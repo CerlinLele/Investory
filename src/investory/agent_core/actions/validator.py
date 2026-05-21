@@ -1,6 +1,12 @@
 from typing import Any
 
-from investory.agent_core.contracts.action_contract import ActionCall, TaskDecision
+from investory.agent_core.contracts.action_contract import (
+    ASK_MISSING_FIELDS,
+    REFUSE_INVESTMENT_ADVICE,
+    RUN_TASK_MODEL,
+    ActionCall,
+    TaskDecision,
+)
 from investory.agent_core.contracts.task_spec import TaskSpec
 
 
@@ -10,9 +16,9 @@ class ActionValidationError(ValueError):
 
 def _ensure_action_allowed(decision: TaskDecision) -> None:
     allowed_actions = {
-        "ask_missing_fields",
-        "run_task_model",
-        "refuse_investment_advice",
+        ASK_MISSING_FIELDS,
+        RUN_TASK_MODEL,
+        REFUSE_INVESTMENT_ADVICE,
     }
     if decision.action not in allowed_actions:
         raise ActionValidationError(f"Unsupported action: {decision.action}")
@@ -85,11 +91,11 @@ def validate_decision(
     _ensure_action_allowed(decision)
     _ensure_task_matches_spec(decision, spec)
 
-    if decision.action == "ask_missing_fields":
+    if decision.action == ASK_MISSING_FIELDS:
         _validate_ask_missing_fields(decision, spec)
-    elif decision.action == "run_task_model":
+    elif decision.action == RUN_TASK_MODEL:
         _validate_run_task_model(decision)
-    elif decision.action == "refuse_investment_advice":
+    elif decision.action == REFUSE_INVESTMENT_ADVICE:
         _validate_refuse_investment_advice(decision)
 
     return ActionCall(

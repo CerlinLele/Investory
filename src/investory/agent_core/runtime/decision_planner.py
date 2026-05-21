@@ -1,6 +1,10 @@
 from typing import Any
 
-from investory.agent_core.contracts.action_contract import TaskDecision
+from investory.agent_core.contracts.action_contract import (
+    ASK_MISSING_FIELDS,
+    RUN_TASK_MODEL,
+    TaskDecision,
+)
 from investory.agent_core.contracts.action_decision import build_ask_missing_fields_action
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime.input_requirements import get_missing_required_fields
@@ -15,7 +19,7 @@ class DecisionPlanner:
                 missing_fields=missing_fields,
             )
             return TaskDecision(
-                action="ask_missing_fields",
+                action=ASK_MISSING_FIELDS,
                 task_name=spec.name,
                 reason=action.reason,
                 params={"missing_fields": action.missing_fields},
@@ -23,7 +27,7 @@ class DecisionPlanner:
             )
 
         return TaskDecision(
-            action="run_task_model",
+            action=RUN_TASK_MODEL,
             task_name=spec.name,
             reason=f"The request contains all required input fields for {spec.name}.",
             params={"payload": dict(payload)},

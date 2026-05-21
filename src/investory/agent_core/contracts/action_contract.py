@@ -1,14 +1,17 @@
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from pydantic import BaseModel, Field
 
 from investory.agent_core.contracts.result_types import TaskError
 
+ASK_MISSING_FIELDS: Final[str] = "ask_missing_fields"
+RUN_TASK_MODEL: Final[str] = "run_task_model"
+REFUSE_INVESTMENT_ADVICE: Final[str] = "refuse_investment_advice"
 
 ActionName = Literal[
-    "ask_missing_fields",
-    "run_task_model",
-    "refuse_investment_advice",
+    ASK_MISSING_FIELDS,
+    RUN_TASK_MODEL,
+    REFUSE_INVESTMENT_ADVICE,
 ]
 
 ActionStatus = Literal["success", "failed", "requires_user_input", "refused"]
