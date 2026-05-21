@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from investory.agent_core.contracts.task_spec import TaskSpec
-from investory.agent_core.runtime import task_executor
+from investory.agent_core.runtime import message_builder
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.agent_core.runtime.request_runner import (
     ModelCallError,
@@ -69,7 +69,7 @@ def _load_prompt_text(*parts: str) -> str:
 
 
 def test_task_executor_returns_success_result(monkeypatch):
-    monkeypatch.setattr(task_executor, "load_prompt_text", _load_prompt_text)
+    monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(result=AnswerResult(answer="Maximum drawdown measures loss."))
     executor = TaskExecutor(runner=runner)
 
@@ -91,7 +91,7 @@ def test_task_executor_returns_success_result(monkeypatch):
 
 
 def test_task_executor_returns_input_validation_error(monkeypatch):
-    monkeypatch.setattr(task_executor, "load_prompt_text", _load_prompt_text)
+    monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(result=AnswerResult(answer="unused"))
     executor = TaskExecutor(runner=runner)
 
@@ -109,7 +109,7 @@ def test_task_executor_returns_prompt_build_error(monkeypatch):
     def raise_prompt_error(*parts: str) -> str:
         raise FileNotFoundError("missing prompt")
 
-    monkeypatch.setattr(task_executor, "load_prompt_text", raise_prompt_error)
+    monkeypatch.setattr(message_builder, "load_prompt_text", raise_prompt_error)
     executor = TaskExecutor(runner=FakeRunner(result=AnswerResult(answer="unused")))
 
     result = executor.run(
@@ -127,7 +127,7 @@ def test_task_executor_returns_prompt_build_error(monkeypatch):
 
 
 def test_task_executor_returns_output_validation_error(monkeypatch):
-    monkeypatch.setattr(task_executor, "load_prompt_text", _load_prompt_text)
+    monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     try:
         AnswerResult.model_validate({})
     except ValidationError as exc:
@@ -150,7 +150,7 @@ def test_task_executor_returns_output_validation_error(monkeypatch):
 
 
 def test_task_executor_returns_model_call_error(monkeypatch):
-    monkeypatch.setattr(task_executor, "load_prompt_text", _load_prompt_text)
+    monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(exc=TimeoutError("request timeout"))
     executor = TaskExecutor(runner=runner)
 
