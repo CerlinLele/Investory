@@ -57,17 +57,42 @@ class DecisionFlow:
         )
         self.last_state = state
 
-        decision = self.planner.decide(spec, payload)
-        state.decision = decision
+        self.classify_request(state, spec, payload)
+        self.validate_decision_contract(state, spec, request_id=request_id)
+        self.execute_routed_action(state, spec)
+        return self.build_task_response(state)
 
-        action_call = validate_decision(decision, spec, request_id=request_id)
-        state.action_call = action_call
+    def classify_request(
+        self,
+        state: LearningQaFlowState,
+        spec: TaskSpec,
+        payload: dict[str, Any],
+    ) -> None:
+        state.decision = self.planner.decide(spec, payload)
 
-        executor = self.router.route(action_call)
-        action_result = executor.execute(action_call, spec)
-        state.action_result = action_result
+    def validate_decision_contract(
+        self,
+        state: LearningQaFlowState,
+        spec: TaskSpec,
+        *,
+        request_id: str | None = None,
+    ) -> None:
+        state.action_call = validate_decision(
+            state.decision,
+            spec,
+            request_id=request_id,
+        )
 
-        output = backfill_action_result(action_result)
+    def execute_routed_action(
+        self,
+        state: LearningQaFlowState,
+        spec: TaskSpec,
+    ) -> None:
+        executor = self.router.route(state.action_call)
+        state.action_result = executor.execute(state.action_call, spec)
+
+    def build_task_response(self, state: LearningQaFlowState) -> TaskResult:
+        output = backfill_action_result(state.action_result)
         state.output = output
         state.error = output.error
         return output

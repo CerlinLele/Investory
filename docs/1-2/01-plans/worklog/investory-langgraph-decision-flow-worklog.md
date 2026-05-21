@@ -84,3 +84,23 @@
   - Behavior unchanged for Step 1.1 scope.
   - `last_state` remains observable after `run(...)`.
   - Test passed: `5 passed in 1.59s`.
+
+## Step 1.2 Split Main Nodes (Minimal Set)
+
+- Timestamp: 2026-05-22 05:53:41 +10:00
+- Action:
+  - Split `DecisionFlow` sequential logic into 4 node-style methods:
+    - `classify_request`
+    - `validate_decision_contract`
+    - `execute_routed_action` (temporary aggregate execution node)
+    - `build_task_response`
+  - Kept `run(...)` as linear orchestration that invokes these methods in order.
+  - Ran validation tests:
+    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
+- Files touched:
+  - `src/investory/agent_core/runtime/decision_flow.py`
+  - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
+- Result:
+  - Behavior remains linear and unchanged for this layer.
+  - `last_state` contract remains intact.
+  - Tests passed: `19 passed in 1.71s`.
