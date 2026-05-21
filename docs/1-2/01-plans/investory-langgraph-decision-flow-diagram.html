@@ -3,59 +3,89 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Investory LangGraph DecisionFlow Diagram</title>
+  <title>Investory LangGraph DecisionFlow Layers</title>
   <style>
     :root {
       --bg: #f4f6f8;
-      --ink: #14202b;
-      --muted: #3f5668;
-      --line: #5a7489;
-      --card: #ffffff;
-      --start: #d7f1df;
-      --route: #ffeec2;
-      --action: #dcefff;
-      --final: #f5dffe;
+      --panel: #ffffff;
+      --ink: #182431;
+      --muted: #4e6577;
+      --line: #587288;
+      --start: #dbf2e2;
+      --route: #fff0c7;
+      --action: #e0efff;
+      --final: #f1e2ff;
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
+      font-family: "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
       background: var(--bg);
       color: var(--ink);
-      font-family: "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
     }
 
     .wrap {
-      max-width: 1280px;
+      max-width: 1240px;
       margin: 0 auto;
       padding: 20px;
     }
 
     h1 {
-      margin: 0 0 6px 0;
+      margin: 0;
       font-size: 24px;
       font-weight: 700;
     }
 
     .sub {
-      margin: 0 0 14px 0;
-      color: var(--muted);
+      margin: 6px 0 14px 0;
       font-size: 14px;
+      color: var(--muted);
     }
 
-    .board {
-      background: var(--card);
-      border: 1px solid #d9e3ea;
+    .hint {
+      margin: 0 0 16px 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .layer {
+      background: var(--panel);
+      border: 1px solid #d8e2e9;
       border-radius: 10px;
+      margin-bottom: 14px;
+      padding: 14px;
       overflow: auto;
-      padding: 8px;
     }
 
-    svg { min-width: 1160px; width: 100%; height: 760px; }
+    .layer h2 {
+      margin: 0 0 4px 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .layer p {
+      margin: 0 0 12px 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    svg {
+      width: 100%;
+      min-width: 1060px;
+      height: 220px;
+      display: block;
+    }
+
+    .deep svg {
+      min-width: 1060px;
+      height: 320px;
+    }
 
     .node {
-      fill: var(--card);
+      fill: #fff;
       stroke: var(--line);
       stroke-width: 2;
       rx: 10;
@@ -67,131 +97,212 @@
     .action { fill: var(--action); }
     .final { fill: var(--final); }
 
-    .t {
+    .title {
+      font-size: 13px;
+      font-weight: 700;
       fill: var(--ink);
-      font-size: 14px;
-      font-weight: 600;
       text-anchor: middle;
       dominant-baseline: middle;
     }
 
-    .s {
+    .desc {
+      font-size: 11px;
       fill: var(--muted);
-      font-size: 12px;
       text-anchor: middle;
       dominant-baseline: middle;
     }
 
     .edge {
       stroke: var(--line);
-      stroke-width: 2.2;
+      stroke-width: 2;
       fill: none;
       marker-end: url(#arrow);
     }
 
     .label {
-      font-size: 12px;
+      font-size: 11px;
       fill: var(--muted);
-      font-weight: 600;
       text-anchor: middle;
       dominant-baseline: middle;
+      font-weight: 700;
     }
 
     .legend {
       margin-top: 10px;
-      color: var(--muted);
       font-size: 13px;
-      line-height: 1.5;
+      color: var(--muted);
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Investory LangGraph DecisionFlow</h1>
-    <p class="sub">目标编排：START -> decide_action -> validate_action -> conditional route(action key) -> execute action -> finalize_result -> END</p>
+    <h1>Investory LangGraph DecisionFlow (Layered)</h1>
+    <p class="sub">拆细版：按层逐步画图，从主干到条件分支，再到子流程细化。</p>
+    <p class="hint">术语固定：`action` 不是 node，也不是 edge；`action` 是 conditional routing key（来自 `action_call.action`）。</p>
 
-    <div class="board">
-      <svg viewBox="0 0 1160 760" aria-label="DecisionFlow graph">
+    <section class="layer">
+      <h2>Layer 1 - 主干骨架</h2>
+      <p>先画线性骨架，不加分支。</p>
+      <svg viewBox="0 0 1060 220" aria-label="Layer 1">
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a7489"></path>
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#587288"></path>
           </marker>
         </defs>
 
-        <!-- Top chain -->
-        <rect class="node start" x="470" y="28" width="220" height="54"></rect>
-        <text class="t" x="580" y="49">START</text>
-        <text class="s" x="580" y="66">initial state</text>
+        <rect class="node start" x="20" y="70" width="140" height="56"></rect>
+        <text class="title" x="90" y="92">START</text>
+        <text class="desc" x="90" y="109">initial state</text>
 
-        <rect class="node" x="470" y="124" width="220" height="64"></rect>
-        <text class="t" x="580" y="148">decide_action</text>
-        <text class="s" x="580" y="167">DecisionPlanner.decide</text>
+        <rect class="node" x="200" y="70" width="170" height="56"></rect>
+        <text class="title" x="285" y="92">decide_action</text>
+        <text class="desc" x="285" y="109">planner.decide</text>
 
-        <rect class="node" x="470" y="228" width="220" height="64"></rect>
-        <text class="t" x="580" y="252">validate_action</text>
-        <text class="s" x="580" y="271">validate_decision</text>
+        <rect class="node" x="410" y="70" width="170" height="56"></rect>
+        <text class="title" x="495" y="92">validate_action</text>
+        <text class="desc" x="495" y="109">validate_decision</text>
 
-        <!-- Route diamond -->
-        <polygon class="node route" points="580,338 695,410 580,482 465,410"></polygon>
-        <text class="t" x="580" y="399">route_action_name</text>
-        <text class="s" x="580" y="420">read action_call.action</text>
+        <rect class="node final" x="620" y="70" width="170" height="56"></rect>
+        <text class="title" x="705" y="92">finalize_result</text>
+        <text class="desc" x="705" y="109">backfill_action_result</text>
 
-        <!-- Action nodes -->
-        <rect class="node action" x="60" y="548" width="300" height="74"></rect>
-        <text class="t" x="210" y="573">execute_ask_missing_fields</text>
-        <text class="s" x="210" y="595">ActionRouter -> executor.execute</text>
+        <rect class="node start" x="830" y="70" width="140" height="56"></rect>
+        <text class="title" x="900" y="92">END</text>
+        <text class="desc" x="900" y="109">TaskResult</text>
 
-        <rect class="node action" x="430" y="548" width="300" height="74"></rect>
-        <text class="t" x="580" y="573">execute_run_task_model</text>
-        <text class="s" x="580" y="595">ActionRouter -> executor.execute</text>
-
-        <rect class="node action" x="800" y="548" width="300" height="74"></rect>
-        <text class="t" x="950" y="573">execute_refuse_investment_advice</text>
-        <text class="s" x="950" y="595">ActionRouter -> executor.execute</text>
-
-        <!-- Final chain -->
-        <rect class="node final" x="470" y="656" width="220" height="64"></rect>
-        <text class="t" x="580" y="680">finalize_result</text>
-        <text class="s" x="580" y="699">backfill_action_result</text>
-
-        <rect class="node start" x="760" y="670" width="180" height="50"></rect>
-        <text class="t" x="850" y="689">END</text>
-        <text class="s" x="850" y="704">TaskResult output</text>
-
-        <!-- Edges top -->
-        <path class="edge" d="M580,82 L580,124"></path>
-        <path class="edge" d="M580,188 L580,228"></path>
-        <path class="edge" d="M580,292 L580,338"></path>
-
-        <!-- Route edges -->
-        <path class="edge" d="M500,455 C420,500 320,530 250,548"></path>
-        <text class="label" x="370" y="505">ask_missing_fields</text>
-
-        <path class="edge" d="M580,482 L580,548"></path>
-        <text class="label" x="645" y="515">run_task_model</text>
-
-        <path class="edge" d="M660,455 C740,500 840,530 910,548"></path>
-        <text class="label" x="790" y="505">refuse_investment_advice</text>
-
-        <!-- Merge edges -->
-        <path class="edge" d="M210,622 C210,650 420,652 470,672"></path>
-        <path class="edge" d="M580,622 L580,656"></path>
-        <path class="edge" d="M950,622 C950,650 740,652 690,672"></path>
-
-        <path class="edge" d="M690,688 L760,688"></path>
-
-        <!-- Side note -->
-        <rect class="node" x="42" y="32" width="360" height="120"></rect>
-        <text class="t" x="222" y="56">术语说明</text>
-        <text class="s" x="222" y="82">action 不是 node，也不是 edge</text>
-        <text class="s" x="222" y="101">action 是 conditional routing key</text>
-        <text class="s" x="222" y="120">node 是执行单元，edge 是连接关系</text>
+        <path class="edge" d="M160,98 L200,98"></path>
+        <path class="edge" d="M370,98 L410,98"></path>
+        <path class="edge" d="M580,98 L620,98"></path>
+        <path class="edge" d="M790,98 L830,98"></path>
       </svg>
-    </div>
+    </section>
 
-    <div class="legend">
-      <div>说明：图中保持当前项目边界，`TaskExecutor` 与 `TaskExecutionPipeline` 不改协议，LangGraph 只用于 `DecisionFlow` 编排。</div>
-    </div>
+    <section class="layer">
+      <h2>Layer 2 - 加入条件路由点</h2>
+      <p>把 `validate_action` 后面的“分流决策点”画出来。</p>
+      <svg viewBox="0 0 1060 220" aria-label="Layer 2">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#587288"></path>
+          </marker>
+        </defs>
+
+        <rect class="node start" x="30" y="76" width="140" height="56"></rect>
+        <text class="title" x="100" y="98">START</text>
+        <text class="desc" x="100" y="115">initial state</text>
+
+        <rect class="node" x="210" y="76" width="170" height="56"></rect>
+        <text class="title" x="295" y="98">decide_action</text>
+        <text class="desc" x="295" y="115">planner.decide</text>
+
+        <rect class="node" x="420" y="76" width="170" height="56"></rect>
+        <text class="title" x="505" y="98">validate_action</text>
+        <text class="desc" x="505" y="115">validate_decision</text>
+
+        <polygon class="node route" points="720,68 830,104 720,140 610,104"></polygon>
+        <text class="title" x="720" y="96">route_action_name</text>
+        <text class="desc" x="720" y="113">reads action_call.action</text>
+
+        <path class="edge" style="marker-end:url(#arrow2)" d="M170,104 L210,104"></path>
+        <path class="edge" style="marker-end:url(#arrow2)" d="M380,104 L420,104"></path>
+        <path class="edge" style="marker-end:url(#arrow2)" d="M590,104 L610,104"></path>
+      </svg>
+    </section>
+
+    <section class="layer">
+      <h2>Layer 3 - 补齐三条 action 分支</h2>
+      <p>这一步再加分支节点和分支标签（routing key）。</p>
+      <svg viewBox="0 0 1060 220" aria-label="Layer 3">
+        <defs>
+          <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#587288"></path>
+          </marker>
+        </defs>
+
+        <rect class="node" x="450" y="14" width="170" height="52"></rect>
+        <text class="title" x="535" y="33">validate_action</text>
+        <text class="desc" x="535" y="49">action_call prepared</text>
+
+        <polygon class="node route" points="535,76 630,120 535,164 440,120"></polygon>
+        <text class="title" x="535" y="113">route_action_name</text>
+        <text class="desc" x="535" y="130">key = action_call.action</text>
+
+        <rect class="node action" x="30" y="170" width="300" height="42"></rect>
+        <text class="title" x="180" y="192">execute_ask_missing_fields</text>
+
+        <rect class="node action" x="380" y="170" width="300" height="42"></rect>
+        <text class="title" x="530" y="192">execute_run_task_model</text>
+
+        <rect class="node action" x="730" y="170" width="300" height="42"></rect>
+        <text class="title" x="880" y="192">execute_refuse_investment_advice</text>
+
+        <path class="edge" style="marker-end:url(#arrow3)" d="M535,66 L535,76"></path>
+        <path class="edge" style="marker-end:url(#arrow3)" d="M470,154 C405,165 320,173 275,176"></path>
+        <path class="edge" style="marker-end:url(#arrow3)" d="M535,164 L530,170"></path>
+        <path class="edge" style="marker-end:url(#arrow3)" d="M600,154 C665,165 750,173 785,176"></path>
+
+        <text class="label" x="340" y="165">ask_missing_fields</text>
+        <text class="label" x="608" y="166">run_task_model</text>
+        <text class="label" x="754" y="165">refuse_investment_advice</text>
+      </svg>
+    </section>
+
+    <section class="layer deep">
+      <h2>Layer 4 - 环节拆细（实现视角）</h2>
+      <p>最后把每个 LangGraph node 的内部环节拆细，便于逐节点画实现图。</p>
+      <svg viewBox="0 0 1060 320" aria-label="Layer 4">
+        <defs>
+          <marker id="arrow4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#587288"></path>
+          </marker>
+        </defs>
+
+        <!-- decide_action decomposition -->
+        <rect class="node" x="20" y="24" width="150" height="44"></rect>
+        <text class="title" x="95" y="45">node: decide_action</text>
+        <rect class="node" x="210" y="24" width="150" height="44"></rect>
+        <text class="title" x="285" y="45">planner.decide</text>
+        <rect class="node" x="400" y="24" width="150" height="44"></rect>
+        <text class="title" x="475" y="45">state.decision = ...</text>
+        <path class="edge" style="marker-end:url(#arrow4)" d="M170,46 L210,46"></path>
+        <path class="edge" style="marker-end:url(#arrow4)" d="M360,46 L400,46"></path>
+
+        <!-- validate_action decomposition -->
+        <rect class="node" x="20" y="104" width="150" height="44"></rect>
+        <text class="title" x="95" y="125">node: validate_action</text>
+        <rect class="node" x="210" y="104" width="150" height="44"></rect>
+        <text class="title" x="285" y="125">check allowed action</text>
+        <rect class="node" x="400" y="104" width="150" height="44"></rect>
+        <text class="title" x="475" y="125">check params/task name</text>
+        <rect class="node" x="590" y="104" width="150" height="44"></rect>
+        <text class="title" x="665" y="125">build ActionCall</text>
+        <path class="edge" style="marker-end:url(#arrow4)" d="M170,126 L210,126"></path>
+        <path class="edge" style="marker-end:url(#arrow4)" d="M360,126 L400,126"></path>
+        <path class="edge" style="marker-end:url(#arrow4)" d="M550,126 L590,126"></path>
+
+        <!-- execute + finalize decomposition -->
+        <rect class="node" x="20" y="184" width="150" height="44"></rect>
+        <text class="title" x="95" y="205">node: execute_*</text>
+        <rect class="node" x="210" y="184" width="150" height="44"></rect>
+        <text class="title" x="285" y="205">router.route(call)</text>
+        <rect class="node" x="400" y="184" width="150" height="44"></rect>
+        <text class="title" x="475" y="205">executor.execute</text>
+        <rect class="node final" x="590" y="184" width="150" height="44"></rect>
+        <text class="title" x="665" y="205">state.action_result</text>
+        <rect class="node final" x="780" y="184" width="150" height="44"></rect>
+        <text class="title" x="855" y="205">finalize_result</text>
+        <rect class="node start" x="780" y="254" width="150" height="44"></rect>
+        <text class="title" x="855" y="275">END (TaskResult)</text>
+
+        <path class="edge" style="marker-end:url(#arrow4)" d="M170,206 L210,206"></path>
+        <path class="edge" style="marker-end:url(#arrow4)" d="M360,206 L400,206"></path>
+        <path class="edge" style="marker-end:url(#arrow4)" d="M550,206 L590,206"></path>
+        <path class="edge" style="marker-end:url(#arrow4)" d="M740,206 L780,206"></path>
+        <path class="edge" style="marker-end:url(#arrow4)" d="M855,228 L855,254"></path>
+      </svg>
+    </section>
+
+    <p class="legend">建议画图顺序：先画 Layer 1 骨架，再画 Layer 2 路由点，再画 Layer 3 分支，最后按 Layer 4 对单节点做细化。</p>
   </div>
 </body>
 </html>
