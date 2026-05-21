@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investory LangGraph DecisionFlow Diagram</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --ink: #14202b;
+      --muted: #3f5668;
+      --line: #5a7489;
+      --card: #ffffff;
+      --start: #d7f1df;
+      --route: #ffeec2;
+      --action: #dcefff;
+      --final: #f5dffe;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .sub {
+      margin: 0 0 14px 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .board {
+      background: var(--card);
+      border: 1px solid #d9e3ea;
+      border-radius: 10px;
+      overflow: auto;
+      padding: 8px;
+    }
+
+    svg { min-width: 1160px; width: 100%; height: 760px; }
+
+    .node {
+      fill: var(--card);
+      stroke: var(--line);
+      stroke-width: 2;
+      rx: 10;
+      ry: 10;
+    }
+
+    .start { fill: var(--start); }
+    .route { fill: var(--route); }
+    .action { fill: var(--action); }
+    .final { fill: var(--final); }
+
+    .t {
+      fill: var(--ink);
+      font-size: 14px;
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .s {
+      fill: var(--muted);
+      font-size: 12px;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .edge {
+      stroke: var(--line);
+      stroke-width: 2.2;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+
+    .label {
+      font-size: 12px;
+      fill: var(--muted);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .legend {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Investory LangGraph DecisionFlow</h1>
+    <p class="sub">目标编排：START -> decide_action -> validate_action -> conditional route(action key) -> execute action -> finalize_result -> END</p>
+
+    <div class="board">
+      <svg viewBox="0 0 1160 760" aria-label="DecisionFlow graph">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#5a7489"></path>
+          </marker>
+        </defs>
+
+        <!-- Top chain -->
+        <rect class="node start" x="470" y="28" width="220" height="54"></rect>
+        <text class="t" x="580" y="49">START</text>
+        <text class="s" x="580" y="66">initial state</text>
+
+        <rect class="node" x="470" y="124" width="220" height="64"></rect>
+        <text class="t" x="580" y="148">decide_action</text>
+        <text class="s" x="580" y="167">DecisionPlanner.decide</text>
+
+        <rect class="node" x="470" y="228" width="220" height="64"></rect>
+        <text class="t" x="580" y="252">validate_action</text>
+        <text class="s" x="580" y="271">validate_decision</text>
+
+        <!-- Route diamond -->
+        <polygon class="node route" points="580,338 695,410 580,482 465,410"></polygon>
+        <text class="t" x="580" y="399">route_action_name</text>
+        <text class="s" x="580" y="420">read action_call.action</text>
+
+        <!-- Action nodes -->
+        <rect class="node action" x="60" y="548" width="300" height="74"></rect>
+        <text class="t" x="210" y="573">execute_ask_missing_fields</text>
+        <text class="s" x="210" y="595">ActionRouter -> executor.execute</text>
+
+        <rect class="node action" x="430" y="548" width="300" height="74"></rect>
+        <text class="t" x="580" y="573">execute_run_task_model</text>
+        <text class="s" x="580" y="595">ActionRouter -> executor.execute</text>
+
+        <rect class="node action" x="800" y="548" width="300" height="74"></rect>
+        <text class="t" x="950" y="573">execute_refuse_investment_advice</text>
+        <text class="s" x="950" y="595">ActionRouter -> executor.execute</text>
+
+        <!-- Final chain -->
+        <rect class="node final" x="470" y="656" width="220" height="64"></rect>
+        <text class="t" x="580" y="680">finalize_result</text>
+        <text class="s" x="580" y="699">backfill_action_result</text>
+
+        <rect class="node start" x="760" y="670" width="180" height="50"></rect>
+        <text class="t" x="850" y="689">END</text>
+        <text class="s" x="850" y="704">TaskResult output</text>
+
+        <!-- Edges top -->
+        <path class="edge" d="M580,82 L580,124"></path>
+        <path class="edge" d="M580,188 L580,228"></path>
+        <path class="edge" d="M580,292 L580,338"></path>
+
+        <!-- Route edges -->
+        <path class="edge" d="M500,455 C420,500 320,530 250,548"></path>
+        <text class="label" x="370" y="505">ask_missing_fields</text>
+
+        <path class="edge" d="M580,482 L580,548"></path>
+        <text class="label" x="645" y="515">run_task_model</text>
+
+        <path class="edge" d="M660,455 C740,500 840,530 910,548"></path>
+        <text class="label" x="790" y="505">refuse_investment_advice</text>
+
+        <!-- Merge edges -->
+        <path class="edge" d="M210,622 C210,650 420,652 470,672"></path>
+        <path class="edge" d="M580,622 L580,656"></path>
+        <path class="edge" d="M950,622 C950,650 740,652 690,672"></path>
+
+        <path class="edge" d="M690,688 L760,688"></path>
+
+        <!-- Side note -->
+        <rect class="node" x="42" y="32" width="360" height="120"></rect>
+        <text class="t" x="222" y="56">术语说明</text>
+        <text class="s" x="222" y="82">action 不是 node，也不是 edge</text>
+        <text class="s" x="222" y="101">action 是 conditional routing key</text>
+        <text class="s" x="222" y="120">node 是执行单元，edge 是连接关系</text>
+      </svg>
+    </div>
+
+    <div class="legend">
+      <div>说明：图中保持当前项目边界，`TaskExecutor` 与 `TaskExecutionPipeline` 不改协议，LangGraph 只用于 `DecisionFlow` 编排。</div>
+    </div>
+  </div>
+</body>
+</html>
