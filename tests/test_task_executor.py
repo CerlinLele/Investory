@@ -169,7 +169,7 @@ def test_task_executor_returns_model_call_error(monkeypatch):
 
 
 def test_task_executor_preserves_model_call_retry_count(monkeypatch):
-    monkeypatch.setattr(task_executor, "load_prompt_text", _load_prompt_text)
+    monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(
         exc=ModelCallError(
             ProviderError("too many requests", status_code=429),
@@ -196,7 +196,7 @@ def test_task_executor_preserves_model_call_retry_count(monkeypatch):
 
 
 def test_task_executor_preserves_structured_output_retry_count(monkeypatch):
-    monkeypatch.setattr(task_executor, "load_prompt_text", _load_prompt_text)
+    monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     try:
         AnswerResult.model_validate({})
     except ValidationError as exc:
