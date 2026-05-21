@@ -468,10 +468,10 @@ INVESTORY_LLM_MAX_RETRIES=2
 
 更新相关设计文档：
 
-- `docs/1-1/investory-langchain-最小任务执行器设计.md`
-- `docs/1-1/investory-模型参数取舍备忘.md`
-- `docs/1-1/LLM调用失败时的错误收束.md`
-- `docs/1-1/investory-显式重试策略设计.md`
+- `docs/1-1/01-runtime/investory-langchain-最小任务执行器设计.md`
+- `docs/1-1/02-provider-config/investory-模型参数取舍备忘.md`
+- `docs/1-1/04-error-retry/LLM调用失败时的错误收束.md`
+- `docs/1-1/04-error-retry/investory-显式重试策略设计.md`
 
 重点说明：
 
