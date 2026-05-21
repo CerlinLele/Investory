@@ -60,13 +60,13 @@ investory-smoke task --task learning_material_summary
 Task smoke tests run the full task executor path:
 
 1. Call the stable `TaskExecutor` entry point.
-2. Delegate execution to `MinimalTaskFlow`.
-3. Run the linear flow nodes: `prepare_context -> call_model -> finalize_result`.
+2. Delegate execution to the internal `TaskExecutionPipeline`.
+3. Run the linear pipeline nodes:
+   `build_execution_context -> invoke_task_model -> build_task_result`.
 4. Print the resulting `TaskResult` JSON.
 
-The current flow is a minimal orchestration layer for a single task run. It
-does not include planner, tool, event, memory, concurrency, or streaming
-behavior.
+The current pipeline is an internal single-task execution pipeline. It does
+not include planner, tool, event, memory, concurrency, or streaming behavior.
 
 ## Exit Codes
 

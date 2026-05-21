@@ -4,11 +4,11 @@ from pydantic import BaseModel, ValidationError
 
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime import message_builder
-from investory.agent_core.runtime.minimal_flow import (
-    MinimalTaskFlow,
-    call_model,
-    finalize_result,
-    prepare_context,
+from investory.agent_core.runtime.task_execution_pipeline import (
+    TaskExecutionPipeline,
+    build_execution_context,
+    build_task_result,
+    invoke_task_model,
 )
 
 
@@ -70,10 +70,10 @@ def _load_prompt_text(*parts: str) -> str:
     return prompts[parts]
 
 
-def test_minimal_task_flow_returns_success_result(monkeypatch):
+def test_task_execution_pipeline_returns_success_result(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(result=AnswerResult(answer="Maximum drawdown measures loss."))
-    flow = MinimalTaskFlow(runner=runner)
+    flow = TaskExecutionPipeline(runner=runner)
 
     result = flow.run(_spec(), _payload())
 
@@ -86,10 +86,10 @@ def test_minimal_task_flow_returns_success_result(monkeypatch):
     assert "Maximum drawdown is a peak-to-trough decline." in runner.messages[1].content
 
 
-def test_minimal_task_flow_nodes_prepare_call_and_finalize_result(monkeypatch):
+def test_task_execution_pipeline_nodes_run_in_expected_order(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     spec = _spec()
-    state = prepare_context(spec, _payload())
+    state = build_execution_context(spec, _payload())
 
     assert state.status == "running"
     assert state.validated_input == _payload()
@@ -97,12 +97,12 @@ def test_minimal_task_flow_nodes_prepare_call_and_finalize_result(monkeypatch):
     assert state.error is None
 
     runner = FakeRunner(result=AnswerResult(answer="Maximum drawdown measures loss."))
-    state = call_model(state, spec, runner)
+    state = invoke_task_model(state, spec, runner)
 
     assert state.model_result == {"answer": "Maximum drawdown measures loss."}
     assert state.error is None
 
-    state = finalize_result(state, spec)
+    state = build_task_result(state, spec)
 
     assert state.status == "done"
     assert state.output is not None
@@ -110,10 +110,10 @@ def test_minimal_task_flow_nodes_prepare_call_and_finalize_result(monkeypatch):
     assert state.output.result == {"answer": "Maximum drawdown measures loss."}
 
 
-def test_minimal_task_flow_returns_input_validation_error(monkeypatch):
+def test_task_execution_pipeline_returns_input_validation_error(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(result=AnswerResult(answer="unused"))
-    flow = MinimalTaskFlow(runner=runner)
+    flow = TaskExecutionPipeline(runner=runner)
 
     result = flow.run(_spec(), {"question": "What is maximum drawdown?"})
 
@@ -125,12 +125,12 @@ def test_minimal_task_flow_returns_input_validation_error(monkeypatch):
     assert runner.messages is None
 
 
-def test_minimal_task_flow_returns_prompt_build_error(monkeypatch):
+def test_task_execution_pipeline_returns_prompt_build_error(monkeypatch):
     def raise_prompt_error(*parts: str) -> str:
         raise FileNotFoundError("missing prompt")
 
     monkeypatch.setattr(message_builder, "load_prompt_text", raise_prompt_error)
-    flow = MinimalTaskFlow(
+    flow = TaskExecutionPipeline(
         runner=FakeRunner(result=AnswerResult(answer="unused")),
     )
 
@@ -142,14 +142,14 @@ def test_minimal_task_flow_returns_prompt_build_error(monkeypatch):
     assert result.error.stage == "prompt_build"
 
 
-def test_minimal_task_flow_returns_output_validation_error(monkeypatch):
+def test_task_execution_pipeline_returns_output_validation_error(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     try:
         AnswerResult.model_validate({})
     except ValidationError as exc:
         validation_error = exc
     runner = FakeRunner(exc=validation_error)
-    flow = MinimalTaskFlow(runner=runner)
+    flow = TaskExecutionPipeline(runner=runner)
 
     result = flow.run(_spec(), _payload())
 
@@ -159,10 +159,10 @@ def test_minimal_task_flow_returns_output_validation_error(monkeypatch):
     assert result.error.stage == "output_validation"
 
 
-def test_minimal_task_flow_returns_model_call_error(monkeypatch):
+def test_task_execution_pipeline_returns_model_call_error(monkeypatch):
     monkeypatch.setattr(message_builder, "load_prompt_text", _load_prompt_text)
     runner = FakeRunner(exc=TimeoutError("request timeout"))
-    flow = MinimalTaskFlow(runner=runner)
+    flow = TaskExecutionPipeline(runner=runner)
 
     result = flow.run(_spec(), _payload())
 
