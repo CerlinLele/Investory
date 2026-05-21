@@ -63,3 +63,24 @@
   - Dependency resolution succeeded with latest requested `langgraph==1.2.1`.
   - `StateGraph`, `START`, `END` import check passed.
   - Lock is now consistent with venv-installed versions.
+
+## Step 1.1 Fix State Object
+
+- Timestamp: 2026-05-22 05:48:08 +10:00
+- Action:
+  - Renamed flow state model:
+    - `DecisionFlowState` -> `LearningQaFlowState`
+  - Kept backward-compatible alias:
+    - `DecisionFlowState = LearningQaFlowState`
+  - Updated flow internals to use new state name for:
+    - `last_state` type annotation
+    - state construction in `run(...)`
+  - Ran validation test:
+    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py -q`
+- Files touched:
+  - `src/investory/agent_core/runtime/decision_flow.py`
+  - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
+- Result:
+  - Behavior unchanged for Step 1.1 scope.
+  - `last_state` remains observable after `run(...)`.
+  - Test passed: `5 passed in 1.59s`.

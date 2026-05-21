@@ -16,7 +16,7 @@ from investory.agent_core.runtime.decision_planner import DecisionPlanner
 from investory.agent_core.runtime.task_executor import TaskExecutor
 
 
-class DecisionFlowState(BaseModel):
+class LearningQaFlowState(BaseModel):
     task_id: str
     task_name: str
     input_payload: dict[str, Any]
@@ -25,6 +25,10 @@ class DecisionFlowState(BaseModel):
     action_result: ActionResult | None = None
     output: TaskResult | None = None
     error: TaskError | None = None
+
+
+# Backward-compatible alias during naming migration.
+DecisionFlowState = LearningQaFlowState
 
 
 class DecisionFlow:
@@ -37,7 +41,7 @@ class DecisionFlow:
     ) -> None:
         self.planner = planner or DecisionPlanner()
         self.router = router or ActionRouter(task_executor=task_executor)
-        self.last_state: DecisionFlowState | None = None
+        self.last_state: LearningQaFlowState | None = None
 
     def run(
         self,
@@ -46,7 +50,7 @@ class DecisionFlow:
         *,
         request_id: str | None = None,
     ) -> TaskResult:
-        state = DecisionFlowState(
+        state = LearningQaFlowState(
             task_id=request_id or f"decision_{uuid4().hex}",
             task_name=spec.name,
             input_payload=dict(payload),
