@@ -167,6 +167,14 @@ refuse_investment_advice -> execute_refuse_investment_advice
 run_task_model -> execute_run_task_model
 ```
 
+术语澄清（避免实现歧义）：
+
+- `action` 不是 LangGraph node。
+- `action` 也不是 LangGraph edge。
+- `action` 是 conditional routing key（分支标签），来源于 `action_call.action`。
+- node 是实际执行单元（例如 `execute_run_task_model`）。
+- edge 是图连接；conditional edge 根据 routing key 选择目标 node。
+
 验收：
 
 - 不在 action executor 里写 if/else 分支。
