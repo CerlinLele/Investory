@@ -30,6 +30,8 @@
 
 错误收束的关键是：每一次失败后，系统都更接近一个确定结果，而不是进入无限重试。
 
+Investory 当前实现边界：provider SDK 自带重试关闭；`RequestRunner` 先发起一次模型调用，失败后根据错误码和异常类型判断是否重试。`INVESTORY_LLM_MAX_RETRIES=2` 表示 provider transient failure 在初始调用之外最多再重试 2 次。结构化输出校验失败单独由 `structured_output_max_retries=1` 控制，不走 provider retry policy。`TaskError.retryable` 是最终错误收束后的判断信号，不等于一定已经发生重试；`TaskError.retry_count` 记录 Investory runtime 在对应阶段实际执行的重试次数。
+
 ## 3. 区分 retry、fallback、degrade
 
 LLM 调用失败时，可以分三层处理。
@@ -174,7 +176,7 @@ Streaming 可观测性需要记录：
 
 1. 使用 JSON Mode、结构化输出或 tool schema。
 2. 对输出做 JSON Schema 校验。
-3. 校验失败时进行一次修复或重试。
+3. 校验失败时进行一次独立的有限重试，不和 `429 / 5xx / timeout` 的 provider retry 共用配置。
 4. 仍失败则返回明确错误，或转人工处理。
 5. 记录失败样例，用于后续 prompt / schema / eval 改进。
 
@@ -212,7 +214,8 @@ AI 服务暂时繁忙，系统已自动重试但仍未成功。请稍后再试�
 - API Key 分环境管理，没有暴露到前端。
 - 请求有 timeout、cancel 和最大重试次数。
 - `401 / 403 / 429 / 5xx / timeout` 有不同处理逻辑。
-- `429 / 5xx` 使用指数退避重试。
+- `429 / 5xx` 使用 Investory runtime 控制的指数退避重试，provider SDK retry 保持关闭，避免双重重试。
+- 结构化输出校验失败使用独立 retry，不走 provider retry policy。
 - streaming 首 token 前和首 token 后的失败策略不同。
 - 有 fallback 和功能降级方案。
 - 日志包含 request id、模型、延迟、token、错误码、重试次数。

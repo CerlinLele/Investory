@@ -35,7 +35,7 @@ def test_create_chat_model_builds_openai_model_from_environment(monkeypatch):
         "api_key": "test-openai-key",
         "base_url": "https://example.test/v1",
         "temperature": 0.1,
-        "max_retries": 4,
+        "max_retries": 0,
     }
 
 
@@ -58,7 +58,7 @@ def test_create_chat_model_builds_anthropic_model(monkeypatch):
         "api_key": "test-anthropic-key",
         "base_url": "https://example.test/anthropic",
         "temperature": 0.2,
-        "max_retries": 3,
+        "max_retries": 0,
     }
 
 
@@ -84,5 +84,5 @@ def test_create_chat_model_builds_google_genai_model(monkeypatch):
         "model": "gemini-test",
         "google_api_key": "test-google-key",
         "temperature": 0,
-        "max_retries": 2,
+        "max_retries": 0,
     }

@@ -17,7 +17,7 @@ def _provider_import_error(package: str, provider: str) -> ImportError:
 def _common_model_kwargs(config: AppConfig) -> dict[str, Any]:
     return {
         "temperature": config.llm_temperature,
-        "max_retries": config.llm_max_retries,
+        "max_retries": 0,
     }
 
 
