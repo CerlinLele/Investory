@@ -59,29 +59,23 @@ Gateway
 
 ## Implementation Steps
 
-### 1. 基线确认
+### Layer 0：准备层（不改行为）
 
-执行当前相关测试，记录改造前行为：
+#### Step 0.1 基线快照
 
 ```powershell
 python -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q
 python -m pytest tests/test_task_executor.py tests/test_task_execution_pipeline.py -q
 ```
 
-验收：
+通过条件：
 
-- 当前 `DecisionFlow` 三类路径可用：缺失字段、执行模型、拒答。
-- `TaskExecutor` 和 `TaskExecutionPipeline` 测试不受影响。
+- `DecisionFlow` 三类路径稳定：缺字段、执行模型、拒答。
+- `TaskExecutor` / `TaskExecutionPipeline` 测试不受影响。
 
-### 2. 引入 LangGraph 依赖
+#### Step 0.2 依赖准备
 
-在 `pyproject.toml` 增加：
-
-```toml
-"langgraph==<pinned-version>"
-```
-
-建议执行：
+在 `pyproject.toml` 增加 `langgraph` 固定版本，并更新 lock。
 
 ```powershell
 python -m pip install -e .[dev]
@@ -89,68 +83,54 @@ python -c "from langgraph.graph import StateGraph, START, END; print('ok')"
 python -m pip freeze > requirements.lock.txt
 ```
 
-验收：
+通过条件：
 
 - 本地可导入 `StateGraph`、`START`、`END`。
-- 依赖声明与 lock 文件一致。
+- 依赖声明和 lock 一致。
 
-### 3. 保留并收敛状态契约
+### Layer 1：主干骨架（先线性）
 
-继续使用现有 `DecisionFlowState` 字段：
+目标：先把 `DecisionFlow` 改成 graph 调用，但仍按线性路径走，不做分支。
 
-```python
-class DecisionFlowState(BaseModel):
-    task_id: str
-    task_name: str
-    input_payload: dict[str, Any]
-    decision: TaskDecision | None = None
-    action_call: ActionCall | None = None
-    action_result: ActionResult | None = None
-    output: TaskResult | None = None
-    error: TaskError | None = None
-```
+#### Step 1.1 固定状态对象
 
-实现建议：
+继续使用现有 `DecisionFlowState`，不扩字段，不迁文件。
 
-- 初期可继续保留在 `decision_flow.py`，避免额外文件迁移。
-- 如果 LangGraph 类型检查或序列化不顺，再单独抽到 `contracts/decision_flow_state.py`。
-- 不新增 planner/tool/memory/session/checkpoint 字段。
+通过条件：
 
-验收：
+- `last_state` 仍可观察最终状态。
 
-- `DecisionFlow.last_state` 仍保存最终状态。
-- 现有测试里对 `last_state.decision/action_call/action_result/error` 的断言继续成立。
+#### Step 1.2 拆主干节点（最小集）
 
-### 4. 拆出图节点函数
-
-在 `decision_flow.py` 中先拆出纯节点函数，保持每个节点只做一件事：
+先只拆 4 个节点：
 
 ```text
 decide_action
 validate_action
-execute_ask_missing_fields
-execute_refuse_investment_advice
-execute_run_task_model
+execute_action   # 临时总执行节点
 finalize_result
 ```
 
-节点职责：
+说明：
 
-- `decide_action`：调用 `self.planner.decide(spec, payload)`，写入 `decision`。
-- `validate_action`：调用 `validate_decision(...)`，写入 `action_call`。
-- `execute_ask_missing_fields`：通过 router 执行动作，写入 `action_result`。
-- `execute_refuse_investment_advice`：通过 router 执行动作，写入 `action_result`。
-- `execute_run_task_model`：通过 router 执行动作，写入 `action_result`。
-- `finalize_result`：调用 `backfill_action_result(...)`，写入 `output/error`。
+- 此阶段的 `execute_action` 内部还允许走 router，先不拆三个 action 节点。
 
-验收：
+#### Step 1.3 编译线性图
 
-- 节点函数单测可直接构造 state 调用。
-- 节点返回 `DecisionFlowState` 或 state update，不直接返回 `TaskResult`。
+```text
+START -> decide_action -> validate_action -> execute_action -> finalize_result -> END
+```
 
-### 5. 定义条件路由函数
+通过条件：
 
-新增内部路由函数：
+- `DecisionFlow.run(...)` 已改为 `graph.invoke(initial_state)`。
+- 对外签名保持 `run(spec, payload, request_id=None) -> TaskResult`。
+
+### Layer 2：引入条件路由点
+
+目标：把 “按 action 分流” 从 node 内部 if/else 提升到 graph 路由。
+
+#### Step 2.1 路由函数
 
 ```python
 def route_action_name(state: DecisionFlowState) -> str:
@@ -159,100 +139,127 @@ def route_action_name(state: DecisionFlowState) -> str:
     return state.action_call.action
 ```
 
-路由 key 映射：
+术语约束：
+
+- `action` 不是 node。
+- `action` 不是 edge。
+- `action` 是 conditional routing key。
+
+#### Step 2.2 三个 action 执行节点
+
+把 `execute_action` 拆成：
 
 ```text
-ask_missing_fields -> execute_ask_missing_fields
-refuse_investment_advice -> execute_refuse_investment_advice
-run_task_model -> execute_run_task_model
+execute_ask_missing_fields
+execute_run_task_model
+execute_refuse_investment_advice
 ```
 
-术语澄清（避免实现歧义）：
+通过条件：
 
-- `action` 不是 LangGraph node。
-- `action` 也不是 LangGraph edge。
-- `action` 是 conditional routing key（分支标签），来源于 `action_call.action`。
-- node 是实际执行单元（例如 `execute_run_task_model`）。
-- edge 是图连接；conditional edge 根据 routing key 选择目标 node。
+- 分支决策只由 `route_action_name` 返回值决定。
+- action executor 内不写路由 if/else。
 
-验收：
+### Layer 3：图结构定型
 
-- 不在 action executor 里写 if/else 分支。
-- 条件分支只由 `action_call.action` 决定。
+目标：形成最终目标图，并清理过渡代码。
 
-### 6. 编译 LangGraph
-
-在 `DecisionFlow.__init__` 中编译图：
+#### Step 3.1 图连线定型
 
 ```text
 START
 -> decide_action
 -> validate_action
--> conditional route
+-> conditional route(action key)
    -> execute_ask_missing_fields
-   -> execute_refuse_investment_advice
    -> execute_run_task_model
+   -> execute_refuse_investment_advice
 -> finalize_result
 -> END
 ```
 
-实现建议：
+#### Step 3.2 清理过渡路径
 
-- `self.graph = self._build_graph()`
-- `_build_graph()` 只负责声明节点和边，不执行业务逻辑。
-- `run()` 只创建 initial state、调用 `self.graph.invoke(...)`、保存 `last_state`、返回 `output`。
+- 删除或收敛临时 `execute_action`。
+- 确保 `run()` 仅做：
+  - 创建 initial state
+  - graph invoke
+  - 写入 `last_state`
+  - 返回 `output`
 
-验收：
+通过条件：
 
-- `DecisionFlow.run(...)` 内不再手写顺序串联。
-- `DecisionFlow.run(...)` 仍是外部稳定入口。
+- `DecisionFlow.run()` 不再手写节点串联。
 
-### 7. 错误收束
+### Layer 4：环节拆细与错误收束
 
-需要明确两类错误策略：
+目标：把单节点内部再拆成明确子环节，便于维护和测试。
 
-1. 业务动作失败：由 `ActionResult(status="failed", error=...)` 进入 `finalize_result`。
-2. 图节点异常：短期先让异常暴露给测试，后续再统一包装。
-
-本次不新增通用异常吞掉逻辑，原因：
-
-- 当前手写实现也没有统一捕获 `validate_decision` / `router.route` 异常。
-- 过早吞异常会掩盖编排定义错误。
-
-验收：
-
-- `backfill_action_result(...)` 仍是 ActionResult -> TaskResult 的唯一收束点。
-- 现有失败任务执行器测试继续通过。
-
-### 8. 更新测试
-
-调整或新增测试：
+#### Step 4.1 `decide_action` 子环节
 
 ```text
-tests/test_decision_flow.py
+read input_payload
+-> planner.decide(spec, payload)
+-> write state.decision
 ```
 
-覆盖：
+#### Step 4.2 `validate_action` 子环节
 
-- 缺失字段路径：`ask_missing_fields`。
-- 完整 payload 路径：`run_task_model`。
-- 拒答路径：`refuse_investment_advice`。
-- action executor 失败路径：`backfill_action_result` 保持兼容。
-- `last_state` 在 LangGraph 执行后仍可观察。
+```text
+validate allowed action
+-> validate task_name match
+-> validate params schema
+-> build action_call
+```
 
-新增图结构倾向测试：
+#### Step 4.3 `execute_*` 子环节
 
-- 确认 `DecisionFlow` 初始化后有 compiled graph。
-- 确认 route 函数按 `action_call.action` 返回正确 key。
+```text
+router.route(action_call)
+-> executor.execute(action_call, spec)
+-> write state.action_result
+```
 
-验收命令：
+#### Step 4.4 `finalize_result` 子环节
+
+```text
+backfill_action_result(action_result)
+-> write output
+-> write error
+```
+
+错误策略保持：
+
+1. 业务失败：`ActionResult(status="failed", error=...)` 经 `finalize_result` 收束。
+2. 图节点异常：短期暴露给测试，不额外吞异常。
+
+### Layer 5：测试与文档收口
+
+#### Step 5.1 测试覆盖
+
+重点文件：`tests/test_decision_flow.py`
+
+必测：
+
+- `ask_missing_fields` 路径。
+- `run_task_model` 路径。
+- `refuse_investment_advice` 路径。
+- `backfill_action_result` 失败收束路径。
+- `last_state` 在 graph 执行后可观察。
+
+补充：
+
+- graph 已编译（初始化后可调用）。
+- route 函数按 `action_call.action` 返回正确 key。
+
+#### Step 5.2 回归命令
 
 ```powershell
 python -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q
 python -m pytest -q
 ```
 
-### 9. 更新文档与 smoke 说明
+#### Step 5.3 文档同步
 
 更新：
 
@@ -263,25 +270,20 @@ python -m pytest -q
 
 - LangGraph 只用于 `DecisionFlow` 编排层。
 - `TaskExecutor` 仍是最小任务执行单位。
-- `TaskExecutionPipeline` 仍是 `TaskExecutor` 内部实现，不是编排层。
-- 本阶段不做 checkpoint、memory、parallel branch、human-in-the-loop。
+- `TaskExecutionPipeline` 仍是 `TaskExecutor` 内部实现。
 
-### 10. 最终验收
+### 最终完成标准
 
-功能验收：
+功能完成：
 
-- Gateway `/tasks` 调用路径不变。
-- 缺字段请求返回可补充信息。
-- 完整请求仍调用 `TaskExecutor`。
-- 拒答路径仍可通过自定义 planner/router 测试。
-- `TaskResult` / gateway response schema 不变。
+- Gateway `/tasks` 行为与响应 schema 不变。
+- 三种 action 分支行为可区分且稳定。
 
-工程验收：
+工程完成：
 
-- `DecisionFlow.run()` 不再承担节点串联细节。
-- 条件分支由 LangGraph 显式表达。
-- `TaskExecutor`、`TaskExecutionPipeline` 不被 LangGraph 污染。
-- 测试可证明三个 action 分支和最终 backfill 行为。
+- 编排逻辑由 `StateGraph` 显式表达。
+- `DecisionFlow.run()` 只保留入口职责。
+- `TaskExecutor` / `TaskExecutionPipeline` 边界不被侵入。
 
 ## 建议提交切分
 
