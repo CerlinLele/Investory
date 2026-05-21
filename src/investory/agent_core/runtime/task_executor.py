@@ -1,5 +1,8 @@
-from investory.agent_core.contracts.result_types import TaskResult
+from pydantic import ValidationError
+
+from investory.agent_core.contracts.result_types import TaskResult, normalize_task_error
 from investory.agent_core.contracts.task_spec import TaskSpec
+from investory.agent_core.runtime.message_builder import build_messages
 from investory.agent_core.runtime.request_runner import (
     ModelCallError,
     RequestRunner,
@@ -24,7 +27,7 @@ class TaskExecutor:
             )
 
         try:
-            messages = self.build_messages(spec, validated_input.model_dump())
+            messages = build_messages(spec, validated_input.model_dump())
         except Exception as exc:
             return TaskResult(
                 ok=False,
