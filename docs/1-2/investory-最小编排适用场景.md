@@ -1,81 +1,109 @@
-# Investory 第 1-2 课适用场景（仅编排层）
+# Investory 第 1-2 课适用场景（参考第04课案例）
 
-## 场景名称
+## 课件案例可直接迁移的模式
 
-基金/ETF 学习卡片生成
+基于“会议纪要 -> 待办 -> 跟进邮件”与“条件分支问答”的课件案例，适合迁移到 Investory 的有 4 个点：
 
-## 为什么这个场景适合当前项目
+1. 业务可读节点命名：节点名写业务动作，不写技术动作。
+2. 两步线性先跑通：先用最短链路验证执行闭环。
+3. 条件分支再加上：根据中间判断结果选择不同路径。
+4. 工厂化封装：调用方只拿入口对象，不关心内部节点连接细节。
 
-- 已有输入输出模型可直接复用：`InstrumentBriefInput` -> `InstrumentBriefResult`。
-- 已有稳定执行路径可复用：`TaskExecutor`、`RequestRunner`、`TaskResult`。
-- 可以只改“编排层表达”，不动后续能力（模型调用、结构化输出、网关接口）。
-- 节点名可以写成业务动作，符合第 1-2 课目标。
+## Investory 推荐场景
+
+投资学习问答分流（Orchestration only）
+
+用户给出 `material_text` + `question` 后，系统先判断请求类型，再走不同处理路径，最终统一返回 `TaskResult`。
 
 ## 用户故事
 
-用户粘贴一段基金/ETF 资料（招募说明、事实表、研报片段），希望系统返回一张可学习的“标的学习卡片”，包括：
+用户问“我后天买某基金合适吗？”，系统不应直接给投资建议，而应：
 
-- 这是什么标的（类型与概览）
-- 关键事实（费率、跟踪对象、持仓特征等）
-- 学习重点与风险提示
-- 后续应该继续问什么
+- 判断是否属于投资建议请求
+- 若是，拒答并给可学习的替代方向
+- 若不是且字段完整，走任务模型输出学习型回答
+- 若字段不完整，先追问缺失字段
 
-## 最小业务编排（建议）
+## 场景流程设计
+
+### 1) 两步线性基线（先落地）
 
 ```text
-提炼标的关键信息
--> 生成学习卡片
--> 返回学习建议
+解析用户问题
+-> 执行任务模型
+-> 返回学习回答
 ```
 
-说明：
+这一步对应课件“两步线性流程”思想：先确保单链路稳定可跑。
 
-- `提炼标的关键信息`：从用户提供资料中抽取可结构化事实与风险线索。
-- `生成学习卡片`：组织概览、关键事实、学习重点、风险提示与不确定性说明。
-- `返回学习建议`：统一封装为可直接消费的任务结果。
+### 2) 条件分支版本（目标形态）
 
-注意：这里的节点名是“对业务可读”的编排节点，不是技术函数名。
+```text
+判定请求类型
+-> [字段缺失] 引导补充信息
+-> [投资建议请求] 拒答并给学习替代
+-> [可执行学习问答] 执行任务模型
+-> 统一返回结果
+```
 
-## 编排节点与实现映射（内部）
+这一步对应课件“根据中间结果选路径”的条件分支模式。
 
-为保持当前代码兼容，业务节点可映射到现有最小流程实现：
+## 运行时状态（对齐课件 data.value + runtime_data 思路）
 
-- `提炼标的关键信息`：内部包含输入校验、payload 标准化、prompt 上下文准备。
-- `生成学习卡片`：内部调用 `RequestRunner`，产出 `InstrumentBriefResult`。
-- `返回学习建议`：内部统一成功/失败输出为 `TaskResult`。
-
-结论：`整理资料上下文`、`call_model` 属于实现细节，不作为对外业务节点名。
-
-## 最小状态（面向本场景）
+建议本场景至少维护：
 
 ```python
 state = {
     "task_id": "run-xxx",
-    "task_name": "instrument_brief",
+    "task_name": "finance_qa",
     "input_payload": {...},
-    "validated_input": None,
-    "messages": None,
-    "model_result": None,
-    "output": None,
+    "decision": None,           # 本次路由决策
+    "action_call": None,        # 分支动作调用
+    "action_result": None,      # 分支执行结果
+    "output": None,             # 最终 TaskResult
     "error": None,
 }
 ```
 
-## 本阶段边界（先不做）
+说明：
 
-- 不引入 planner、tool 调用、memory、checkpoint、多轮会话。
-- 不改 `RequestRunner` 和 provider 配置逻辑。
-- 不改 API 协议和 `TaskExecutor.run(spec, payload) -> TaskResult` 外部契约。
+- `data.value` 等价语义：当前步骤直接输入输出。
+- `runtime_data` 等价语义：跨分支仍要读取的共享中间信息（例如分类结果、缺失字段列表）。
+
+## 与当前代码的映射
+
+当前代码已基本具备这套分支编排骨架：
+
+- `DecisionPlanner.decide(...)`：生成分支决策（当前已支持缺失字段与执行模型）。
+- `validate_decision(...)`：决策到动作调用的约束校验。
+- `ActionRouter.route(...)->executor.execute(...)`：按动作走不同执行器。
+- `backfill_action_result(...)`：把分支输出统一回 `TaskResult`。
+
+对应文件：
+
+- `src/investory/agent_core/runtime/decision_flow.py`
+- `src/investory/agent_core/runtime/decision_planner.py`
+- `src/investory/agent_core/actions/validator.py`
+
+## 边界（本阶段不做）
+
+- 不引入并行分支汇聚（`.when` 同类能力）。
+- 不引入持久化恢复、人工中断续跑。
+- 不改 `RequestRunner`、模型配置与网关协议。
 
 ## 验收标准（仅编排层）
 
-1. 对外节点命名为业务动作（不暴露技术步骤名）。
-2. 仍能跑通单次任务执行，返回结构与当前兼容。
-3. 错误阶段仍保持可区分：`input_validation` / `prompt_build` / `model_call` / `output_validation`。
-4. `RequestRunner` 仍是唯一直接模型调用入口。
+1. 节点名业务可读，且能映射到代码步骤。
+2. 两步线性路径可稳定返回 `TaskResult(ok=True/False)`。
+3. 条件分支三类路径行为可区分：缺失字段 / 拒答 / 执行模型。
+4. 外部调用入口保持稳定：`TaskExecutor.run(...)` 或 `DecisionFlow.run(...)`。
 
-## 后续可扩展方向（不在本次实现）
+## 工厂化建议（贴合课件 build_xxx_flow 思想）
 
-1. 增加“缺失字段追问”分支（接到 `ask_missing_fields`）。
-2. 增加“拒答投资建议”分支（接到 `refuse_investment_advice`）。
-3. 增加“多任务路由”（`instrument_brief` / `finance_qa` / `learning_material_summary`）。
+可新增：
+
+```python
+build_investory_decision_flow(...) -> DecisionFlow
+```
+
+让 gateway 层只拿 flow 对象并调用 `run/start`，不关心内部节点结构。
