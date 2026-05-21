@@ -104,3 +104,13 @@
   - Behavior remains linear and unchanged for this layer.
   - `last_state` contract remains intact.
   - Tests passed: `19 passed in 1.71s`.
+
+### Execution Decision Note
+
+- Timestamp: 2026-05-22 06:06:22 +10:00
+- Decision:
+  - Continue graph-structure refactor first.
+  - Defer adding `refuse_investment_advice` classification rules to Layer 2/3.
+- Scope impact:
+  - Step 1.x keeps current default planner behavior.
+  - No new business classification logic is added in Step 1.2.

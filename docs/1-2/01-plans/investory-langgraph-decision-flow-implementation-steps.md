@@ -162,6 +162,8 @@ START -> classify_request -> validate_decision_contract -> execute_routed_action
 
 目标：把 “按 action 分流” 从 node 内部 if/else 提升到 graph 路由。
 
+执行约定（2026-05-22）：在 Layer 1/Step 1.x 阶段继续保持当前 `DecisionPlanner` 分类边界（默认仅 `ask_missing_fields` / `run_task_model`）。`refuse_investment_advice` 的分类规则延后到 Layer 2/3 一并补齐，不在 Step 1.2 范围内新增业务判定。
+
 #### Step 2.1 路由函数
 
 ```python
