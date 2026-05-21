@@ -1,12 +1,12 @@
-# Investory LangGraph DecisionFlow 重构实施步骤
+# Investory LangGraph LearningQaOrchestrationFlow 重构实施步骤
 
 ## 目标
 
-把当前手写顺序执行的 `DecisionFlow` 重构为 LangGraph `StateGraph`。
+把当前手写顺序执行的 `DecisionFlow` 重构为 LangGraph `StateGraph`，并统一命名为 `LearningQaOrchestrationFlow`。
 
 本次只处理编排层：
 
-- 保留 `DecisionFlow.run(spec, payload, request_id=None) -> TaskResult` 对外契约。
+- 保留 `LearningQaOrchestrationFlow.run(spec, payload, request_id=None) -> TaskResult` 对外契约。
 - 保留 `TaskExecutor` 作为最小任务执行单位。
 - 保留 `TaskExecutionPipeline`、`RequestRunner`、prompt、模型调用与网关协议不变。
 - 用 LangGraph 显式表达“决策 -> 条件分支 -> 执行动作 -> 统一返回”。
@@ -17,7 +17,7 @@
 
 ```text
 Gateway
--> DecisionFlow.run(...)
+-> LearningQaOrchestrationFlow.run(...)
    -> DecisionPlanner.decide(...)
    -> validate_decision(...)
    -> ActionRouter.route(...)
@@ -30,15 +30,15 @@ Gateway
 
 ```text
 Gateway
--> DecisionFlow.run(...)
+-> LearningQaOrchestrationFlow.run(...)
    -> compiled LangGraph.invoke(initial_state)
-      -> decide_action
-      -> validate_action
+      -> classify_request
+      -> validate_decision_contract
       -> route by action
-         -> ask_missing_fields
-         -> refuse_investment_advice
-         -> run_task_model
-      -> finalize_result
+         -> ask_for_missing_input
+         -> refuse_advice_and_redirect
+         -> answer_learning_question
+      -> build_task_response
 -> TaskResult
 ```
 
@@ -57,6 +57,38 @@ Gateway
 - <https://docs.langchain.com/oss/python/langgraph/overview>
 - <https://docs.langchain.com/oss/python/langgraph/quickstart>
 
+## 命名调整清单（本次采用）
+
+```text
+Flow class:
+DecisionFlow -> LearningQaOrchestrationFlow
+
+State:
+DecisionFlowState -> LearningQaFlowState
+
+Routing function:
+route_action_name -> route_by_action_key
+
+Graph nodes:
+decide_action -> classify_request
+validate_action -> validate_decision_contract
+execute_action -> execute_routed_action (Layer 1 temporary node)
+execute_ask_missing_fields -> ask_for_missing_input
+execute_run_task_model -> answer_learning_question
+execute_refuse_investment_advice -> refuse_advice_and_redirect
+finalize_result -> build_task_response
+```
+
+不改名（保持契约稳定）：
+
+- `action` 枚举值：`ask_missing_fields` / `run_task_model` / `refuse_investment_advice`
+- `TaskResult` 和 gateway request/response schema 字段
+
+兼容策略：
+
+- 短期保留 `DecisionFlow = LearningQaOrchestrationFlow` 别名，避免一次性影响导入方。
+- 测试和 gateway 导入逐步迁移到新类名后，再移除别名。
+
 ## Implementation Steps
 
 ### Layer 0：准备层（不改行为）
@@ -70,7 +102,7 @@ python -m pytest tests/test_task_executor.py tests/test_task_execution_pipeline.
 
 通过条件：
 
-- `DecisionFlow` 三类路径稳定：缺字段、执行模型、拒答。
+- `LearningQaOrchestrationFlow` 三类路径稳定：缺字段、执行模型、拒答。
 - `TaskExecutor` / `TaskExecutionPipeline` 测试不受影响。
 
 #### Step 0.2 依赖准备
@@ -90,11 +122,11 @@ python -m pip freeze > requirements.lock.txt
 
 ### Layer 1：主干骨架（先线性）
 
-目标：先把 `DecisionFlow` 改成 graph 调用，但仍按线性路径走，不做分支。
+目标：先把 `LearningQaOrchestrationFlow` 改成 graph 调用，但仍按线性路径走，不做分支。
 
 #### Step 1.1 固定状态对象
 
-继续使用现有 `DecisionFlowState`，不扩字段，不迁文件。
+继续使用现有状态结构，并改名为 `LearningQaFlowState`（可先别名过渡）。
 
 通过条件：
 
@@ -105,25 +137,25 @@ python -m pip freeze > requirements.lock.txt
 先只拆 4 个节点：
 
 ```text
-decide_action
-validate_action
-execute_action   # 临时总执行节点
-finalize_result
+classify_request
+validate_decision_contract
+execute_routed_action   # 临时总执行节点
+build_task_response
 ```
 
 说明：
 
-- 此阶段的 `execute_action` 内部还允许走 router，先不拆三个 action 节点。
+- 此阶段的 `execute_routed_action` 内部还允许走 router，先不拆三个 action 节点。
 
 #### Step 1.3 编译线性图
 
 ```text
-START -> decide_action -> validate_action -> execute_action -> finalize_result -> END
+START -> classify_request -> validate_decision_contract -> execute_routed_action -> build_task_response -> END
 ```
 
 通过条件：
 
-- `DecisionFlow.run(...)` 已改为 `graph.invoke(initial_state)`。
+- `LearningQaOrchestrationFlow.run(...)` 已改为 `graph.invoke(initial_state)`。
 - 对外签名保持 `run(spec, payload, request_id=None) -> TaskResult`。
 
 ### Layer 2：引入条件路由点
@@ -133,9 +165,9 @@ START -> decide_action -> validate_action -> execute_action -> finalize_result -
 #### Step 2.1 路由函数
 
 ```python
-def route_action_name(state: DecisionFlowState) -> str:
+def route_by_action_key(state: LearningQaFlowState) -> str:
     if state.action_call is None:
-        return "finalize_result"
+        return "build_task_response"
     return state.action_call.action
 ```
 
@@ -147,17 +179,17 @@ def route_action_name(state: DecisionFlowState) -> str:
 
 #### Step 2.2 三个 action 执行节点
 
-把 `execute_action` 拆成：
+把 `execute_routed_action` 拆成：
 
 ```text
-execute_ask_missing_fields
-execute_run_task_model
-execute_refuse_investment_advice
+ask_for_missing_input
+answer_learning_question
+refuse_advice_and_redirect
 ```
 
 通过条件：
 
-- 分支决策只由 `route_action_name` 返回值决定。
+- 分支决策只由 `route_by_action_key` 返回值决定。
 - action executor 内不写路由 if/else。
 
 ### Layer 3：图结构定型
@@ -168,19 +200,19 @@ execute_refuse_investment_advice
 
 ```text
 START
--> decide_action
--> validate_action
+-> classify_request
+-> validate_decision_contract
 -> conditional route(action key)
-   -> execute_ask_missing_fields
-   -> execute_run_task_model
-   -> execute_refuse_investment_advice
--> finalize_result
+   -> ask_for_missing_input
+   -> answer_learning_question
+   -> refuse_advice_and_redirect
+-> build_task_response
 -> END
 ```
 
 #### Step 3.2 清理过渡路径
 
-- 删除或收敛临时 `execute_action`。
+- 删除或收敛临时 `execute_routed_action`。
 - 确保 `run()` 仅做：
   - 创建 initial state
   - graph invoke
@@ -189,13 +221,13 @@ START
 
 通过条件：
 
-- `DecisionFlow.run()` 不再手写节点串联。
+- `LearningQaOrchestrationFlow.run()` 不再手写节点串联。
 
 ### Layer 4：环节拆细与错误收束
 
 目标：把单节点内部再拆成明确子环节，便于维护和测试。
 
-#### Step 4.1 `decide_action` 子环节
+#### Step 4.1 `classify_request` 子环节
 
 ```text
 read input_payload
@@ -203,7 +235,7 @@ read input_payload
 -> write state.decision
 ```
 
-#### Step 4.2 `validate_action` 子环节
+#### Step 4.2 `validate_decision_contract` 子环节
 
 ```text
 validate allowed action
@@ -220,7 +252,7 @@ router.route(action_call)
 -> write state.action_result
 ```
 
-#### Step 4.4 `finalize_result` 子环节
+#### Step 4.4 `build_task_response` 子环节
 
 ```text
 backfill_action_result(action_result)
@@ -230,7 +262,7 @@ backfill_action_result(action_result)
 
 错误策略保持：
 
-1. 业务失败：`ActionResult(status="failed", error=...)` 经 `finalize_result` 收束。
+1. 业务失败：`ActionResult(status="failed", error=...)` 经 `build_task_response` 收束。
 2. 图节点异常：短期暴露给测试，不额外吞异常。
 
 ### Layer 5：测试与文档收口
@@ -244,7 +276,7 @@ backfill_action_result(action_result)
 - `ask_missing_fields` 路径。
 - `run_task_model` 路径。
 - `refuse_investment_advice` 路径。
-- `backfill_action_result` 失败收束路径。
+- `backfill_action_result` 失败收束路径（通过 `build_task_response`）。
 - `last_state` 在 graph 执行后可观察。
 
 补充：
@@ -268,7 +300,7 @@ python -m pytest -q
 
 需要明确：
 
-- LangGraph 只用于 `DecisionFlow` 编排层。
+- LangGraph 只用于 `LearningQaOrchestrationFlow` 编排层。
 - `TaskExecutor` 仍是最小任务执行单位。
 - `TaskExecutionPipeline` 仍是 `TaskExecutor` 内部实现。
 
@@ -277,12 +309,12 @@ python -m pytest -q
 功能完成：
 
 - Gateway `/tasks` 行为与响应 schema 不变。
-- 三种 action 分支行为可区分且稳定。
+- 三种 action 分支行为可区分且稳定（action 值不改）。
 
 工程完成：
 
 - 编排逻辑由 `StateGraph` 显式表达。
-- `DecisionFlow.run()` 只保留入口职责。
+- `LearningQaOrchestrationFlow.run()` 只保留入口职责。
 - `TaskExecutor` / `TaskExecutionPipeline` 边界不被侵入。
 
 ## 建议提交切分
