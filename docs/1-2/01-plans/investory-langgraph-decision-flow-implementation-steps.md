@@ -91,6 +91,13 @@ finalize_result -> build_task_response
 
 ## Implementation Steps
 
+### 当前执行状态（2026-05-22）
+
+- 已完成：Layer 0 ~ Layer 3（图主干、条件路由、三 action 节点、过渡路径清理）。
+- 已完成：错误收束基础版（`run()` 捕获流程异常并统一返回失败 `TaskResult`，同时写入 `last_state`）。
+- 暂缓：Layer 4 的子环节细拆（Step 4.1 ~ Step 4.4）本轮不做实现，仅保留设计说明。
+- 暂缓：checkpoint/trace 逐步状态记录，放到后续章节再做。
+
 ### Layer 0：准备层（不改行为）
 
 #### Step 0.1 基线快照
@@ -278,20 +285,19 @@ backfill_action_result(action_result)
 -> write error
 ```
 
-错误策略保持：
+错误策略（按当前实现）：
 
 1. 业务失败：`ActionResult(status="failed", error=...)` 经 `build_task_response` 统一收束为 `TaskResult(ok=False, error=...)`。
-2. 图节点异常：短期暴露给测试，不额外吞异常（不在 flow 内吞错）。
-3. 测试覆盖要求：
-   - 覆盖业务失败收束路径（返回失败 `TaskResult`）。
-   - 覆盖节点异常冒泡路径（直接抛异常）。
+2. 图执行异常：由 `run()` 统一捕获并转换为失败 `TaskResult`（不再向调用方直接抛出）。
+3. 收束映射：
+   - `ActionValidationError` -> `input_validation_failed`
+   - `ActionRoutingError` -> `unknown_error`
+   - 其他异常 -> `normalize_task_error(...)`
 4. 状态可观测性说明：
-   - 节点抛异常时，该节点未返回的 update 不会并入图状态。
-   - 因此失败路径下 `last_state` 可能只有部分中间字段，不能假设始终完整。
-   - 若后续需要失败态完整状态快照，再评估以下方案：
-     - 节点内先写关键状态再执行可能失败操作；
-     - 节点内收束异常并显式返回 `error`/中间状态 update；
-     - 引入 checkpoint/trace 机制记录每步状态。
+   - 异常收束路径下，`last_state` 由 `run()` 回填失败输出与错误字段；
+   - 中间节点细粒度状态快照当前不保证完整保留。
+5. 后续增强（本轮不做）：
+   - 若需要“每一步可追踪状态”，再引入 checkpoint/trace 机制。
 
 ### Layer 5：测试与文档收口
 
