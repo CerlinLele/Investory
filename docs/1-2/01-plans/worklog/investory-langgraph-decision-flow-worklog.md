@@ -114,3 +114,27 @@
 - Scope impact:
   - Step 1.x keeps current default planner behavior.
   - No new business classification logic is added in Step 1.2.
+
+## Step 1.3 Compile Linear Graph
+
+- Timestamp: 2026-05-22 14:00:27 +10:00
+- Action:
+  - Added linear `StateGraph` compilation in `DecisionFlow`:
+    - `START -> classify_request -> validate_decision_contract -> execute_routed_action -> build_task_response -> END`
+  - Switched `run(...)` to:
+    - build `initial_state`
+    - `graph.invoke(initial_state)`
+    - write `last_state`
+    - return `output`
+  - Added graph node adapters for the 4 main node methods.
+  - Kept external signature unchanged:
+    - `run(spec, payload, request_id=None) -> TaskResult`
+  - Ran validation tests:
+    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
+- Files touched:
+  - `src/investory/agent_core/runtime/decision_flow.py`
+  - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
+- Result:
+  - Linear graph execution is active via `graph.invoke(...)`.
+  - `last_state` remains observable with final output/error.
+  - Tests passed: `19 passed in 1.89s`.

@@ -1,6 +1,7 @@
 from typing import Any
 from uuid import uuid4
 
+from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
 from investory.agent_core.actions.router import ActionRouter
@@ -18,8 +19,10 @@ from investory.agent_core.runtime.task_executor import TaskExecutor
 
 class LearningQaFlowState(BaseModel):
     task_id: str
+    spec: TaskSpec
     task_name: str
     input_payload: dict[str, Any]
+    request_id: str | None = None
     decision: TaskDecision | None = None
     action_call: ActionCall | None = None
     action_result: ActionResult | None = None
@@ -41,6 +44,7 @@ class DecisionFlow:
     ) -> None:
         self.planner = planner or DecisionPlanner()
         self.router = router or ActionRouter(task_executor=task_executor)
+        self.graph = self._build_graph()
         self.last_state: LearningQaFlowState | None = None
 
     def run(
@@ -52,15 +56,32 @@ class DecisionFlow:
     ) -> TaskResult:
         state = LearningQaFlowState(
             task_id=request_id or f"decision_{uuid4().hex}",
+            spec=spec,
             task_name=spec.name,
             input_payload=dict(payload),
+            request_id=request_id,
         )
-        self.last_state = state
+        final_state = self.graph.invoke(state)
+        self.last_state = LearningQaFlowState.model_validate(final_state)
+        if self.last_state.output is None:
+            raise RuntimeError("Flow completed without output.")
+        return self.last_state.output
 
-        self.classify_request(state, spec, payload)
-        self.validate_decision_contract(state, spec, request_id=request_id)
-        self.execute_routed_action(state, spec)
-        return self.build_task_response(state)
+    def _build_graph(self):
+        graph = StateGraph(LearningQaFlowState)
+        graph.add_node("classify_request", self._node_classify_request)
+        graph.add_node(
+            "validate_decision_contract",
+            self._node_validate_decision_contract,
+        )
+        graph.add_node("execute_routed_action", self._node_execute_routed_action)
+        graph.add_node("build_task_response", self._node_build_task_response)
+        graph.add_edge(START, "classify_request")
+        graph.add_edge("classify_request", "validate_decision_contract")
+        graph.add_edge("validate_decision_contract", "execute_routed_action")
+        graph.add_edge("execute_routed_action", "build_task_response")
+        graph.add_edge("build_task_response", END)
+        return graph.compile()
 
     def classify_request(
         self,
@@ -96,6 +117,35 @@ class DecisionFlow:
         state.output = output
         state.error = output.error
         return output
+
+    def _node_classify_request(self, state: LearningQaFlowState) -> dict[str, Any]:
+        self.classify_request(state, state.spec, state.input_payload)
+        return {"decision": state.decision}
+
+    def _node_validate_decision_contract(
+        self,
+        state: LearningQaFlowState,
+    ) -> dict[str, Any]:
+        self.validate_decision_contract(
+            state,
+            state.spec,
+            request_id=state.request_id,
+        )
+        return {"action_call": state.action_call}
+
+    def _node_execute_routed_action(
+        self,
+        state: LearningQaFlowState,
+    ) -> dict[str, Any]:
+        self.execute_routed_action(state, state.spec)
+        return {"action_result": state.action_result}
+
+    def _node_build_task_response(self, state: LearningQaFlowState) -> dict[str, Any]:
+        self.build_task_response(state)
+        return {
+            "output": state.output,
+            "error": state.error,
+        }
 
 
 def backfill_action_result(action_result: ActionResult) -> TaskResult:
