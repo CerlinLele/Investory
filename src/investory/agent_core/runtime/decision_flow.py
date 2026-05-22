@@ -164,6 +164,12 @@ def backfill_action_result(action_result: ActionResult) -> TaskResult:
     )
 
 
+def route_by_action_key(state: LearningQaFlowState) -> str:
+    if state.action_call is None:
+        return "build_task_response"
+    return state.action_call.action
+
+
 def _missing_action_error(action_result: ActionResult) -> TaskError:
     return TaskError(
         error_type="unknown_error",

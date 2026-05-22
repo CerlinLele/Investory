@@ -138,3 +138,25 @@
   - Linear graph execution is active via `graph.invoke(...)`.
   - `last_state` remains observable with final output/error.
   - Tests passed: `19 passed in 1.89s`.
+
+## Step 2.1 Route Function
+
+- Timestamp: 2026-05-22 15:20:38 +10:00
+- Action:
+  - Added route function:
+    - `route_by_action_key(state: LearningQaFlowState) -> str`
+  - Implemented routing key rules:
+    - `state.action_call is None` -> `"build_task_response"`
+    - otherwise -> `state.action_call.action`
+  - Added route-function tests:
+    - missing `action_call` returns `"build_task_response"`
+    - present `action_call` returns action key (`"run_task_model"`)
+  - Ran validation test:
+    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py -q`
+- Files touched:
+  - `src/investory/agent_core/runtime/decision_flow.py`
+  - `tests/test_decision_flow.py`
+  - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
+- Result:
+  - Route-key behavior is explicit and test-covered.
+  - Tests passed: `7 passed in 1.75s`.

@@ -3,7 +3,9 @@ from investory.agent_core.contracts.action_contract import ActionCall, ActionRes
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.runtime.decision_flow import (
     DecisionFlow,
+    LearningQaFlowState,
     backfill_action_result,
+    route_by_action_key,
 )
 from investory.agent_core.tasks import INSTRUMENT_BRIEF_TASK
 
@@ -160,3 +162,31 @@ def test_backfill_action_result_creates_error_when_failed_action_has_none():
     assert result.error is not None
     assert result.error.error_type == "unknown_error"
     assert result.error.stage == "model_call"
+
+
+def test_route_by_action_key_returns_build_task_response_when_action_call_missing():
+    state = LearningQaFlowState(
+        task_id="req_1",
+        spec=INSTRUMENT_BRIEF_TASK,
+        task_name=INSTRUMENT_BRIEF_TASK.name,
+        input_payload={},
+    )
+
+    assert route_by_action_key(state) == "build_task_response"
+
+
+def test_route_by_action_key_returns_action_value_when_action_call_exists():
+    state = LearningQaFlowState(
+        task_id="req_2",
+        spec=INSTRUMENT_BRIEF_TASK,
+        task_name=INSTRUMENT_BRIEF_TASK.name,
+        input_payload={},
+        action_call=ActionCall(
+            action="run_task_model",
+            task_name=INSTRUMENT_BRIEF_TASK.name,
+            params={"payload": {}},
+            decision_reason="test",
+        ),
+    )
+
+    assert route_by_action_key(state) == "run_task_model"
