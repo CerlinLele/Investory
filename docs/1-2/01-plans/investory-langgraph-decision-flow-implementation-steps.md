@@ -194,6 +194,17 @@ refuse_advice_and_redirect
 - 分支决策只由 `route_by_action_key` 返回值决定。
 - action executor 内不写路由 if/else。
 
+执行约定（2026-05-22 补充）：
+
+- `validate_decision_contract` 在路由前只做公共校验与 `action_call` 构建：
+  - validate allowed action
+  - validate task_name match
+  - build action_call
+- 各 action 的参数细校验下沉到对应 action 执行节点（或其调用链）：
+  - `ask_for_missing_input` 负责 `missing_fields` 相关约束
+  - `answer_learning_question` 负责 `payload` 相关约束
+  - `refuse_advice_and_redirect` 负责拒答参数相关约束
+
 ### Layer 3：图结构定型
 
 目标：形成最终目标图，并清理过渡代码。
@@ -242,14 +253,14 @@ read input_payload
 ```text
 validate allowed action
 -> validate task_name match
--> validate params schema
 -> build action_call
 ```
 
 #### Step 4.3 `execute_*` 子环节
 
 ```text
-router.route(action_call)
+validate action-specific params
+-> router.route(action_call)
 -> executor.execute(action_call, spec)
 -> write state.action_result
 ```
