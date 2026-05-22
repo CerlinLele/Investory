@@ -240,6 +240,11 @@ START
 
 目标：把单节点内部再拆成明确子环节，便于维护和测试。
 
+执行约定（2026-05-22 补充）：
+
+- 本轮先不做 Layer 4 的“环节拆细”落地实现（Step 4.1 ~ Step 4.4 延后）。
+- 先保持当前节点边界稳定，优先完成图结构与分支路由收口。
+
 #### Step 4.1 `classify_request` 子环节
 
 ```text
@@ -275,8 +280,11 @@ backfill_action_result(action_result)
 
 错误策略保持：
 
-1. 业务失败：`ActionResult(status="failed", error=...)` 经 `build_task_response` 收束。
-2. 图节点异常：短期暴露给测试，不额外吞异常。
+1. 业务失败：`ActionResult(status="failed", error=...)` 经 `build_task_response` 统一收束为 `TaskResult(ok=False, error=...)`。
+2. 图节点异常：短期暴露给测试，不额外吞异常（不在 flow 内吞错）。
+3. 测试覆盖要求：
+   - 覆盖业务失败收束路径（返回失败 `TaskResult`）。
+   - 覆盖节点异常冒泡路径（直接抛异常）。
 
 ### Layer 5：测试与文档收口
 
