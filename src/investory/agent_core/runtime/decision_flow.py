@@ -5,7 +5,10 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
 from investory.agent_core.actions.router import ActionRouter
-from investory.agent_core.actions.validator import validate_decision
+from investory.agent_core.actions.validator import (
+    validate_action_params,
+    validate_decision_contract,
+)
 from investory.agent_core.contracts.action_contract import (
     ASK_MISSING_FIELDS,
     REFUSE_INVESTMENT_ADVICE,
@@ -128,7 +131,7 @@ class DecisionFlow:
         *,
         request_id: str | None = None,
     ) -> None:
-        state.action_call = validate_decision(
+        state.action_call = validate_decision_contract(
             state.decision,
             spec,
             request_id=request_id,
@@ -176,6 +179,9 @@ class DecisionFlow:
             raise RuntimeError(
                 f"Routed to {expected_action!r} but action_call is {action_call.action!r}."
             )
+        if state.decision is None:
+            raise RuntimeError("Cannot execute action node without decision.")
+        validate_action_params(state.decision, spec)
         executor = self.router.route(action_call)
         state.action_result = executor.execute(action_call, spec)
 
