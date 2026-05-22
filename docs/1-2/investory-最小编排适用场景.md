@@ -74,10 +74,12 @@ state = {
 
 当前代码已基本具备这套分支编排骨架：
 
-- `DecisionPlanner.decide(...)`：生成分支决策（当前已支持缺失字段与执行模型）。
-- `validate_decision(...)`：决策到动作调用的约束校验。
+- `DecisionPlanner.decide(...)`：生成分支决策。
+- `validate_decision_contract(...)`：做公共契约校验并构建 `action_call`。
+- `route_by_action_key(...)`：根据 `action_call.action` 做条件分支路由。
+- `ask_for_missing_input` / `answer_learning_question` / `refuse_advice_and_redirect`：执行三类动作节点。
 - `ActionRouter.route(...)->executor.execute(...)`：按动作走不同执行器。
-- `backfill_action_result(...)`：把分支输出统一回 `TaskResult`。
+- `build_task_response(...)` + `backfill_action_result(...)`：把动作结果统一回 `TaskResult`。
 
 对应文件：
 
@@ -86,6 +88,12 @@ state = {
 - `src/investory/agent_core/actions/validator.py`
 
 ## 边界（本阶段不做）
+
+本阶段边界（已对齐当前实现）：
+
+- LangGraph 仅用于 `LearningQaOrchestrationFlow`（`DecisionFlow`）的编排层。
+- `TaskExecutor` 仍是最小任务执行单位，不改职责。
+- `TaskExecutionPipeline` 仍是 `TaskExecutor` 内部实现，不改为 LangGraph。
 
 - 不引入并行分支汇聚（`.when` 同类能力）。
 - 不引入持久化恢复、人工中断续跑。

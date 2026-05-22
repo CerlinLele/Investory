@@ -231,3 +231,26 @@
   - Step 5.1 coverage items are now explicitly asserted.
   - Decision flow test suite passed: `12 passed in 2.32s`.
   - Regression subset passed: `26 passed in 2.37s`.
+
+## Step 5.3 Documentation Sync
+
+- Timestamp: 2026-05-22 23:22:41 +10:00
+- Action:
+  - Updated orchestration scenario doc to align with current Decision Flow graph naming and structure:
+    - `validate_decision_contract`
+    - `route_by_action_key`
+    - three action execution nodes
+    - unified response build path
+  - Added explicit scope boundary statements:
+    - LangGraph is only used in orchestration flow layer
+    - `TaskExecutor` remains the minimal execution unit
+    - `TaskExecutionPipeline` remains internal to `TaskExecutor`
+  - Updated smoke README with an "Orchestration Boundary" section to avoid mixing:
+    - decision orchestration graph responsibilities
+    - task smoke execution responsibilities
+- Files touched:
+  - `docs/1-2/investory-最小编排适用场景.md`
+  - `src/investory/agent_core/runtime/smoke/README.md`
+  - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
+- Result:
+  - Step 5.3 required documentation sync is complete and consistent with current runtime behavior.

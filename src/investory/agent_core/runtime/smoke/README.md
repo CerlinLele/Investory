@@ -68,6 +68,19 @@ Task smoke tests run the full task executor path:
 The current pipeline is an internal single-task execution pipeline. It does
 not include planner, tool, event, memory, concurrency, or streaming behavior.
 
+## Orchestration Boundary
+
+LangGraph is currently used only in the decision orchestration layer
+(`LearningQaOrchestrationFlow` / `DecisionFlow`) to express:
+
+1. classify request
+2. validate decision contract
+3. route to one of three action nodes
+4. build final task response
+
+This smoke folder focuses on `TaskExecutor` and provider/task execution checks.
+It does not validate the Decision Flow graph structure itself.
+
 ## Exit Codes
 
 - `0`: smoke check passed.
