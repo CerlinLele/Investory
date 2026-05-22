@@ -1,5 +1,13 @@
+import pytest
+
 from investory.agent_core.actions.router import ActionRouter, ActionRoutingError
-from investory.agent_core.contracts.action_contract import ActionCall, ActionResult
+from investory.agent_core.contracts.action_contract import (
+    ASK_MISSING_FIELDS,
+    REFUSE_INVESTMENT_ADVICE,
+    RUN_TASK_MODEL,
+    ActionCall,
+    ActionResult,
+)
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.runtime.decision_flow import (
     DecisionFlow,
@@ -175,21 +183,33 @@ def test_route_by_action_key_returns_build_task_response_when_action_call_missin
     assert route_by_action_key(state) == "build_task_response"
 
 
-def test_route_by_action_key_returns_action_value_when_action_call_exists():
+@pytest.mark.parametrize(
+    "action_key",
+    [ASK_MISSING_FIELDS, RUN_TASK_MODEL, REFUSE_INVESTMENT_ADVICE],
+)
+def test_route_by_action_key_returns_action_value_when_action_call_exists(
+    action_key: str,
+):
     state = LearningQaFlowState(
         task_id="req_2",
         spec=INSTRUMENT_BRIEF_TASK,
         task_name=INSTRUMENT_BRIEF_TASK.name,
         input_payload={},
         action_call=ActionCall(
-            action="run_task_model",
+            action=action_key,
             task_name=INSTRUMENT_BRIEF_TASK.name,
             params={"payload": {}},
             decision_reason="test",
         ),
     )
 
-    assert route_by_action_key(state) == "run_task_model"
+    assert route_by_action_key(state) == action_key
+
+
+def test_decision_flow_has_compiled_graph_with_invoke():
+    flow = DecisionFlow()
+    assert flow.graph is not None
+    assert callable(getattr(flow.graph, "invoke", None))
 
 
 def test_decision_flow_converges_action_validation_error_to_failed_task_result():

@@ -208,3 +208,26 @@
   - Exceptions in flow execution now converge into failed `TaskResult` outputs.
   - `last_state` remains available for both success and failure.
   - Tests passed: `22 passed in 1.63s`.
+
+## Step 5.1 Test Coverage
+
+- Timestamp: 2026-05-22 23:11:22 +10:00
+- Action:
+  - Enhanced `tests/test_decision_flow.py` coverage for Layer 5.1 supplement items:
+    - added explicit compiled-graph check (`flow.graph` is invokable via `invoke`)
+    - expanded `route_by_action_key` assertions to cover all 3 action keys:
+      - `ask_missing_fields`
+      - `run_task_model`
+      - `refuse_investment_advice`
+  - Kept existing branch-path coverage and failure-convergence coverage in place.
+  - Ran Step 5.1 target tests in venv:
+    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py -q`
+  - Ran Step 5.2 regression subset in venv:
+    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
+- Files touched:
+  - `tests/test_decision_flow.py`
+  - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
+- Result:
+  - Step 5.1 coverage items are now explicitly asserted.
+  - Decision flow test suite passed: `12 passed in 2.32s`.
+  - Regression subset passed: `26 passed in 2.37s`.
