@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Final
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
@@ -18,6 +18,14 @@ from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime.decision_planner import DecisionPlanner
 from investory.agent_core.runtime.task_executor import TaskExecutor
+
+
+NODE_CLASSIFY_REQUEST: Final[str] = "classify_request"
+NODE_VALIDATE_DECISION_CONTRACT: Final[str] = "validate_decision_contract"
+NODE_ASK_FOR_MISSING_INPUT: Final[str] = "ask_for_missing_input"
+NODE_ANSWER_LEARNING_QUESTION: Final[str] = "answer_learning_question"
+NODE_REFUSE_ADVICE_AND_REDIRECT: Final[str] = "refuse_advice_and_redirect"
+NODE_BUILD_TASK_RESPONSE: Final[str] = "build_task_response"
 
 
 class LearningQaFlowState(BaseModel):
@@ -72,34 +80,37 @@ class DecisionFlow:
 
     def _build_graph(self):
         graph = StateGraph(LearningQaFlowState)
-        graph.add_node("classify_request", self._node_classify_request)
+        graph.add_node(NODE_CLASSIFY_REQUEST, self._node_classify_request)
         graph.add_node(
-            "validate_decision_contract",
+            NODE_VALIDATE_DECISION_CONTRACT,
             self._node_validate_decision_contract,
         )
-        graph.add_node("ask_for_missing_input", self._node_ask_for_missing_input)
-        graph.add_node("answer_learning_question", self._node_answer_learning_question)
+        graph.add_node(NODE_ASK_FOR_MISSING_INPUT, self._node_ask_for_missing_input)
         graph.add_node(
-            "refuse_advice_and_redirect",
+            NODE_ANSWER_LEARNING_QUESTION,
+            self._node_answer_learning_question,
+        )
+        graph.add_node(
+            NODE_REFUSE_ADVICE_AND_REDIRECT,
             self._node_refuse_advice_and_redirect,
         )
-        graph.add_node("build_task_response", self._node_build_task_response)
-        graph.add_edge(START, "classify_request")
-        graph.add_edge("classify_request", "validate_decision_contract")
+        graph.add_node(NODE_BUILD_TASK_RESPONSE, self._node_build_task_response)
+        graph.add_edge(START, NODE_CLASSIFY_REQUEST)
+        graph.add_edge(NODE_CLASSIFY_REQUEST, NODE_VALIDATE_DECISION_CONTRACT)
         graph.add_conditional_edges(
-            "validate_decision_contract",
+            NODE_VALIDATE_DECISION_CONTRACT,
             route_by_action_key,
             {
-                ASK_MISSING_FIELDS: "ask_for_missing_input",
-                RUN_TASK_MODEL: "answer_learning_question",
-                REFUSE_INVESTMENT_ADVICE: "refuse_advice_and_redirect",
-                "build_task_response": "build_task_response",
+                ASK_MISSING_FIELDS: NODE_ASK_FOR_MISSING_INPUT,
+                RUN_TASK_MODEL: NODE_ANSWER_LEARNING_QUESTION,
+                REFUSE_INVESTMENT_ADVICE: NODE_REFUSE_ADVICE_AND_REDIRECT,
+                NODE_BUILD_TASK_RESPONSE: NODE_BUILD_TASK_RESPONSE,
             },
         )
-        graph.add_edge("ask_for_missing_input", "build_task_response")
-        graph.add_edge("answer_learning_question", "build_task_response")
-        graph.add_edge("refuse_advice_and_redirect", "build_task_response")
-        graph.add_edge("build_task_response", END)
+        graph.add_edge(NODE_ASK_FOR_MISSING_INPUT, NODE_BUILD_TASK_RESPONSE)
+        graph.add_edge(NODE_ANSWER_LEARNING_QUESTION, NODE_BUILD_TASK_RESPONSE)
+        graph.add_edge(NODE_REFUSE_ADVICE_AND_REDIRECT, NODE_BUILD_TASK_RESPONSE)
+        graph.add_edge(NODE_BUILD_TASK_RESPONSE, END)
         return graph.compile()
 
     def classify_request(
@@ -236,7 +247,7 @@ def backfill_action_result(action_result: ActionResult) -> TaskResult:
 
 def route_by_action_key(state: LearningQaFlowState) -> str:
     if state.action_call is None:
-        return "build_task_response"
+        return NODE_BUILD_TASK_RESPONSE
     return state.action_call.action
 
 
