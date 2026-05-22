@@ -137,14 +137,6 @@ class DecisionFlow:
             request_id=request_id,
         )
 
-    def execute_routed_action(
-        self,
-        state: LearningQaFlowState,
-        spec: TaskSpec,
-    ) -> None:
-        executor = self.router.route(state.action_call)
-        state.action_result = executor.execute(state.action_call, spec)
-
     def ask_for_missing_input(
         self,
         state: LearningQaFlowState,

@@ -160,3 +160,24 @@
 - Result:
   - Route-key behavior is explicit and test-covered.
   - Tests passed: `7 passed in 1.75s`.
+
+## Step 3.2 Cleanup Transition Path
+
+- Timestamp: 2026-05-22 18:19:16 +10:00
+- Action:
+  - Removed temporary transition method:
+    - `execute_routed_action` (no longer used after action-specific node split).
+  - Kept `run()` entry responsibilities unchanged:
+    - build `initial_state`
+    - `graph.invoke(initial_state)`
+    - write `last_state`
+    - return `output`
+  - Ran validation tests:
+    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
+- Files touched:
+  - `src/investory/agent_core/runtime/decision_flow.py`
+  - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
+- Result:
+  - Transition path cleanup completed.
+  - `run()` remains a pure flow entry method.
+  - Tests passed: `21 passed in 1.73s`.
