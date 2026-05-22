@@ -7,6 +7,9 @@ from pydantic import BaseModel
 from investory.agent_core.actions.router import ActionRouter
 from investory.agent_core.actions.validator import validate_decision
 from investory.agent_core.contracts.action_contract import (
+    ASK_MISSING_FIELDS,
+    REFUSE_INVESTMENT_ADVICE,
+    RUN_TASK_MODEL,
     ActionCall,
     ActionResult,
     TaskDecision,
@@ -74,12 +77,28 @@ class DecisionFlow:
             "validate_decision_contract",
             self._node_validate_decision_contract,
         )
-        graph.add_node("execute_routed_action", self._node_execute_routed_action)
+        graph.add_node("ask_for_missing_input", self._node_ask_for_missing_input)
+        graph.add_node("answer_learning_question", self._node_answer_learning_question)
+        graph.add_node(
+            "refuse_advice_and_redirect",
+            self._node_refuse_advice_and_redirect,
+        )
         graph.add_node("build_task_response", self._node_build_task_response)
         graph.add_edge(START, "classify_request")
         graph.add_edge("classify_request", "validate_decision_contract")
-        graph.add_edge("validate_decision_contract", "execute_routed_action")
-        graph.add_edge("execute_routed_action", "build_task_response")
+        graph.add_conditional_edges(
+            "validate_decision_contract",
+            route_by_action_key,
+            {
+                ASK_MISSING_FIELDS: "ask_for_missing_input",
+                RUN_TASK_MODEL: "answer_learning_question",
+                REFUSE_INVESTMENT_ADVICE: "refuse_advice_and_redirect",
+                "build_task_response": "build_task_response",
+            },
+        )
+        graph.add_edge("ask_for_missing_input", "build_task_response")
+        graph.add_edge("answer_learning_question", "build_task_response")
+        graph.add_edge("refuse_advice_and_redirect", "build_task_response")
         graph.add_edge("build_task_response", END)
         return graph.compile()
 
@@ -112,6 +131,43 @@ class DecisionFlow:
         executor = self.router.route(state.action_call)
         state.action_result = executor.execute(state.action_call, spec)
 
+    def ask_for_missing_input(
+        self,
+        state: LearningQaFlowState,
+        spec: TaskSpec,
+    ) -> None:
+        self._execute_expected_action(state, spec, ASK_MISSING_FIELDS)
+
+    def answer_learning_question(
+        self,
+        state: LearningQaFlowState,
+        spec: TaskSpec,
+    ) -> None:
+        self._execute_expected_action(state, spec, RUN_TASK_MODEL)
+
+    def refuse_advice_and_redirect(
+        self,
+        state: LearningQaFlowState,
+        spec: TaskSpec,
+    ) -> None:
+        self._execute_expected_action(state, spec, REFUSE_INVESTMENT_ADVICE)
+
+    def _execute_expected_action(
+        self,
+        state: LearningQaFlowState,
+        spec: TaskSpec,
+        expected_action: str,
+    ) -> None:
+        action_call = state.action_call
+        if action_call is None:
+            raise RuntimeError("Cannot execute action node without action_call.")
+        if action_call.action != expected_action:
+            raise RuntimeError(
+                f"Routed to {expected_action!r} but action_call is {action_call.action!r}."
+            )
+        executor = self.router.route(action_call)
+        state.action_result = executor.execute(action_call, spec)
+
     def build_task_response(self, state: LearningQaFlowState) -> TaskResult:
         output = backfill_action_result(state.action_result)
         state.output = output
@@ -133,11 +189,25 @@ class DecisionFlow:
         )
         return {"action_call": state.action_call}
 
-    def _node_execute_routed_action(
+    def _node_ask_for_missing_input(
         self,
         state: LearningQaFlowState,
     ) -> dict[str, Any]:
-        self.execute_routed_action(state, state.spec)
+        self.ask_for_missing_input(state, state.spec)
+        return {"action_result": state.action_result}
+
+    def _node_answer_learning_question(
+        self,
+        state: LearningQaFlowState,
+    ) -> dict[str, Any]:
+        self.answer_learning_question(state, state.spec)
+        return {"action_result": state.action_result}
+
+    def _node_refuse_advice_and_redirect(
+        self,
+        state: LearningQaFlowState,
+    ) -> dict[str, Any]:
+        self.refuse_advice_and_redirect(state, state.spec)
         return {"action_result": state.action_result}
 
     def _node_build_task_response(self, state: LearningQaFlowState) -> dict[str, Any]:
