@@ -1,4 +1,4 @@
-from investory.agent_core.actions.router import ActionRouter
+from investory.agent_core.actions.router import ActionRouter, ActionRoutingError
 from investory.agent_core.contracts.action_contract import ActionCall, ActionResult
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.runtime.decision_flow import (
@@ -190,3 +190,46 @@ def test_route_by_action_key_returns_action_value_when_action_call_exists():
     )
 
     assert route_by_action_key(state) == "run_task_model"
+
+
+def test_decision_flow_converges_action_validation_error_to_failed_task_result():
+    class InvalidRunPlanner:
+        def decide(self, spec, payload):
+            from investory.agent_core.contracts.action_contract import TaskDecision
+
+            return TaskDecision(
+                action="run_task_model",
+                task_name=spec.name,
+                reason="Invalid run_task_model decision without payload.",
+                params={},
+            )
+
+    flow = DecisionFlow(planner=InvalidRunPlanner())
+
+    result = flow.run(INSTRUMENT_BRIEF_TASK, {})
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_type == "input_validation_failed"
+    assert result.error.stage == "input_validation"
+    assert flow.last_state is not None
+    assert flow.last_state.error == result.error
+
+
+def test_decision_flow_converges_action_routing_error_to_failed_task_result():
+    class BrokenRouter:
+        def route(self, call):
+            raise ActionRoutingError("No route")
+
+    payload = {
+        "instrument_name_or_code": "VOO",
+        "source_material": "VOO tracks a broad US equity index.",
+    }
+    flow = DecisionFlow(router=BrokenRouter())
+
+    result = flow.run(INSTRUMENT_BRIEF_TASK, payload)
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_type == "unknown_error"
+    assert result.error.stage == "model_call"

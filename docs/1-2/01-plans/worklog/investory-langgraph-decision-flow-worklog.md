@@ -181,3 +181,30 @@
   - Transition path cleanup completed.
   - `run()` remains a pure flow entry method.
   - Tests passed: `21 passed in 1.73s`.
+
+## Error Convergence
+
+- Timestamp: 2026-05-22 21:41:24 +10:00
+- Action:
+  - Added flow-level error convergence in `DecisionFlow.run(...)`:
+    - catches execution exceptions
+    - converts them into failed `TaskResult`
+    - writes `state.error` and `state.output`
+    - persists `last_state` for observability
+  - Added explicit convergence mapping:
+    - `ActionValidationError` -> `TaskError(error_type="input_validation_failed", stage="input_validation")`
+    - `ActionRoutingError` -> `TaskError(error_type="unknown_error", stage="model_call")`
+    - all other exceptions -> `normalize_task_error(..., stage="model_call")`
+  - Added tests for:
+    - invalid action params convergence path
+    - routing failure convergence path
+  - Ran validation tests:
+    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_action_validator.py -q`
+- Files touched:
+  - `src/investory/agent_core/runtime/decision_flow.py`
+  - `tests/test_decision_flow.py`
+  - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
+- Result:
+  - Exceptions in flow execution now converge into failed `TaskResult` outputs.
+  - `last_state` remains available for both success and failure.
+  - Tests passed: `22 passed in 1.63s`.

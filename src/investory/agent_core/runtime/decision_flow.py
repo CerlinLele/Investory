@@ -4,8 +4,9 @@ from uuid import uuid4
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
-from investory.agent_core.actions.router import ActionRouter
+from investory.agent_core.actions.router import ActionRouter, ActionRoutingError
 from investory.agent_core.actions.validator import (
+    ActionValidationError,
     validate_action_params,
     validate_decision_contract,
 )
@@ -17,7 +18,11 @@ from investory.agent_core.contracts.action_contract import (
     ActionResult,
     TaskDecision,
 )
-from investory.agent_core.contracts.result_types import TaskError, TaskResult
+from investory.agent_core.contracts.result_types import (
+    TaskError,
+    TaskResult,
+    normalize_task_error,
+)
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime.decision_planner import DecisionPlanner
 from investory.agent_core.runtime.task_executor import TaskExecutor
@@ -75,11 +80,27 @@ class DecisionFlow:
             input_payload=dict(payload),
             request_id=request_id,
         )
-        final_state = self.graph.invoke(state)
-        self.last_state = LearningQaFlowState.model_validate(final_state)
-        if self.last_state.output is None:
-            raise RuntimeError("Flow completed without output.")
-        return self.last_state.output
+        try:
+            final_state = self.graph.invoke(state)
+            self.last_state = LearningQaFlowState.model_validate(final_state)
+            if self.last_state.output is None:
+                raise RuntimeError("Flow completed without output.")
+            return self.last_state.output
+        except Exception as exc:
+            task_error = _converge_flow_error(
+                exc,
+                task_name=spec.name,
+                request_id=request_id,
+            )
+            failed_result = TaskResult(
+                ok=False,
+                task_name=spec.name,
+                error=task_error,
+            )
+            state.error = task_error
+            state.output = failed_result
+            self.last_state = state
+            return failed_result
 
     def _build_graph(self):
         graph = StateGraph(LearningQaFlowState)
@@ -258,4 +279,43 @@ def _missing_action_error(action_result: ActionResult) -> TaskError:
         debug_message=(
             f"Action {action_result.action!r} failed without providing a TaskError."
         ),
+    )
+
+
+def _converge_flow_error(
+    exc: Exception,
+    *,
+    task_name: str,
+    request_id: str | None,
+) -> TaskError:
+    if isinstance(exc, ActionValidationError):
+        return TaskError(
+            error_type="input_validation_failed",
+            stage="input_validation",
+            user_safe_message=(
+                "The request could not be validated for this task. "
+                "Please check the required fields and try again."
+            ),
+            retryable=False,
+            request_id=request_id,
+            debug_message=f"{task_name}: {exc}",
+        )
+
+    if isinstance(exc, ActionRoutingError):
+        return TaskError(
+            error_type="unknown_error",
+            stage="model_call",
+            user_safe_message=(
+                "The request could not be routed to an execution path. "
+                "Please try again later."
+            ),
+            retryable=False,
+            request_id=request_id,
+            debug_message=f"{task_name}: {exc}",
+        )
+
+    return normalize_task_error(
+        exc,
+        stage="model_call",
+        request_id=request_id,
     )
