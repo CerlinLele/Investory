@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
-from investory.agent_core.runtime.decision_flow import DecisionFlow
+from investory.agent_core.runtime.flow.decision_flow import DecisionFlow
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.gateway.routing import UnknownTaskTypeError, resolve_task_spec
 from investory.gateway.schemas import (

@@ -9,7 +9,7 @@ from investory.agent_core.contracts.action_contract import (
     ActionResult,
 )
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
-from investory.agent_core.runtime.decision_flow import (
+from investory.agent_core.runtime.flow.decision_flow import (
     DecisionFlow,
     LearningQaFlowState,
     backfill_action_result,
