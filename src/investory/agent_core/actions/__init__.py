@@ -3,6 +3,7 @@ from investory.agent_core.actions.executors import (
     AskMissingFieldsExecutor,
     RefuseInvestmentAdviceExecutor,
     RunTaskModelExecutor,
+    RunToolExecutor,
 )
 from investory.agent_core.actions.router import (
     ActionRouter,
@@ -22,6 +23,7 @@ __all__ = [
     "AskMissingFieldsExecutor",
     "RefuseInvestmentAdviceExecutor",
     "RunTaskModelExecutor",
+    "RunToolExecutor",
     "route_action",
     "validate_decision",
 ]
