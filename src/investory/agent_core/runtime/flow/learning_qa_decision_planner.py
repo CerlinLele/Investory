@@ -10,7 +10,7 @@ from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime.input_requirements import get_missing_required_fields
 
 
-class DecisionPlanner:
+class LearningQaDecisionPlanner:
     def decide(self, spec: TaskSpec, payload: dict[str, Any]) -> TaskDecision:
         missing_fields = get_missing_required_fields(spec, payload)
         if missing_fields:
@@ -37,7 +37,11 @@ class DecisionPlanner:
 def build_task_decision(
     spec: TaskSpec,
     payload: dict[str, Any],
-    planner: DecisionPlanner | None = None,
+    planner: LearningQaDecisionPlanner | None = None,
 ) -> TaskDecision:
-    resolved_planner = planner or DecisionPlanner()
+    resolved_planner = planner or LearningQaDecisionPlanner()
     return resolved_planner.decide(spec, payload)
+
+
+# Backward-compatible alias during naming migration.
+DecisionPlanner = LearningQaDecisionPlanner

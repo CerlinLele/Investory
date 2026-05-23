@@ -1,13 +1,13 @@
 from investory.agent_core.actions.validator import validate_decision
 from investory.agent_core.runtime.flow.learning_qa_decision_planner import (
-    DecisionPlanner,
+    LearningQaDecisionPlanner,
     build_task_decision,
 )
 from investory.agent_core.tasks import FINANCE_QA_TASK, INSTRUMENT_BRIEF_TASK
 
 
 def test_decision_planner_returns_missing_fields_decision():
-    decision = DecisionPlanner().decide(
+    decision = LearningQaDecisionPlanner().decide(
         INSTRUMENT_BRIEF_TASK,
         {"instrument_name_or_code": "VOO"},
     )
@@ -21,7 +21,7 @@ def test_decision_planner_returns_missing_fields_decision():
 
 
 def test_decision_planner_treats_blank_required_strings_as_missing():
-    decision = DecisionPlanner().decide(
+    decision = LearningQaDecisionPlanner().decide(
         FINANCE_QA_TASK,
         {
             "material_text": "ETF is a basket of assets.",
@@ -40,7 +40,7 @@ def test_decision_planner_returns_run_task_model_decision_for_complete_payload()
         "source_material": "VOO tracks a broad US equity index.",
     }
 
-    decision = DecisionPlanner().decide(INSTRUMENT_BRIEF_TASK, payload)
+    decision = LearningQaDecisionPlanner().decide(INSTRUMENT_BRIEF_TASK, payload)
 
     assert decision.action == "run_task_model"
     assert decision.task_name == "instrument_brief"
@@ -57,7 +57,7 @@ def test_decision_planner_copies_payload_into_run_task_model_params():
         "source_material": "VOO tracks a broad US equity index.",
     }
 
-    decision = DecisionPlanner().decide(INSTRUMENT_BRIEF_TASK, payload)
+    decision = LearningQaDecisionPlanner().decide(INSTRUMENT_BRIEF_TASK, payload)
     payload["source_material"] = "Changed after planning."
 
     assert decision.params["payload"] == {
@@ -81,7 +81,7 @@ def test_decision_planner_output_can_be_validated_into_action_call():
         "instrument_name_or_code": "VOO",
         "source_material": "VOO tracks a broad US equity index.",
     }
-    decision = DecisionPlanner().decide(INSTRUMENT_BRIEF_TASK, payload)
+    decision = LearningQaDecisionPlanner().decide(INSTRUMENT_BRIEF_TASK, payload)
 
     call = validate_decision(decision, INSTRUMENT_BRIEF_TASK, request_id="req_123")
 

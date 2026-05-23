@@ -25,7 +25,7 @@ from investory.agent_core.contracts.result_types import (
 )
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime.flow.learning_qa_decision_planner import (
-    DecisionPlanner,
+    LearningQaDecisionPlanner,
 )
 from investory.agent_core.runtime.task_executor import TaskExecutor
 
@@ -55,11 +55,11 @@ class LearningQaOrchestrationFlow:
     def __init__(
         self,
         *,
-        planner: DecisionPlanner | None = None,
+        planner: LearningQaDecisionPlanner | None = None,
         router: ActionRouter | None = None,
         task_executor: TaskExecutor | None = None,
     ) -> None:
-        self.planner = planner or DecisionPlanner()
+        self.planner = planner or LearningQaDecisionPlanner()
         self.router = router or ActionRouter(task_executor=task_executor)
         self.graph = self._build_graph()
         self.last_state: LearningQaFlowState | None = None
