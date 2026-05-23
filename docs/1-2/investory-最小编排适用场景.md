@@ -1,4 +1,4 @@
-# Investory 第 1-2 课适用场景（参考第04课案例）
+﻿# Investory 第 1-2 课适用场景（参考第04课案例）
 
 ## 课件案例可直接迁移的模式
 
@@ -83,15 +83,15 @@ state = {
 
 对应文件：
 
-- `src/investory/agent_core/runtime/decision_flow.py`
-- `src/investory/agent_core/runtime/decision_planner.py`
+- `src/investory/agent_core/runtime/flow/learning_qa_orchestration_flow.py`
+- `src/investory/agent_core/runtime/flow/learning_qa_decision_planner.py`
 - `src/investory/agent_core/actions/validator.py`
 
 ## 边界（本阶段不做）
 
 本阶段边界（已对齐当前实现）：
 
-- LangGraph 仅用于 `LearningQaOrchestrationFlow`（`DecisionFlow`）的编排层。
+- LangGraph 仅用于 `LearningQaOrchestrationFlow` 的编排层。
 - `TaskExecutor` 仍是最小任务执行单位，不改职责。
 - `TaskExecutionPipeline` 仍是 `TaskExecutor` 内部实现，不改为 LangGraph。
 
@@ -104,14 +104,15 @@ state = {
 1. 节点名业务可读，且能映射到代码步骤。
 2. 两步线性路径可稳定返回 `TaskResult(ok=True/False)`。
 3. 条件分支三类路径行为可区分：缺失字段 / 拒答 / 执行模型。
-4. 外部调用入口保持稳定：`TaskExecutor.run(...)` 或 `DecisionFlow.run(...)`。
+4. 外部调用入口保持稳定：`TaskExecutor.run(...)` 或 `LearningQaOrchestrationFlow.run(...)`。
 
 ## 工厂化建议（贴合课件 build_xxx_flow 思想）
 
 可新增：
 
 ```python
-build_investory_decision_flow(...) -> DecisionFlow
+build_learning_qa_orchestration_flow(...) -> LearningQaOrchestrationFlow
 ```
 
 让 gateway 层只拿 flow 对象并调用 `run/start`，不关心内部节点结构。
+

@@ -1,4 +1,4 @@
-# Smoke Tests
+﻿# Smoke Tests
 
 This folder contains manual smoke checks for the Investory agent runtime.
 
@@ -71,7 +71,7 @@ not include planner, tool, event, memory, concurrency, or streaming behavior.
 ## Orchestration Boundary
 
 LangGraph is currently used only in the decision orchestration layer
-(`LearningQaOrchestrationFlow` / `DecisionFlow`) to express:
+(`LearningQaOrchestrationFlow`) to express:
 
 1. classify request
 2. validate decision contract
@@ -79,7 +79,7 @@ LangGraph is currently used only in the decision orchestration layer
 4. build final task response
 
 This smoke folder focuses on `TaskExecutor` and provider/task execution checks.
-It does not validate the Decision Flow graph structure itself.
+It does not validate the `LearningQaOrchestrationFlow` graph structure itself.
 
 ## Exit Codes
 
@@ -92,3 +92,4 @@ It does not validate the Decision Flow graph structure itself.
 - Run unit tests before smoke tests: `.\.venv\Scripts\python.exe -m pytest`.
 - Smoke tests are not unit tests and should not be required for every local edit.
 - Do not commit real API keys. Configure keys through local environment variables.
+

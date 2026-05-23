@@ -24,7 +24,9 @@ from investory.agent_core.contracts.result_types import (
     normalize_task_error,
 )
 from investory.agent_core.contracts.task_spec import TaskSpec
-from investory.agent_core.runtime.flow.decision_planner import DecisionPlanner
+from investory.agent_core.runtime.flow.learning_qa_decision_planner import (
+    DecisionPlanner,
+)
 from investory.agent_core.runtime.task_executor import TaskExecutor
 
 
@@ -49,11 +51,7 @@ class LearningQaFlowState(BaseModel):
     error: TaskError | None = None
 
 
-# Backward-compatible alias during naming migration.
-DecisionFlowState = LearningQaFlowState
-
-
-class DecisionFlow:
+class LearningQaOrchestrationFlow:
     def __init__(
         self,
         *,

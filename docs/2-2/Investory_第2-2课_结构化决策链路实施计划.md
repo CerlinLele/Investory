@@ -1,4 +1,4 @@
-# Investory 第 2-2 课：结构化决策链路实施计划
+﻿# Investory 第 2-2 课：结构化决策链路实施计划
 
 ## 一、目标
 
@@ -298,7 +298,7 @@ gateway.execute_task_request
 
 ```text
 gateway.execute_task_request
--> DecisionFlow.run(task_request)
+-> LearningQaOrchestrationFlow.run(task_request)
 -> TaskResponse
 ```
 
@@ -329,7 +329,7 @@ resolve_task_spec
 tests/test_action_contract.py
 tests/test_action_validator.py
 tests/test_action_router.py
-tests/test_decision_flow.py
+tests/test_learning_qa_orchestration_flow.py
 ```
 
 重点用例：
@@ -340,8 +340,8 @@ ask_missing_fields 缺少 missing_fields 时校验失败
 run_task_model 缺少 payload 时校验失败
 router 可以找到 ask_missing_fields executor
 router 可以找到 run_task_model executor
-DecisionFlow 对缺字段请求返回 requires_user_input
-DecisionFlow 对完整请求调用 TaskExecutor
+LearningQaOrchestrationFlow 对缺字段请求返回 requires_user_input
+LearningQaOrchestrationFlow 对完整请求调用 TaskExecutor
 ```
 
 ## 七、第二阶段：引入 run_task_model action
@@ -380,7 +380,7 @@ call_model
 finalize_result
 ```
 
-`DecisionFlow` 负责更外层的决策和路由。
+`LearningQaOrchestrationFlow` 负责更外层的决策和路由。
 
 ## 八、第三阶段：增加风险拒绝 action
 
@@ -452,7 +452,7 @@ action_result: ActionResult | None = None
 也可以先不改 `TaskFlowState`，新增更外层状态：
 
 ```python
-class DecisionFlowState(BaseModel):
+class LearningQaFlowState(BaseModel):
     task_id: str
     task_name: str
     input_payload: dict[str, Any]
@@ -463,11 +463,11 @@ class DecisionFlowState(BaseModel):
     error: TaskError | None = None
 ```
 
-推荐第一版使用 `DecisionFlowState`，原因是：
+推荐第一版使用 `LearningQaFlowState`，原因是：
 
 ```text
 MinimalTaskFlow 仍保持简单
-DecisionFlow 独立承载 2-2 课的新概念
+LearningQaOrchestrationFlow 独立承载 2-2 课的新概念
 不会把模型调用状态和动作编排状态混在一起
 ```
 
@@ -855,7 +855,7 @@ src/investory/agent_core/runtime/decision_planner.py
 测试：
 
 ```text
-tests/test_decision_planner.py
+tests/test_learning_qa_decision_planner.py
 ```
 
 ### Step 5：新增 decision flow
@@ -878,7 +878,7 @@ resolve spec 后接收 spec + payload
 返回 TaskResult
 ```
 
-当前 DecisionFlow 落地逻辑：
+当前 LearningQaOrchestrationFlow 落地逻辑：
 
 `decision_flow.py` 是新的外层编排器。它把前面几步串成完整的最小闭环：
 
@@ -894,7 +894,7 @@ payload
 -> TaskResult
 ```
 
-`DecisionFlow` 初始化时可以接收三个可替换依赖：
+`LearningQaOrchestrationFlow` 初始化时可以接收三个可替换依赖：
 
 ```text
 planner: DecisionPlanner | None
@@ -911,7 +911,7 @@ router = ActionRouter(task_executor=task_executor)
 
 其中 `task_executor` 会传给默认 router，再由 `RunTaskModelExecutor` 使用。这让 gateway 后续可以继续注入已有 `TaskExecutor`，测试也可以使用 fake executor。
 
-`DecisionFlowState` 用来记录最近一次执行链路中的中间产物：
+`LearningQaFlowState` 用来记录最近一次执行链路中的中间产物：
 
 ```text
 task_id
@@ -924,12 +924,12 @@ output
 error
 ```
 
-当前实现通过 `DecisionFlow.last_state` 保存最近一次 state，主要用于测试和调试。第一版不做持久化、checkpoint 或多轮恢复。
+当前实现通过 `LearningQaOrchestrationFlow.last_state` 保存最近一次 state，主要用于测试和调试。第一版不做持久化、checkpoint 或多轮恢复。
 
-`DecisionFlow.run(spec, payload, request_id=None)` 的执行步骤是：
+`LearningQaOrchestrationFlow.run(spec, payload, request_id=None)` 的执行步骤是：
 
 ```text
-1. 创建 DecisionFlowState
+1. 创建 LearningQaFlowState
 2. planner.decide(spec, payload) -> TaskDecision
 3. validate_decision(decision, spec, request_id) -> ActionCall
 4. router.route(action_call) -> ActionExecutor
@@ -957,9 +957,9 @@ refused -> ok=True
 failed -> ok=False
 ```
 
-如果 action 返回 `failed` 但没有携带 `TaskError`，`DecisionFlow` 会生成一个兜底 `TaskError`，避免出现 `ok=False` 但 `error=None` 的不完整结果。
+如果 action 返回 `failed` 但没有携带 `TaskError`，`LearningQaOrchestrationFlow` 会生成一个兜底 `TaskError`，避免出现 `ok=False` 但 `error=None` 的不完整结果。
 
-`DecisionFlow` 的边界是：
+`LearningQaOrchestrationFlow` 的边界是：
 
 ```text
 负责串联 planner / validator / router / executor / backfill
@@ -971,7 +971,7 @@ failed -> ok=False
 测试：
 
 ```text
-tests/test_decision_flow.py
+tests/test_learning_qa_orchestration_flow.py
 ```
 
 ### Step 6：改造 gateway
@@ -986,7 +986,7 @@ src/investory/gateway/api.py
 
 ```text
 移除 gateway 内联的 decide_missing_fields_action 分支
-改为调用 DecisionFlow
+改为调用 LearningQaOrchestrationFlow
 保持 TaskResponse schema 不变
 ```
 
@@ -1110,7 +1110,7 @@ gateway tests:
 HTTP /tasks
 -> resolve_session_id
 -> resolve_task_spec
--> DecisionFlow
+-> LearningQaOrchestrationFlow
    -> DecisionPlanner
    -> TaskDecision
    -> ActionValidator
@@ -1134,7 +1134,7 @@ RunTaskModelExecutor
 这能保持两个层次清晰：
 
 ```text
-DecisionFlow:
+LearningQaOrchestrationFlow:
   负责动作决策、校验、路由、回填
 
 MinimalTaskFlow:
@@ -1167,4 +1167,6 @@ MinimalTaskFlow:
 ```
 
 每个提交都应能通过对应单元测试，避免一次性改动过大。
+
+
 

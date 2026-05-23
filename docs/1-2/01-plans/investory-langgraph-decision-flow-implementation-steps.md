@@ -1,8 +1,8 @@
-# Investory LangGraph LearningQaOrchestrationFlow 重构实施步骤
+﻿# Investory LangGraph LearningQaOrchestrationFlow 重构实施步骤
 
 ## 目标
 
-把当前手写顺序执行的 `DecisionFlow` 重构为 LangGraph `StateGraph`，并统一命名为 `LearningQaOrchestrationFlow`。
+把当前手写顺序执行的决策编排流程重构为 LangGraph `StateGraph`，并统一命名为 `LearningQaOrchestrationFlow`。
 
 本次只处理编排层：
 
@@ -86,8 +86,8 @@ finalize_result -> build_task_response
 
 兼容策略：
 
-- 短期保留 `DecisionFlow = LearningQaOrchestrationFlow` 别名，避免一次性影响导入方。
-- 测试和 gateway 导入逐步迁移到新类名后，再移除别名。
+- 本轮已完成代码与测试导入切换，统一使用 `LearningQaOrchestrationFlow`。
+- 根目录旧模块 `runtime/decision_flow.py` 仅作为向后兼容 re-export 入口。
 
 ## Implementation Steps
 
@@ -101,7 +101,7 @@ finalize_result -> build_task_response
 ### 执行约定补充（2026-05-23）
 
 - `flow` 归属 `runtime`：当前 `LearningQaOrchestrationFlow` 直接参与请求执行期编排（决策、路由、执行、收束），暂不提升到更高层目录。
-- `DecisionPlanner` 暂不抽离出 `runtime/flow`：先保持与 `DecisionFlow` 同步演进，避免过早拆分。
+- `DecisionPlanner` 暂不抽离出 `runtime/flow`：先保持与 `LearningQaOrchestrationFlow` 同步演进，避免过早拆分。
 - `DecisionPlanner` 抽离触发条件（满足其一再执行）：
   - 需要被多个入口复用（API / batch / worker / CLI）；
   - 决策规则显著扩展，且希望独立版本化与测试；
@@ -113,7 +113,7 @@ finalize_result -> build_task_response
 #### Step 0.1 基线快照
 
 ```powershell
-python -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q
+python -m pytest tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q
 python -m pytest tests/test_task_executor.py tests/test_task_execution_pipeline.py -q
 ```
 
@@ -325,7 +325,7 @@ backfill_action_result(action_result)
 
 #### Step 5.1 测试覆盖
 
-重点文件：`tests/test_decision_flow.py`
+重点文件：`tests/test_learning_qa_orchestration_flow.py`
 
 必测：
 
@@ -343,7 +343,7 @@ backfill_action_result(action_result)
 #### Step 5.2 回归命令
 
 ```powershell
-python -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q
+python -m pytest tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q
 python -m pytest -q
 ```
 
@@ -389,3 +389,5 @@ python -m pytest -q
 - 不引入并行分支。
 - 不改 gateway request/response schema。
 - 不提前把 `DecisionPlanner` 迁移到 `runtime/flow` 之外的包结构。
+
+

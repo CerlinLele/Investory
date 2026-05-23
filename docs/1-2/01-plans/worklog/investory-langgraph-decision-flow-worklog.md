@@ -1,11 +1,11 @@
-# Investory LangGraph Decision Flow Worklog
+﻿# Investory LangGraph Decision Flow Worklog
 
 ## Step 0.1 Baseline Snapshot
 
 - Timestamp: 2026-05-22 05:33:01 +10:00
 - Action:
   - Ran baseline test command 1 in venv:
-    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
+    - `.venv\Scripts\python.exe -m pytest tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
   - Ran baseline test command 2 in venv:
     - `.venv\Scripts\python.exe -m pytest tests/test_task_executor.py tests/test_task_execution_pipeline.py -q`
 - Files touched:
@@ -76,7 +76,7 @@
     - `last_state` type annotation
     - state construction in `run(...)`
   - Ran validation test:
-    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py -q`
+    - `.venv\Scripts\python.exe -m pytest tests/test_learning_qa_orchestration_flow.py -q`
 - Files touched:
   - `src/investory/agent_core/runtime/decision_flow.py`
   - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
@@ -89,14 +89,14 @@
 
 - Timestamp: 2026-05-22 05:53:41 +10:00
 - Action:
-  - Split `DecisionFlow` sequential logic into 4 node-style methods:
+  - Split `LearningQaOrchestrationFlow` sequential logic into 4 node-style methods:
     - `classify_request`
     - `validate_decision_contract`
     - `execute_routed_action` (temporary aggregate execution node)
     - `build_task_response`
   - Kept `run(...)` as linear orchestration that invokes these methods in order.
   - Ran validation tests:
-    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
+    - `.venv\Scripts\python.exe -m pytest tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
 - Files touched:
   - `src/investory/agent_core/runtime/decision_flow.py`
   - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
@@ -119,7 +119,7 @@
 
 - Timestamp: 2026-05-22 14:00:27 +10:00
 - Action:
-  - Added linear `StateGraph` compilation in `DecisionFlow`:
+  - Added linear `StateGraph` compilation in `LearningQaOrchestrationFlow`:
     - `START -> classify_request -> validate_decision_contract -> execute_routed_action -> build_task_response -> END`
   - Switched `run(...)` to:
     - build `initial_state`
@@ -130,7 +130,7 @@
   - Kept external signature unchanged:
     - `run(spec, payload, request_id=None) -> TaskResult`
   - Ran validation tests:
-    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
+    - `.venv\Scripts\python.exe -m pytest tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
 - Files touched:
   - `src/investory/agent_core/runtime/decision_flow.py`
   - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
@@ -152,10 +152,10 @@
     - missing `action_call` returns `"build_task_response"`
     - present `action_call` returns action key (`"run_task_model"`)
   - Ran validation test:
-    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py -q`
+    - `.venv\Scripts\python.exe -m pytest tests/test_learning_qa_orchestration_flow.py -q`
 - Files touched:
   - `src/investory/agent_core/runtime/decision_flow.py`
-  - `tests/test_decision_flow.py`
+  - `tests/test_learning_qa_orchestration_flow.py`
   - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
 - Result:
   - Route-key behavior is explicit and test-covered.
@@ -173,7 +173,7 @@
     - write `last_state`
     - return `output`
   - Ran validation tests:
-    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
+    - `.venv\Scripts\python.exe -m pytest tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
 - Files touched:
   - `src/investory/agent_core/runtime/decision_flow.py`
   - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
@@ -186,7 +186,7 @@
 
 - Timestamp: 2026-05-22 21:41:24 +10:00
 - Action:
-  - Added flow-level error convergence in `DecisionFlow.run(...)`:
+  - Added flow-level error convergence in `LearningQaOrchestrationFlow.run(...)`:
     - catches execution exceptions
     - converts them into failed `TaskResult`
     - writes `state.error` and `state.output`
@@ -199,10 +199,10 @@
     - invalid action params convergence path
     - routing failure convergence path
   - Ran validation tests:
-    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_action_validator.py -q`
+    - `.venv\Scripts\python.exe -m pytest tests/test_learning_qa_orchestration_flow.py tests/test_action_validator.py -q`
 - Files touched:
   - `src/investory/agent_core/runtime/decision_flow.py`
-  - `tests/test_decision_flow.py`
+  - `tests/test_learning_qa_orchestration_flow.py`
   - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
 - Result:
   - Exceptions in flow execution now converge into failed `TaskResult` outputs.
@@ -213,7 +213,7 @@
 
 - Timestamp: 2026-05-22 23:11:22 +10:00
 - Action:
-  - Enhanced `tests/test_decision_flow.py` coverage for Layer 5.1 supplement items:
+  - Enhanced `tests/test_learning_qa_orchestration_flow.py` coverage for Layer 5.1 supplement items:
     - added explicit compiled-graph check (`flow.graph` is invokable via `invoke`)
     - expanded `route_by_action_key` assertions to cover all 3 action keys:
       - `ask_missing_fields`
@@ -221,11 +221,11 @@
       - `refuse_investment_advice`
   - Kept existing branch-path coverage and failure-convergence coverage in place.
   - Ran Step 5.1 target tests in venv:
-    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py -q`
+    - `.venv\Scripts\python.exe -m pytest tests/test_learning_qa_orchestration_flow.py -q`
   - Ran Step 5.2 regression subset in venv:
-    - `.venv\Scripts\python.exe -m pytest tests/test_decision_flow.py tests/test_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
+    - `.venv\Scripts\python.exe -m pytest tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q`
 - Files touched:
-  - `tests/test_decision_flow.py`
+  - `tests/test_learning_qa_orchestration_flow.py`
   - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
 - Result:
   - Step 5.1 coverage items are now explicitly asserted.
@@ -254,3 +254,5 @@
   - `docs/1-2/01-plans/worklog/investory-langgraph-decision-flow-worklog.md`
 - Result:
   - Step 5.3 required documentation sync is complete and consistent with current runtime behavior.
+
+

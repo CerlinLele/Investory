@@ -9,8 +9,8 @@ from investory.agent_core.contracts.action_contract import (
     ActionResult,
 )
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
-from investory.agent_core.runtime.flow.decision_flow import (
-    DecisionFlow,
+from investory.agent_core.runtime.flow.learning_qa_orchestration_flow import (
+    LearningQaOrchestrationFlow,
     LearningQaFlowState,
     backfill_action_result,
     route_by_action_key,
@@ -29,7 +29,7 @@ class FakeTaskExecutor:
 
 
 def test_decision_flow_returns_requires_user_input_for_missing_fields():
-    flow = DecisionFlow()
+    flow = LearningQaOrchestrationFlow()
 
     result = flow.run(
         INSTRUMENT_BRIEF_TASK,
@@ -64,7 +64,7 @@ def test_decision_flow_runs_task_executor_for_complete_payload():
         result={"overview": "Broad US equities."},
     )
     task_executor = FakeTaskExecutor(task_result)
-    flow = DecisionFlow(task_executor=task_executor)
+    flow = LearningQaOrchestrationFlow(task_executor=task_executor)
 
     result = flow.run(INSTRUMENT_BRIEF_TASK, payload)
 
@@ -97,7 +97,7 @@ def test_decision_flow_backfills_failed_task_executor_result():
             error=task_error,
         )
     )
-    flow = DecisionFlow(task_executor=task_executor)
+    flow = LearningQaOrchestrationFlow(task_executor=task_executor)
 
     result = flow.run(INSTRUMENT_BRIEF_TASK, payload)
 
@@ -140,7 +140,7 @@ def test_decision_flow_can_use_custom_router_for_refusal_action():
                 user_message="I cannot decide whether you should buy or sell.",
             )
 
-    flow = DecisionFlow(
+    flow = LearningQaOrchestrationFlow(
         planner=RefusePlanner(),
         router=ActionRouter(
             executors={"refuse_investment_advice": FakeRefuseExecutor()}
@@ -207,7 +207,7 @@ def test_route_by_action_key_returns_action_value_when_action_call_exists(
 
 
 def test_decision_flow_has_compiled_graph_with_invoke():
-    flow = DecisionFlow()
+    flow = LearningQaOrchestrationFlow()
     assert flow.graph is not None
     assert callable(getattr(flow.graph, "invoke", None))
 
@@ -224,7 +224,7 @@ def test_decision_flow_converges_action_validation_error_to_failed_task_result()
                 params={},
             )
 
-    flow = DecisionFlow(planner=InvalidRunPlanner())
+    flow = LearningQaOrchestrationFlow(planner=InvalidRunPlanner())
 
     result = flow.run(INSTRUMENT_BRIEF_TASK, {})
 
@@ -245,7 +245,7 @@ def test_decision_flow_converges_action_routing_error_to_failed_task_result():
         "instrument_name_or_code": "VOO",
         "source_material": "VOO tracks a broad US equity index.",
     }
-    flow = DecisionFlow(router=BrokenRouter())
+    flow = LearningQaOrchestrationFlow(router=BrokenRouter())
 
     result = flow.run(INSTRUMENT_BRIEF_TASK, payload)
 
