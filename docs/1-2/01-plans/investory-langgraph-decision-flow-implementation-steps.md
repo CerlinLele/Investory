@@ -98,6 +98,16 @@ finalize_result -> build_task_response
 - 暂缓：Layer 4 的子环节细拆（Step 4.1 ~ Step 4.4）本轮不做实现，仅保留设计说明。
 - 暂缓：checkpoint/trace 逐步状态记录，放到后续章节再做。
 
+### 执行约定补充（2026-05-23）
+
+- `flow` 归属 `runtime`：当前 `LearningQaOrchestrationFlow` 直接参与请求执行期编排（决策、路由、执行、收束），暂不提升到更高层目录。
+- `DecisionPlanner` 暂不抽离出 `runtime/flow`：先保持与 `DecisionFlow` 同步演进，避免过早拆分。
+- `DecisionPlanner` 抽离触发条件（满足其一再执行）：
+  - 需要被多个入口复用（API / batch / worker / CLI）；
+  - 决策规则显著扩展，且希望独立版本化与测试；
+  - 已能保持“纯决策输入输出”（不依赖 router / executor / graph 运行时对象）。
+- `validate_decision_contract` 是否独立节点：当前先保留独立 node；若后续无单独观测、重试、checkpoint 或专门失败分支需求，可并入 `classify_request` 简化图结构。
+
 ### Layer 0：准备层（不改行为）
 
 #### Step 0.1 基线快照
@@ -211,6 +221,18 @@ refuse_advice_and_redirect
   - `ask_for_missing_input` 负责 `missing_fields` 相关约束
   - `answer_learning_question` 负责 `payload` 相关约束
   - `refuse_advice_and_redirect` 负责拒答参数相关约束
+
+#### Step 2.3 `validate_decision_contract` 节点边界
+
+默认保持独立节点，职责仅限“决策契约公共校验 + `action_call` 构建”，不承担 action-specific 业务分流。
+
+可合并回 `classify_request` 的条件（满足全部）：
+
+- 不需要单独 trace / metrics / checkpoint；
+- 不需要该步骤单独重试；
+- 不需要校验失败的专门恢复分支。
+
+若任一条件不满足，继续保持独立节点以保证可观测性与后续演进空间。
 
 ### Layer 3：图结构定型
 
@@ -366,3 +388,4 @@ python -m pytest -q
 - 不引入 checkpoint saver。
 - 不引入并行分支。
 - 不改 gateway request/response schema。
+- 不提前把 `DecisionPlanner` 迁移到 `runtime/flow` 之外的包结构。
