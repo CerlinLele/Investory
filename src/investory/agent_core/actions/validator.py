@@ -4,6 +4,7 @@ from investory.agent_core.contracts.action_contract import (
     ASK_MISSING_FIELDS,
     REFUSE_INVESTMENT_ADVICE,
     RUN_TASK_MODEL,
+    RUN_TOOL,
     ActionCall,
     TaskDecision,
 )
@@ -18,6 +19,7 @@ def _ensure_action_allowed(decision: TaskDecision) -> None:
     allowed_actions = {
         ASK_MISSING_FIELDS,
         RUN_TASK_MODEL,
+        RUN_TOOL,
         REFUSE_INVESTMENT_ADVICE,
     }
     if decision.action not in allowed_actions:
@@ -72,6 +74,14 @@ def _validate_run_task_model(decision: TaskDecision) -> None:
     _ensure_dict_param(decision.params, "payload")
 
 
+def _validate_run_tool(decision: TaskDecision) -> None:
+    tool_name = decision.params.get("tool_name")
+    if not isinstance(tool_name, str) or not tool_name.strip():
+        raise ActionValidationError("tool_name must be a non-empty string.")
+
+    _ensure_dict_param(decision.params, "payload")
+
+
 def _validate_refuse_investment_advice(decision: TaskDecision) -> None:
     refused_reason = _ensure_non_empty_string_param(decision.params, "refused_reason")
     if decision.user_message is None and refused_reason is None:
@@ -117,6 +127,8 @@ def validate_action_params(
         _validate_ask_missing_fields(decision, spec)
     elif decision.action == RUN_TASK_MODEL:
         _validate_run_task_model(decision)
+    elif decision.action == RUN_TOOL:
+        _validate_run_tool(decision)
     elif decision.action == REFUSE_INVESTMENT_ADVICE:
         _validate_refuse_investment_advice(decision)
 

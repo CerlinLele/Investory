@@ -2,6 +2,7 @@ from investory.agent_core.contracts.action_contract import (
     ASK_MISSING_FIELDS,
     REFUSE_INVESTMENT_ADVICE,
     RUN_TASK_MODEL,
+    RUN_TOOL,
     ActionCall,
     ActionName,
     ActionResult,
@@ -26,6 +27,7 @@ from investory.agent_core.contracts.task_spec import TaskSpec
 __all__ = [
     "ASK_MISSING_FIELDS",
     "RUN_TASK_MODEL",
+    "RUN_TOOL",
     "REFUSE_INVESTMENT_ADVICE",
     "ActionName",
     "ActionCall",

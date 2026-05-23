@@ -98,11 +98,71 @@ def test_validate_decision_accepts_run_task_model_with_payload():
     assert call.params["payload"]["instrument_name_or_code"] == "VOO"
 
 
+def test_validate_decision_accepts_run_tool_with_payload():
+    decision = TaskDecision(
+        action="run_tool",
+        task_name="instrument_brief",
+        reason="Need instrument profile source material before model execution.",
+        params={
+            "tool_name": "lookup_instrument_profile",
+            "payload": {"instrument_name_or_code": "VOO"},
+        },
+    )
+
+    call = validate_decision(decision, INSTRUMENT_BRIEF_TASK)
+
+    assert call.action == "run_tool"
+    assert call.params == {
+        "tool_name": "lookup_instrument_profile",
+        "payload": {"instrument_name_or_code": "VOO"},
+    }
+
+
 def test_validate_decision_rejects_run_task_model_without_payload():
     decision = TaskDecision(
         action="run_task_model",
         task_name="instrument_brief",
         reason="Ready to run.",
+    )
+
+    with pytest.raises(ActionValidationError, match="payload"):
+        validate_decision(decision, INSTRUMENT_BRIEF_TASK)
+
+
+def test_validate_decision_rejects_run_tool_without_tool_name():
+    decision = TaskDecision(
+        action="run_tool",
+        task_name="instrument_brief",
+        reason="Need tool data before running the model.",
+        params={"payload": {"instrument_name_or_code": "VOO"}},
+    )
+
+    with pytest.raises(ActionValidationError, match="tool_name"):
+        validate_decision(decision, INSTRUMENT_BRIEF_TASK)
+
+
+@pytest.mark.parametrize("tool_name", ["", "   ", 123])
+def test_validate_decision_rejects_run_tool_with_invalid_tool_name(tool_name):
+    decision = TaskDecision(
+        action="run_tool",
+        task_name="instrument_brief",
+        reason="Need tool data before running the model.",
+        params={
+            "tool_name": tool_name,
+            "payload": {"instrument_name_or_code": "VOO"},
+        },
+    )
+
+    with pytest.raises(ActionValidationError, match="tool_name"):
+        validate_decision(decision, INSTRUMENT_BRIEF_TASK)
+
+
+def test_validate_decision_rejects_run_tool_without_payload():
+    decision = TaskDecision(
+        action="run_tool",
+        task_name="instrument_brief",
+        reason="Need tool data before running the model.",
+        params={"tool_name": "lookup_instrument_profile"},
     )
 
     with pytest.raises(ActionValidationError, match="payload"):
@@ -167,15 +227,15 @@ def test_validate_decision_rejects_unsupported_action_from_unvalidated_model():
 
 def test_validate_decision_contract_skips_action_specific_param_validation():
     decision = TaskDecision(
-        action="run_task_model",
+        action="run_tool",
         task_name="instrument_brief",
         reason="Ready to run.",
-        # intentionally missing payload
+        # intentionally missing tool_name and payload
     )
 
     call = validate_decision_contract(decision, INSTRUMENT_BRIEF_TASK)
 
-    assert call.action == "run_task_model"
+    assert call.action == "run_tool"
     assert call.params == {}
 
 
@@ -184,6 +244,18 @@ def test_validate_action_params_rejects_run_task_model_without_payload():
         action="run_task_model",
         task_name="instrument_brief",
         reason="Ready to run.",
+    )
+
+    with pytest.raises(ActionValidationError, match="payload"):
+        validate_action_params(decision, INSTRUMENT_BRIEF_TASK)
+
+
+def test_validate_action_params_rejects_run_tool_without_payload():
+    decision = TaskDecision(
+        action="run_tool",
+        task_name="instrument_brief",
+        reason="Need tool data before running the model.",
+        params={"tool_name": "lookup_instrument_profile"},
     )
 
     with pytest.raises(ActionValidationError, match="payload"):

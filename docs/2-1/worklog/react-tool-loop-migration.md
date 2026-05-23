@@ -148,3 +148,64 @@ Evidence:
 - Unknown tool failure is covered by `tests/test_tool_registry.py`.
 - Duplicate-name override behavior is explicitly covered by `tests/test_tool_registry.py`.
 - Existing Step 0 baseline remained green after adding the registry layer.
+
+## Step 3: 新增第一批 Mock Tools
+
+Timestamp: 2026-05-24 01:03:20 +10:00
+
+Actions:
+
+- Added mock `lookup_financial_concept`.
+- Added mock `lookup_instrument_profile`.
+- Added mock `extract_learning_material_facts`.
+- Added `build_mock_tool_registry()` to package the first mock tools.
+- Exported the mock tool models, tool classes, and registry builder from the tool package entrypoint.
+- Added focused tests for stable mock output, source metadata, uncertainty handling, advice-neutral wording, and registry packaging.
+
+Files touched:
+
+- `src/investory/agent_core/tools/__init__.py`
+- `src/investory/agent_core/tools/financial_concepts.py`
+- `src/investory/agent_core/tools/instrument_profile.py`
+- `src/investory/agent_core/tools/material_extraction.py`
+- `src/investory/agent_core/tools/mocks.py`
+- `tests/test_financial_concept_tool.py`
+- `tests/test_instrument_profile_tool.py`
+- `tests/test_material_extraction_tool.py`
+- `docs/2-1/worklog/react-tool-loop-migration.md`
+
+Mock tool boundaries:
+
+- All tools are read-only and deterministic.
+- No tool depends on network access.
+- Outputs include `uncertainty`.
+- Data-bearing outputs include `ToolSource` metadata with `provider` and `as_of`.
+- Tool text avoids buy, sell, hold, suitability, and allocation conclusions.
+
+Verification:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_financial_concept_tool.py tests/test_instrument_profile_tool.py tests/test_material_extraction_tool.py -q
+```
+
+Result: `10 passed in 0.09s`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_tool_contracts.py tests/test_tool_registry.py -q
+```
+
+Result: `9 passed in 0.08s`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_task_execution_pipeline.py tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q
+```
+
+Result: `32 passed in 2.03s`.
+
+Evidence:
+
+- Known and unknown concept lookup are covered by `tests/test_financial_concept_tool.py`.
+- Known and unknown instrument profile lookup are covered by `tests/test_instrument_profile_tool.py`.
+- Material fact extraction and empty-material uncertainty are covered by `tests/test_material_extraction_tool.py`.
+- Mock registry packaging is covered by `tests/test_financial_concept_tool.py`.
+- Existing Step 0 baseline remained green after adding the mock tool layer.

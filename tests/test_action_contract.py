@@ -11,13 +11,16 @@ from investory.agent_core.contracts.result_types import TaskError
 
 def test_task_decision_accepts_supported_action_names():
     decision = TaskDecision(
-        action="run_task_model",
+        action="run_tool",
         task_name="instrument_brief",
-        reason="The payload contains all required fields.",
-        params={"payload": {"instrument_name_or_code": "VOO"}},
+        reason="Need tool data before running the task model.",
+        params={
+            "tool_name": "lookup_instrument_profile",
+            "payload": {"instrument_name_or_code": "VOO"},
+        },
     )
 
-    assert decision.action == "run_task_model"
+    assert decision.action == "run_tool"
     assert decision.confidence == 1.0
     assert decision.user_message is None
     assert decision.need_user_confirmation is False

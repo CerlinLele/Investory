@@ -6,11 +6,13 @@ from investory.agent_core.contracts.result_types import TaskError
 
 ASK_MISSING_FIELDS: Final[str] = "ask_missing_fields"
 RUN_TASK_MODEL: Final[str] = "run_task_model"
+RUN_TOOL: Final[str] = "run_tool"
 REFUSE_INVESTMENT_ADVICE: Final[str] = "refuse_investment_advice"
 
 ActionName = Literal[
     ASK_MISSING_FIELDS,
     RUN_TASK_MODEL,
+    RUN_TOOL,
     REFUSE_INVESTMENT_ADVICE,
 ]
 
