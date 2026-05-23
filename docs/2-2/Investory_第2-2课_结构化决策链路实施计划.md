@@ -156,8 +156,9 @@ src/investory/agent_core/actions/
   executors.py            # ask_missing_fields / run_task_model / refuse
 
 src/investory/agent_core/runtime/
-  decision_flow.py        # 串联 decision -> validate -> route -> execute -> backfill
-  decision_planner.py     # 第一版确定性 planner
+  flow/
+    learning_qa_orchestration_flow.py   # 串联 decision -> validate -> route -> execute -> backfill
+    learning_qa_decision_planner.py     # 第一版确定性 planner
 ```
 
 现有文件保留：
@@ -840,7 +841,7 @@ tests/test_action_executors.py
 文件：
 
 ```text
-src/investory/agent_core/runtime/decision_planner.py
+src/investory/agent_core/runtime/flow/learning_qa_decision_planner.py
 ```
 
 第一版规则：
@@ -863,7 +864,7 @@ tests/test_learning_qa_decision_planner.py
 文件：
 
 ```text
-src/investory/agent_core/runtime/decision_flow.py
+src/investory/agent_core/runtime/flow/learning_qa_orchestration_flow.py
 ```
 
 职责：
@@ -880,7 +881,7 @@ resolve spec 后接收 spec + payload
 
 当前 LearningQaOrchestrationFlow 落地逻辑：
 
-`decision_flow.py` 是新的外层编排器。它把前面几步串成完整的最小闭环：
+`learning_qa_orchestration_flow.py` 是新的外层编排器。它把前面几步串成完整的最小闭环：
 
 ```text
 payload
@@ -1167,6 +1168,7 @@ MinimalTaskFlow:
 ```
 
 每个提交都应能通过对应单元测试，避免一次性改动过大。
+
 
 
 
