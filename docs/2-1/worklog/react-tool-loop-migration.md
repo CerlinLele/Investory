@@ -58,3 +58,46 @@ Follow-up result:
 
 - Passed: `32 passed in 2.37s`.
 - Step 0 acceptance criteria met using the project virtual environment.
+
+## Step 1: 新增工具契约
+
+Timestamp: 2026-05-23 23:33:03 +10:00
+
+Actions:
+
+- Added the tool package entrypoint.
+- Added minimal tool contract models and protocol.
+- Added focused contract tests for serialization, call records, and structural protocol compatibility.
+
+Files touched:
+
+- `src/investory/agent_core/tools/__init__.py`
+- `src/investory/agent_core/tools/contracts.py`
+- `tests/test_tool_contracts.py`
+- `docs/2-1/worklog/react-tool-loop-migration.md`
+
+Contract boundaries:
+
+- `ToolSource`, `ToolCallRecord`, `ToolExecutionError`, and `ToolExecutor` are independent of LangChain, LangGraph, and FastAPI.
+- Runtime dependencies are limited to the standard library typing module and Pydantic.
+
+Verification:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_tool_contracts.py -q
+```
+
+Result: `4 passed in 0.04s`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_task_execution_pipeline.py tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q
+```
+
+Result: `32 passed in 1.82s`.
+
+Evidence:
+
+- `ToolSource` serialization is covered by `tests/test_tool_contracts.py`.
+- `ToolCallRecord` success and failure records are covered by `tests/test_tool_contracts.py`.
+- `ToolExecutor` structural compatibility is covered by `tests/test_tool_contracts.py`.
+- Existing Step 0 baseline remained green after adding the tool contract layer.
