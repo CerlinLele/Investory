@@ -41,7 +41,3 @@ def build_task_decision(
 ) -> TaskDecision:
     resolved_planner = planner or LearningQaDecisionPlanner()
     return resolved_planner.decide(spec, payload)
-
-
-# Backward-compatible alias during naming migration.
-DecisionPlanner = LearningQaDecisionPlanner
