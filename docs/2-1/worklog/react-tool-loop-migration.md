@@ -101,3 +101,50 @@ Evidence:
 - `ToolCallRecord` success and failure records are covered by `tests/test_tool_contracts.py`.
 - `ToolExecutor` structural compatibility is covered by `tests/test_tool_contracts.py`.
 - Existing Step 0 baseline remained green after adding the tool contract layer.
+
+## Step 2: 新增 Tool Registry
+
+Timestamp: 2026-05-23 23:55:32 +10:00
+
+Actions:
+
+- Added `ToolRegistry` as the centralized lookup and registration surface for tools.
+- Added `UnknownToolError` for missing tool lookups.
+- Exported registry types from the tool package entrypoint.
+- Added focused registry tests for registration, initial tools, sorted listing, unknown tools, and duplicate-name override behavior.
+
+Files touched:
+
+- `src/investory/agent_core/tools/__init__.py`
+- `src/investory/agent_core/tools/registry.py`
+- `tests/test_tool_registry.py`
+- `docs/2-1/worklog/react-tool-loop-migration.md`
+
+Registry behavior:
+
+- `ToolRegistry` stores tools by `tool.name`.
+- `get(name)` returns the registered tool or raises `UnknownToolError`.
+- `list_names()` returns sorted tool names.
+- Duplicate registration currently overrides the prior tool, matching the Step 2 plan.
+- The registry only manages tools; it does not execute them.
+
+Verification:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_tool_registry.py tests/test_tool_contracts.py -q
+```
+
+Result: `9 passed in 0.06s`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_task_execution_pipeline.py tests/test_learning_qa_orchestration_flow.py tests/test_learning_qa_decision_planner.py tests/test_action_router.py tests/test_action_executors.py -q
+```
+
+Result: `32 passed in 1.90s`.
+
+Evidence:
+
+- Registry lookup and registration are covered by `tests/test_tool_registry.py`.
+- Unknown tool failure is covered by `tests/test_tool_registry.py`.
+- Duplicate-name override behavior is explicitly covered by `tests/test_tool_registry.py`.
+- Existing Step 0 baseline remained green after adding the registry layer.
