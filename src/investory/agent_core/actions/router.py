@@ -6,7 +6,13 @@ from investory.agent_core.actions.executors import (
     RefuseInvestmentAdviceExecutor,
     RunTaskModelExecutor,
 )
-from investory.agent_core.contracts.action_contract import ActionCall, ActionName
+from investory.agent_core.contracts.action_contract import (
+    ASK_MISSING_FIELDS,
+    REFUSE_INVESTMENT_ADVICE,
+    RUN_TASK_MODEL,
+    ActionCall,
+    ActionName,
+)
 from investory.agent_core.runtime.task_executor import TaskExecutor
 
 
@@ -34,9 +40,9 @@ def _default_executors(
     task_executor: TaskExecutor | None = None,
 ) -> dict[ActionName, ActionExecutor]:
     return {
-        "ask_missing_fields": AskMissingFieldsExecutor(),
-        "run_task_model": RunTaskModelExecutor(task_executor=task_executor),
-        "refuse_investment_advice": RefuseInvestmentAdviceExecutor(),
+        ASK_MISSING_FIELDS: AskMissingFieldsExecutor(),
+        RUN_TASK_MODEL: RunTaskModelExecutor(task_executor=task_executor),
+        REFUSE_INVESTMENT_ADVICE: RefuseInvestmentAdviceExecutor(),
     }
 
 

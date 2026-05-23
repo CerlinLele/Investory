@@ -1,19 +1,17 @@
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
+from investory.agent_core.contracts.action_contract import ASK_MISSING_FIELDS
 from investory.agent_core.runtime.input_requirements import get_missing_required_fields
 
 if TYPE_CHECKING:
     from investory.agent_core.contracts.task_spec import TaskSpec
 
 
-ActionName = Literal["ask_missing_fields"]
-
-
 class AskMissingFieldsAction(BaseModel):
-    action: ActionName = "ask_missing_fields"
+    action: str = ASK_MISSING_FIELDS
     task_name: str = Field(description="Task that needs more input before execution.")
     missing_fields: list[str] = Field(description="Required input fields missing from the payload.")
     user_message: str = Field(description="Message that can be shown to the user.")

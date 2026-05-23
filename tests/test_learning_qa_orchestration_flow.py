@@ -1,9 +1,19 @@
-from investory.agent_core.actions.router import ActionRouter
-from investory.agent_core.contracts.action_contract import ActionCall, ActionResult
+import pytest
+
+from investory.agent_core.actions.router import ActionRouter, ActionRoutingError
+from investory.agent_core.contracts.action_contract import (
+    ASK_MISSING_FIELDS,
+    REFUSE_INVESTMENT_ADVICE,
+    RUN_TASK_MODEL,
+    ActionCall,
+    ActionResult,
+)
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
-from investory.agent_core.runtime.decision_flow import (
-    DecisionFlow,
+from investory.agent_core.runtime.flow.learning_qa_orchestration_flow import (
+    LearningQaOrchestrationFlow,
+    LearningQaFlowState,
     backfill_action_result,
+    route_by_action_key,
 )
 from investory.agent_core.tasks import INSTRUMENT_BRIEF_TASK
 
@@ -19,7 +29,7 @@ class FakeTaskExecutor:
 
 
 def test_decision_flow_returns_requires_user_input_for_missing_fields():
-    flow = DecisionFlow()
+    flow = LearningQaOrchestrationFlow()
 
     result = flow.run(
         INSTRUMENT_BRIEF_TASK,
@@ -54,7 +64,7 @@ def test_decision_flow_runs_task_executor_for_complete_payload():
         result={"overview": "Broad US equities."},
     )
     task_executor = FakeTaskExecutor(task_result)
-    flow = DecisionFlow(task_executor=task_executor)
+    flow = LearningQaOrchestrationFlow(task_executor=task_executor)
 
     result = flow.run(INSTRUMENT_BRIEF_TASK, payload)
 
@@ -87,7 +97,7 @@ def test_decision_flow_backfills_failed_task_executor_result():
             error=task_error,
         )
     )
-    flow = DecisionFlow(task_executor=task_executor)
+    flow = LearningQaOrchestrationFlow(task_executor=task_executor)
 
     result = flow.run(INSTRUMENT_BRIEF_TASK, payload)
 
@@ -130,7 +140,7 @@ def test_decision_flow_can_use_custom_router_for_refusal_action():
                 user_message="I cannot decide whether you should buy or sell.",
             )
 
-    flow = DecisionFlow(
+    flow = LearningQaOrchestrationFlow(
         planner=RefusePlanner(),
         router=ActionRouter(
             executors={"refuse_investment_advice": FakeRefuseExecutor()}
@@ -155,6 +165,89 @@ def test_backfill_action_result_creates_error_when_failed_action_has_none():
     )
 
     result = backfill_action_result(action_result)
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_type == "unknown_error"
+    assert result.error.stage == "model_call"
+
+
+def test_route_by_action_key_returns_build_task_response_when_action_call_missing():
+    state = LearningQaFlowState(
+        task_id="req_1",
+        spec=INSTRUMENT_BRIEF_TASK,
+        task_name=INSTRUMENT_BRIEF_TASK.name,
+        input_payload={},
+    )
+
+    assert route_by_action_key(state) == "build_task_response"
+
+
+@pytest.mark.parametrize(
+    "action_key",
+    [ASK_MISSING_FIELDS, RUN_TASK_MODEL, REFUSE_INVESTMENT_ADVICE],
+)
+def test_route_by_action_key_returns_action_value_when_action_call_exists(
+    action_key: str,
+):
+    state = LearningQaFlowState(
+        task_id="req_2",
+        spec=INSTRUMENT_BRIEF_TASK,
+        task_name=INSTRUMENT_BRIEF_TASK.name,
+        input_payload={},
+        action_call=ActionCall(
+            action=action_key,
+            task_name=INSTRUMENT_BRIEF_TASK.name,
+            params={"payload": {}},
+            decision_reason="test",
+        ),
+    )
+
+    assert route_by_action_key(state) == action_key
+
+
+def test_decision_flow_has_compiled_graph_with_invoke():
+    flow = LearningQaOrchestrationFlow()
+    assert flow.graph is not None
+    assert callable(getattr(flow.graph, "invoke", None))
+
+
+def test_decision_flow_converges_action_validation_error_to_failed_task_result():
+    class InvalidRunPlanner:
+        def decide(self, spec, payload):
+            from investory.agent_core.contracts.action_contract import TaskDecision
+
+            return TaskDecision(
+                action="run_task_model",
+                task_name=spec.name,
+                reason="Invalid run_task_model decision without payload.",
+                params={},
+            )
+
+    flow = LearningQaOrchestrationFlow(planner=InvalidRunPlanner())
+
+    result = flow.run(INSTRUMENT_BRIEF_TASK, {})
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.error_type == "input_validation_failed"
+    assert result.error.stage == "input_validation"
+    assert flow.last_state is not None
+    assert flow.last_state.error == result.error
+
+
+def test_decision_flow_converges_action_routing_error_to_failed_task_result():
+    class BrokenRouter:
+        def route(self, call):
+            raise ActionRoutingError("No route")
+
+    payload = {
+        "instrument_name_or_code": "VOO",
+        "source_material": "VOO tracks a broad US equity index.",
+    }
+    flow = LearningQaOrchestrationFlow(router=BrokenRouter())
+
+    result = flow.run(INSTRUMENT_BRIEF_TASK, payload)
 
     assert result.ok is False
     assert result.error is not None

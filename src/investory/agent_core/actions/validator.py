@@ -1,6 +1,12 @@
 from typing import Any
 
-from investory.agent_core.contracts.action_contract import ActionCall, TaskDecision
+from investory.agent_core.contracts.action_contract import (
+    ASK_MISSING_FIELDS,
+    REFUSE_INVESTMENT_ADVICE,
+    RUN_TASK_MODEL,
+    ActionCall,
+    TaskDecision,
+)
 from investory.agent_core.contracts.task_spec import TaskSpec
 
 
@@ -10,9 +16,9 @@ class ActionValidationError(ValueError):
 
 def _ensure_action_allowed(decision: TaskDecision) -> None:
     allowed_actions = {
-        "ask_missing_fields",
-        "run_task_model",
-        "refuse_investment_advice",
+        ASK_MISSING_FIELDS,
+        RUN_TASK_MODEL,
+        REFUSE_INVESTMENT_ADVICE,
     }
     if decision.action not in allowed_actions:
         raise ActionValidationError(f"Unsupported action: {decision.action}")
@@ -76,22 +82,11 @@ def _validate_refuse_investment_advice(decision: TaskDecision) -> None:
     _ensure_non_empty_string_param(decision.params, "allowed_alternative")
 
 
-def validate_decision(
+def build_action_call(
     decision: TaskDecision,
-    spec: TaskSpec,
     *,
     request_id: str | None = None,
 ) -> ActionCall:
-    _ensure_action_allowed(decision)
-    _ensure_task_matches_spec(decision, spec)
-
-    if decision.action == "ask_missing_fields":
-        _validate_ask_missing_fields(decision, spec)
-    elif decision.action == "run_task_model":
-        _validate_run_task_model(decision)
-    elif decision.action == "refuse_investment_advice":
-        _validate_refuse_investment_advice(decision)
-
     return ActionCall(
         action=decision.action,
         task_name=decision.task_name,
@@ -99,3 +94,43 @@ def validate_decision(
         decision_reason=decision.reason,
         request_id=request_id,
     )
+
+
+def validate_decision_contract(
+    decision: TaskDecision,
+    spec: TaskSpec,
+    *,
+    request_id: str | None = None,
+) -> ActionCall:
+    """Validate shared contract only and build ActionCall for routing."""
+    _ensure_action_allowed(decision)
+    _ensure_task_matches_spec(decision, spec)
+    return build_action_call(decision, request_id=request_id)
+
+
+def validate_action_params(
+    decision: TaskDecision,
+    spec: TaskSpec,
+) -> None:
+    """Validate action-specific params based on decision.action."""
+    if decision.action == ASK_MISSING_FIELDS:
+        _validate_ask_missing_fields(decision, spec)
+    elif decision.action == RUN_TASK_MODEL:
+        _validate_run_task_model(decision)
+    elif decision.action == REFUSE_INVESTMENT_ADVICE:
+        _validate_refuse_investment_advice(decision)
+
+
+def validate_decision(
+    decision: TaskDecision,
+    spec: TaskSpec,
+    *,
+    request_id: str | None = None,
+) -> ActionCall:
+    action_call = validate_decision_contract(
+        decision,
+        spec,
+        request_id=request_id,
+    )
+    validate_action_params(decision, spec)
+    return action_call

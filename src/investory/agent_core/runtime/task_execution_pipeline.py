@@ -7,10 +7,14 @@ from investory.agent_core.contracts.flow_state import TaskFlowState
 from investory.agent_core.contracts.result_types import TaskResult, normalize_task_error
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.runtime.message_builder import build_messages
-from investory.agent_core.runtime.request_runner import RequestRunner
+from investory.agent_core.runtime.request_runner import (
+    ModelCallError,
+    RequestRunner,
+    StructuredOutputError,
+)
 
 
-def prepare_context(spec: TaskSpec, payload: dict[str, Any]) -> TaskFlowState:
+def build_execution_context(spec: TaskSpec, payload: dict[str, Any]) -> TaskFlowState:
     state = TaskFlowState(
         task_id=str(uuid4()),
         task_name=spec.name,
@@ -49,7 +53,7 @@ def prepare_context(spec: TaskSpec, payload: dict[str, Any]) -> TaskFlowState:
     )
 
 
-def call_model(
+def invoke_task_model(
     state: TaskFlowState,
     spec: TaskSpec,
     runner: RequestRunner,
@@ -67,11 +71,33 @@ def call_model(
 
     try:
         parsed = runner.run(state.messages, spec.output_model)
+    except StructuredOutputError as exc:
+        return state.model_copy(
+            update={
+                "status": "error",
+                "error": normalize_task_error(
+                    exc.original,
+                    stage="output_validation",
+                    retry_count=exc.retry_count,
+                ),
+            }
+        )
     except ValidationError as exc:
         return state.model_copy(
             update={
                 "status": "error",
                 "error": normalize_task_error(exc, stage="output_validation"),
+            }
+        )
+    except ModelCallError as exc:
+        return state.model_copy(
+            update={
+                "status": "error",
+                "error": normalize_task_error(
+                    exc.original,
+                    stage="model_call",
+                    retry_count=exc.retry_count,
+                ),
             }
         )
     except Exception as exc:
@@ -85,7 +111,7 @@ def call_model(
     return state.model_copy(update={"model_result": parsed.model_dump()})
 
 
-def finalize_result(state: TaskFlowState, spec: TaskSpec) -> TaskFlowState:
+def build_task_result(state: TaskFlowState, spec: TaskSpec) -> TaskFlowState:
     if state.error is not None:
         output = TaskResult(
             ok=False,
@@ -102,16 +128,25 @@ def finalize_result(state: TaskFlowState, spec: TaskSpec) -> TaskFlowState:
     return state.model_copy(update={"status": "done", "output": output})
 
 
-class MinimalTaskFlow:
+class TaskExecutionPipeline:
     def __init__(self, runner: RequestRunner | None = None) -> None:
         self.runner = runner or RequestRunner()
 
     def run(self, spec: TaskSpec, payload: dict[str, Any]) -> TaskResult:
-        state = prepare_context(spec, payload)
+        state = build_execution_context(spec, payload)
         if state.error is None:
-            state = call_model(state, spec, self.runner)
+            state = invoke_task_model(state, spec, self.runner)
 
-        state = finalize_result(state, spec)
+        state = build_task_result(state, spec)
         if state.output is None:
-            raise RuntimeError("MinimalTaskFlow finished without TaskResult output.")
+            raise RuntimeError(
+                "TaskExecutionPipeline finished without TaskResult output."
+            )
         return state.output
+
+
+# Backward-compatible aliases for existing imports/tests.
+prepare_context = build_execution_context
+call_model = invoke_task_model
+finalize_result = build_task_result
+MinimalTaskFlow = TaskExecutionPipeline

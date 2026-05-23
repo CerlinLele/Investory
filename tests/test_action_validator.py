@@ -2,7 +2,9 @@ import pytest
 
 from investory.agent_core.actions.validator import (
     ActionValidationError,
+    validate_action_params,
     validate_decision,
+    validate_decision_contract,
 )
 from investory.agent_core.contracts.action_contract import TaskDecision
 from investory.agent_core.tasks import FINANCE_QA_TASK, INSTRUMENT_BRIEF_TASK
@@ -161,3 +163,28 @@ def test_validate_decision_rejects_unsupported_action_from_unvalidated_model():
 
     with pytest.raises(ActionValidationError, match="Unsupported action"):
         validate_decision(decision, INSTRUMENT_BRIEF_TASK)
+
+
+def test_validate_decision_contract_skips_action_specific_param_validation():
+    decision = TaskDecision(
+        action="run_task_model",
+        task_name="instrument_brief",
+        reason="Ready to run.",
+        # intentionally missing payload
+    )
+
+    call = validate_decision_contract(decision, INSTRUMENT_BRIEF_TASK)
+
+    assert call.action == "run_task_model"
+    assert call.params == {}
+
+
+def test_validate_action_params_rejects_run_task_model_without_payload():
+    decision = TaskDecision(
+        action="run_task_model",
+        task_name="instrument_brief",
+        reason="Ready to run.",
+    )
+
+    with pytest.raises(ActionValidationError, match="payload"):
+        validate_action_params(decision, INSTRUMENT_BRIEF_TASK)
