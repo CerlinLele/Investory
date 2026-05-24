@@ -75,7 +75,6 @@ LLM 节点只负责一个更窄的问题：
 
 ```text
 START
--> prepare_request
 -> check_missing_fields
    -> [missing] build_missing_input_result -> END
    -> [complete] decide_policy
@@ -89,7 +88,7 @@ START
 
 说明：
 
-- `prepare_request`：标准化输入，初始化 state
+- graph 外先组装初始 state，再调用 `graph.invoke(...)`
 - `check_missing_fields`：本地规则判断字段是否足够
 - `decide_policy`：LLM 或规则判断是否属于投资建议请求
 - `resolve_task_spec`：把候选 task 映射到现有任务定义
@@ -214,13 +213,13 @@ class LearningEntryDecision(BaseModel):
 建议内容：
 
 1. 定义 graph state 类型
-2. 实现节点函数
-3. 组装 `StateGraph`
-4. 编译 graph
+2. 在 `LearningEntryFlow.run(...)` 里组装初始 state
+3. 实现节点函数
+4. 组装 `StateGraph`
+5. 编译 graph
 
 建议节点列表：
 
-- `prepare_request`
 - `check_missing_fields`
 - `decide_policy`
 - `resolve_task_spec`
@@ -240,11 +239,12 @@ class LearningEntryDecision(BaseModel):
 
 ### 节点职责建议
 
-`prepare_request`
+`LearningEntryFlow.run(...)`
 
 - 初始化 `session_id`
 - 初始化 state 默认值
 - 保留原始 `payload`
+- 调用 `graph.invoke(initial_state)`
 
 `check_missing_fields`
 
@@ -314,6 +314,7 @@ def build_learning_entry_flow(
 
 - flow 内部真正执行任务时，应优先复用传入的 `TaskExecutor`
 - 不要在节点内部到处临时 new 执行器
+- 初始 state 的组装放在 flow 的 `run(...)` 包装层，不额外建 `prepare_request` 节点
 
 ## Step 7. 接入 FastAPI
 
