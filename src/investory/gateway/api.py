@@ -6,9 +6,6 @@ from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
-from investory.agent_core.runtime.flow.learning_qa_orchestration_flow import (
-    LearningQaOrchestrationFlow,
-)
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.gateway.routing import UnknownTaskTypeError, resolve_task_spec
 from investory.gateway.schemas import (
@@ -50,9 +47,8 @@ def execute_task_request(
 ) -> TaskResponse:
     session_id = resolve_session_id(task_request.session_id)
     spec = resolve_task_spec(task_request.task_type)
-
-    flow = LearningQaOrchestrationFlow(task_executor=executor)
-    result = flow.run(spec, task_request.payload)
+    resolved_executor = executor or TaskExecutor()
+    result = resolved_executor.run(spec, task_request.payload)
     return _to_gateway_response(result, session_id=session_id)
 
 

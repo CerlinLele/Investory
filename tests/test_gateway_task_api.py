@@ -21,8 +21,14 @@ class FakeExecutor:
         return self.result
 
 
-def test_execute_task_request_returns_missing_fields_action_before_executor():
-    executor = FakeExecutor()
+def test_execute_task_request_passes_incomplete_payload_to_executor():
+    executor = FakeExecutor(
+        TaskResult(
+            ok=True,
+            task_name="instrument_brief",
+            result={"answer": "ETF means exchange-traded fund."},
+        )
+    )
     request = TaskRequest(
         task_type="brief",
         payload={"instrument_name_or_code": "VOO"},
@@ -35,10 +41,13 @@ def test_execute_task_request_returns_missing_fields_action_before_executor():
     assert response.task_name == "instrument_brief"
     assert response.session_id == "session-1"
     assert response.error is None
-    assert response.result is not None
-    assert response.result["action"] == "ask_missing_fields"
-    assert response.result["missing_fields"] == ["source_material"]
-    assert executor.calls == []
+    assert response.result == {"answer": "ETF means exchange-traded fund."}
+    assert executor.calls == [
+        (
+            INSTRUMENT_BRIEF_TASK,
+            {"instrument_name_or_code": "VOO"},
+        )
+    ]
 
 
 def test_execute_task_request_runs_executor_when_payload_is_complete():
@@ -68,9 +77,16 @@ def test_execute_task_request_runs_executor_when_payload_is_complete():
     ]
 
 
-def test_tasks_endpoint_returns_missing_fields_action():
+def test_tasks_endpoint_passes_incomplete_payload_to_executor():
     app = create_app()
-    app.state.task_executor = FakeExecutor()
+    executor = FakeExecutor(
+        TaskResult(
+            ok=True,
+            task_name="instrument_brief",
+            result={"answer": "ETF means exchange-traded fund."},
+        )
+    )
+    app.state.task_executor = executor
     client = TestClient(app)
 
     response = client.post(
@@ -87,12 +103,9 @@ def test_tasks_endpoint_returns_missing_fields_action():
     assert body["ok"] is True
     assert body["task_name"] == INSTRUMENT_BRIEF_TASK.name
     assert body["session_id"] == "session-1"
-    assert body["result"]["action"] == "ask_missing_fields"
-    assert body["result"]["missing_fields"] == [
-        "instrument_name_or_code",
-        "source_material",
-    ]
+    assert body["result"] == {"answer": "ETF means exchange-traded fund."}
     assert body["error"] is None
+    assert executor.calls == [(INSTRUMENT_BRIEF_TASK, {})]
 
 
 def test_tasks_endpoint_runs_executor_when_payload_is_complete():
@@ -134,4 +147,8 @@ def test_tasks_endpoint_rejects_unknown_task_type():
     )
 
     assert response.status_code == 400
-    assert "Unknown task type 'unknown'" in response.json()["detail"]
+    body = response.json()
+    assert body["ok"] is False
+    assert body["task_name"] is None
+    assert body["result"] is None
+    assert "Unknown task type 'unknown'" in body["error"]["user_safe_message"]
