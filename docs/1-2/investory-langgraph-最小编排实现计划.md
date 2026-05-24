@@ -93,6 +93,7 @@ START
 - `decide_policy`：LLM 或规则判断是否属于投资建议请求
 - `resolve_task_spec`：把候选 task 映射到现有任务定义
 - `execute_task`：调用现有 `TaskExecutor`
+- 第一版不单独设置 `response` 节点，各分支节点直接把结果写入 `state.output` 后结束
 
 ## 文件级 implementation steps
 
@@ -283,6 +284,24 @@ class LearningEntryDecision(BaseModel):
   - `action`
   - `message`
   - `suggested_learning_direction`
+
+### 为什么不设 `response` 节点
+
+第一版建议不单独增加 `response` 或 `finalize_response` 节点。
+
+原因是当前三类分支都可以直接完成结果收口：
+
+- `build_missing_input_result` 直接写入缺字段分支的 `state.output`
+- `build_refusal_result` 直接写入拒答分支的 `state.output`
+- `execute_task` 直接写入任务执行分支的 `state.output`
+
+随后各分支直接到 `END` 即可。
+
+只有当后面出现明显的统一后处理需求时，才考虑补一个单独的收口节点，例如：
+
+- 所有分支都要补统一 metadata
+- 所有分支都要做相同的输出格式整理
+- 不希望每个分支节点自己写 `state.output`
 
 ## Step 6. 做一个薄的 flow factory
 
