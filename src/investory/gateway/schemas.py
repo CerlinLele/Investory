@@ -34,6 +34,19 @@ class TaskRequest(BaseModel):
     session_id: NonEmptyString | None = None
 
 
+class LearningEntryRequest(BaseModel):
+    """Public request for the learning entry orchestration endpoint.
+
+    The payload stays generic because the entry flow decides which task, if
+    any, can safely handle the request.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    payload: dict[str, Any]
+    session_id: NonEmptyString | None = None
+
+
 class TaskErrorResponse(BaseModel):
     """Public task error shape returned by the gateway."""
 
@@ -64,6 +77,7 @@ class TaskResponse(BaseModel):
 
 __all__ = [
     "HealthResponse",
+    "LearningEntryRequest",
     "TaskErrorResponse",
     "TaskRequest",
     "TaskResponse",
