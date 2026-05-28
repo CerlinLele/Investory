@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -5,12 +6,17 @@ from pydantic import BaseModel, Field
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
 
 
-LearningEntryCandidateTaskType = Literal["qa", "summary", "brief"]
 LearningEntryDecision = Literal[
     "ask_for_missing_input",
     "refuse_and_redirect",
     "execute_learning_task",
 ]
+
+
+class LearningEntryCandidateTaskType(str, Enum):
+    QA = "qa"
+    SUMMARY = "summary"
+    BRIEF = "brief"
 
 
 class LearningEntryState(BaseModel):
