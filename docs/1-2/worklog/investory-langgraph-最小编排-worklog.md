@@ -51,3 +51,17 @@
   - `LearningEntryPolicyDecision.route_action` uses the existing `LearningEntryDecision` enum.
   - `POLICY_ROUTE_ACTIONS` limits policy output to `refuse_and_redirect` or `execute_learning_task`.
   - The prompt explicitly excludes missing-field detection, task type mapping, final answer generation, and investment advice.
+
+## 2026-05-28 18:48:34 +10:00 - Step 5. 实现 LangGraph flow 本体
+
+- Action: Added `LearningEntryFlow` backed by a LangGraph `StateGraph`.
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/learning_entry_flow.py`
+  - `docs/1-2/worklog/investory-langgraph-最小编排-worklog.md`
+- Result: The learning entry flow now has graph nodes for missing-field checks, policy routing, task resolution, task execution, missing-input results, and refusal results.
+- Evidence:
+  - `check_missing_fields` uses `detect_missing_fields(...)` and `infer_candidate_task_type(...)`.
+  - `decide_policy` writes `refuse_and_redirect` or `execute_learning_task`.
+  - `resolve_task_spec` uses existing gateway task resolution.
+  - `execute_task` calls the existing `TaskExecutor` without splitting `TaskExecutionPipeline`.
+  - Each terminal branch writes a `TaskResult` to `state.output`.
