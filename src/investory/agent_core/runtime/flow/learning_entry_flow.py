@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any
 from uuid import uuid4
 
@@ -77,6 +78,15 @@ ADVICE_ROUTE = "advice"
 LEARNING_ROUTE = "learning"
 
 
+class LearningEntryNode(str, Enum):
+    CHECK_MISSING_FIELDS = "check_missing_fields"
+    DECIDE_POLICY = "decide_policy"
+    RESOLVE_TASK_SPEC = "resolve_task_spec"
+    EXECUTE_TASK = "execute_task"
+    BUILD_MISSING_INPUT_RESULT = "build_missing_input_result"
+    BUILD_REFUSAL_RESULT = "build_refusal_result"
+
+
 class LearningEntryFlow:
     def __init__(self, executor: TaskExecutor | None = None) -> None:
         self.executor = executor or TaskExecutor()
@@ -100,34 +110,49 @@ class LearningEntryFlow:
     def _build_graph(self):
         graph = StateGraph(LearningEntryState)
 
-        graph.add_node("check_missing_fields", self.check_missing_fields)
-        graph.add_node("decide_policy", self.decide_policy)
-        graph.add_node("resolve_task_spec", self.resolve_task_spec)
-        graph.add_node("execute_task", self.execute_task)
-        graph.add_node("build_missing_input_result", self.build_missing_input_result)
-        graph.add_node("build_refusal_result", self.build_refusal_result)
+        graph.add_node(
+            LearningEntryNode.CHECK_MISSING_FIELDS.value,
+            self.check_missing_fields,
+        )
+        graph.add_node(LearningEntryNode.DECIDE_POLICY.value, self.decide_policy)
+        graph.add_node(
+            LearningEntryNode.RESOLVE_TASK_SPEC.value,
+            self.resolve_task_spec,
+        )
+        graph.add_node(LearningEntryNode.EXECUTE_TASK.value, self.execute_task)
+        graph.add_node(
+            LearningEntryNode.BUILD_MISSING_INPUT_RESULT.value,
+            self.build_missing_input_result,
+        )
+        graph.add_node(
+            LearningEntryNode.BUILD_REFUSAL_RESULT.value,
+            self.build_refusal_result,
+        )
 
-        graph.add_edge(START, "check_missing_fields")
+        graph.add_edge(START, LearningEntryNode.CHECK_MISSING_FIELDS.value)
         graph.add_conditional_edges(
-            "check_missing_fields",
+            LearningEntryNode.CHECK_MISSING_FIELDS.value,
             self.route_after_missing_check,
             {
-                MISSING_ROUTE: "build_missing_input_result",
-                COMPLETE_ROUTE: "decide_policy",
+                MISSING_ROUTE: LearningEntryNode.BUILD_MISSING_INPUT_RESULT.value,
+                COMPLETE_ROUTE: LearningEntryNode.DECIDE_POLICY.value,
             },
         )
         graph.add_conditional_edges(
-            "decide_policy",
+            LearningEntryNode.DECIDE_POLICY.value,
             self.route_after_policy_decision,
             {
-                ADVICE_ROUTE: "build_refusal_result",
-                LEARNING_ROUTE: "resolve_task_spec",
+                ADVICE_ROUTE: LearningEntryNode.BUILD_REFUSAL_RESULT.value,
+                LEARNING_ROUTE: LearningEntryNode.RESOLVE_TASK_SPEC.value,
             },
         )
-        graph.add_edge("resolve_task_spec", "execute_task")
-        graph.add_edge("build_missing_input_result", END)
-        graph.add_edge("build_refusal_result", END)
-        graph.add_edge("execute_task", END)
+        graph.add_edge(
+            LearningEntryNode.RESOLVE_TASK_SPEC.value,
+            LearningEntryNode.EXECUTE_TASK.value,
+        )
+        graph.add_edge(LearningEntryNode.BUILD_MISSING_INPUT_RESULT.value, END)
+        graph.add_edge(LearningEntryNode.BUILD_REFUSAL_RESULT.value, END)
+        graph.add_edge(LearningEntryNode.EXECUTE_TASK.value, END)
 
         return graph.compile()
 
