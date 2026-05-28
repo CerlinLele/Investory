@@ -26,3 +26,15 @@
   - `candidate_task_type` is limited by `LearningEntryCandidateTaskType`.
   - `decision` is limited by `LearningEntryDecision`.
   - The new state contract is exported through `investory.agent_core.contracts`.
+
+## 2026-05-28 17:53:18 +10:00 - Step 3. 实现本地规则层
+
+- Action: Added deterministic learning entry rule helpers to `src/investory/agent_core/runtime/flow/learning_entry_rules.py`.
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/learning_entry_rules.py`
+  - `docs/1-2/worklog/investory-langgraph-最小编排-worklog.md`
+- Result: The future learning entry flow can locally detect obvious missing fields and infer a candidate learning task before any LLM policy decision.
+- Evidence:
+  - `detect_missing_fields(payload)` returns missing `material_text`, `source_material`, or `instrument_name_or_code` when the provided fields imply a known task but required input is absent.
+  - `infer_candidate_task_type(payload)` returns `LearningEntryCandidateTaskType.QA`, `SUMMARY`, `BRIEF`, or `None`.
+  - Field names are defined as module-level constants instead of inline string literals.
