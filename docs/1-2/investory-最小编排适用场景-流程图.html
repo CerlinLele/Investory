@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Investory 最小编排建议 Flow 流程图</title>
+  <title>Investory 最小编排适用场景流程图</title>
   <style>
     :root {
-      --bg-1: #f6efe3;
-      --bg-2: #efe4d1;
-      --panel: rgba(255, 252, 247, 0.9);
-      --ink: #1d2430;
-      --muted: #5c6678;
-      --line: #cdbca0;
-      --entry: #2c63c7;
-      --decision: #c56a29;
-      --safe: #1f8069;
-      --warn: #b64c37;
-      --task: #7a4dd8;
-      --shadow: 0 18px 40px rgba(29, 36, 48, 0.12);
+      --bg: #f7f8fb;
+      --surface: #ffffff;
+      --soft: #f3f6fb;
+      --ink: #172033;
+      --muted: #5d6878;
+      --line: #97a4b5;
+      --blue: #2864c7;
+      --green: #1f7a5f;
+      --red: #b84035;
+      --violet: #7052c7;
+      --amber: #b85f16;
+      --shadow: 0 14px 32px rgba(23, 32, 51, 0.08);
     }
 
     * {
@@ -29,55 +29,45 @@
       min-height: 100vh;
       font-family: Aptos, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       color: var(--ink);
-      background:
-        radial-gradient(circle at top left, rgba(197, 106, 41, 0.18), transparent 24%),
-        radial-gradient(circle at top right, rgba(44, 99, 199, 0.14), transparent 24%),
-        linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+      background: var(--bg);
     }
 
     .page {
-      width: min(1320px, calc(100% - 32px));
-      margin: 24px auto 40px;
+      width: min(1280px, calc(100% - 32px));
+      margin: 24px auto 36px;
     }
 
     .hero,
     .panel {
-      background: var(--panel);
-      border: 1px solid rgba(29, 36, 48, 0.08);
-      border-radius: 26px;
+      background: var(--surface);
+      border: 1px solid #dfe5ee;
       box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
     }
 
     .hero {
-      padding: 28px 30px 22px;
       margin-bottom: 18px;
+      padding: 24px 28px;
     }
 
     .eyebrow {
-      display: inline-flex;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(197, 106, 41, 0.1);
-      color: var(--decision);
-      font-size: 12px;
+      margin: 0 0 8px;
+      color: var(--blue);
+      font-size: 13px;
       font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
     }
 
     h1 {
-      margin: 14px 0 10px;
-      font-size: clamp(30px, 4vw, 50px);
-      line-height: 1.08;
+      margin: 0 0 10px;
+      font-size: 34px;
+      line-height: 1.18;
     }
 
     .hero p {
       margin: 0;
-      max-width: 920px;
+      max-width: 940px;
       color: var(--muted);
-      line-height: 1.7;
       font-size: 16px;
+      line-height: 1.7;
     }
 
     .panel {
@@ -86,10 +76,12 @@
 
     .panel-head {
       display: flex;
-      align-items: baseline;
       justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 18px;
+      align-items: flex-end;
+      gap: 18px;
+      margin-bottom: 26px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e4e9f1;
     }
 
     .panel-head h2 {
@@ -98,102 +90,166 @@
     }
 
     .panel-head span {
-      font-size: 14px;
       color: var(--muted);
+      font-size: 14px;
+      text-align: right;
     }
 
-    .flowchart {
+    .flow {
       display: grid;
-      gap: 14px;
       justify-items: center;
     }
 
     .node {
-      width: min(100%, 380px);
+      width: min(100%, 540px);
       padding: 18px 20px;
-      border-radius: 22px;
-      background: #fffdf9;
-      border: 1px solid rgba(29, 36, 48, 0.08);
+      background: var(--surface);
+      border: 1px solid #dfe5ee;
       text-align: center;
-      position: relative;
     }
 
     .node h3,
-    .node h4 {
+    .branch h3,
+    .branch h4 {
       margin: 0 0 8px;
     }
 
     .node p,
-    .task-pipeline p,
-    .legend p {
+    .branch p,
+    .legend p,
+    .note p {
       margin: 0;
       color: var(--muted);
-      line-height: 1.6;
       font-size: 14px;
+      line-height: 1.6;
     }
 
-    .tag {
+    .start {
+      border-top: 4px solid var(--blue);
+      background: #f7faff;
+    }
+
+    .classifier {
+      width: min(100%, 520px);
+      padding: 22px 24px;
+      background: #fffaf3;
+      border: 2px solid rgba(184, 95, 22, 0.42);
+      text-align: center;
+      box-shadow: 0 10px 24px rgba(184, 95, 22, 0.08);
+    }
+
+    .classifier h3 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+
+    .split {
+      width: min(1040px, 92%);
+      height: 54px;
+      position: relative;
+      margin: 6px 0 0;
+    }
+
+    .split::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 28px;
+      height: 2px;
+      background: var(--line);
+    }
+
+    .split::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 0;
+      width: 2px;
+      height: 28px;
+      background: var(--line);
+      transform: translateX(-50%);
+    }
+
+    .tap {
+      position: absolute;
+      top: 28px;
+      width: 2px;
+      height: 26px;
+      background: var(--line);
+    }
+
+    .tap.left {
+      left: 0;
+    }
+
+    .tap.center {
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .tap.right {
+      right: 0;
+    }
+
+    .branches {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      align-items: start;
+    }
+
+    .branch {
+      min-height: 100%;
+      padding: 18px;
+      background: var(--soft);
+      border: 1px solid #dfe5ee;
+    }
+
+    .branch.missing {
+      border-top: 5px solid var(--blue);
+    }
+
+    .branch.learning {
+      border-top: 5px solid var(--green);
+    }
+
+    .branch.advice {
+      border-top: 5px solid var(--red);
+    }
+
+    .label {
       display: inline-flex;
-      margin-bottom: 10px;
-      padding: 5px 10px;
-      border-radius: 999px;
+      margin-bottom: 12px;
+      padding: 5px 9px;
+      background: #fff;
+      border: 1px solid #dfe5ee;
+      color: #334154;
       font-size: 12px;
       font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
     }
 
-    .entry-node {
-      border-color: rgba(44, 99, 199, 0.2);
-      background: linear-gradient(180deg, #f5f9ff 0%, #fffdf9 100%);
-    }
-
-    .entry-node .tag {
-      background: rgba(44, 99, 199, 0.12);
-      color: var(--entry);
-    }
-
-    .decision-wrap {
-      position: relative;
-      width: 280px;
-      height: 280px;
-      margin: 8px 0 4px;
-    }
-
-    .decision {
-      position: absolute;
-      inset: 36px;
-      transform: rotate(45deg);
-      border-radius: 28px;
-      background: linear-gradient(180deg, #fff6ef 0%, #fffdf9 100%);
-      border: 2px solid rgba(197, 106, 41, 0.28);
-      box-shadow: 0 16px 34px rgba(197, 106, 41, 0.12);
-    }
-
-    .decision-content {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 52px;
+    .result {
+      margin-top: 14px;
+      padding: 12px;
+      background: #fff;
+      border: 1px dashed #b8c2d0;
+      font-size: 13px;
+      font-weight: 700;
       text-align: center;
     }
 
-    .decision-content .tag {
-      background: rgba(197, 106, 41, 0.12);
-      color: var(--decision);
-    }
-
-    .arrow-down {
+    .branch-arrow {
       width: 2px;
-      height: 28px;
+      height: 26px;
+      margin: 12px auto;
       background: var(--line);
       position: relative;
     }
 
-    .arrow-down::after {
+    .branch-arrow::after,
+    .arrow::after {
       content: "";
       position: absolute;
       left: 50%;
@@ -205,144 +261,14 @@
       transform: translateX(-50%) rotate(45deg);
     }
 
-    .branch-stage {
-      width: 100%;
-      margin-top: 6px;
-      position: relative;
-    }
-
-    .branch-line {
-      width: min(1040px, 92%);
-      height: 24px;
-      margin: 0 auto 0;
-      border-top: 2px solid var(--line);
-      position: relative;
-    }
-
-    .branch-line::before,
-    .branch-line::after {
-      content: "";
-      position: absolute;
-      top: -2px;
-      width: 2px;
-      height: 24px;
-      background: var(--line);
-    }
-
-    .branch-line::before {
-      left: 0;
-    }
-
-    .branch-line::after {
-      right: 0;
-    }
-
-    .branch-center {
-      position: absolute;
-      left: 50%;
-      top: -24px;
-      width: 2px;
-      height: 24px;
-      transform: translateX(-50%);
-      background: var(--line);
-    }
-
-    .branches {
-      display: grid;
-      grid-template-columns: 1fr 1.2fr 1fr;
-      gap: 20px;
-      align-items: start;
-      width: 100%;
-      margin-top: 10px;
-    }
-
-    .branch-col {
-      display: grid;
-      gap: 12px;
-      justify-items: center;
-      position: relative;
-    }
-
-    .branch-col::before {
-      content: "";
-      width: 2px;
-      height: 22px;
-      background: var(--line);
-      display: block;
-    }
-
-    .branch-label {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    .branch-node {
-      width: min(100%, 330px);
-      padding: 18px;
-      border-radius: 22px;
+    .sub-node {
+      padding: 15px;
       background: #fff;
-      border: 1px solid rgba(29, 36, 48, 0.08);
+      border: 1px solid #dfe5ee;
       text-align: center;
     }
 
-    .branch-node .tag {
-      margin-bottom: 10px;
-    }
-
-    .missing {
-      border-color: rgba(44, 99, 199, 0.2);
-      background: linear-gradient(180deg, #f5f9ff 0%, #fffdf9 100%);
-    }
-
-    .missing .tag {
-      background: rgba(44, 99, 199, 0.12);
-      color: var(--entry);
-    }
-
-    .advice {
-      border-color: rgba(182, 76, 55, 0.22);
-      background: linear-gradient(180deg, #fff5f2 0%, #fffdf9 100%);
-    }
-
-    .advice .tag {
-      background: rgba(182, 76, 55, 0.12);
-      color: var(--warn);
-    }
-
-    .learning {
-      border-color: rgba(31, 128, 105, 0.22);
-      background: linear-gradient(180deg, #f3fbf8 0%, #fffdf9 100%);
-    }
-
-    .learning .tag {
-      background: rgba(31, 128, 105, 0.12);
-      color: var(--safe);
-    }
-
-    .return-node {
-      width: min(100%, 260px);
-      padding: 14px 16px;
-      border-radius: 18px;
-      background: #f4efe5;
-      border: 1px dashed rgba(29, 36, 48, 0.16);
-      text-align: center;
-      font-size: 14px;
-      font-weight: 700;
-    }
-
-    .sub-decision {
-      width: min(100%, 300px);
-      padding: 16px 18px;
-      border-radius: 20px;
-      background: #fff;
-      border: 1px solid rgba(31, 128, 105, 0.2);
-      text-align: center;
-    }
-
-    .task-switch {
+    .pills {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
@@ -350,51 +276,61 @@
       margin-top: 12px;
     }
 
-    .task-pill {
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: rgba(122, 77, 216, 0.1);
-      color: var(--task);
+    .pill {
+      padding: 8px 10px;
+      background: #f7fbf9;
+      border: 1px solid rgba(31, 122, 95, 0.24);
+      color: var(--green);
       font-size: 13px;
       font-weight: 700;
     }
 
-    .task-pipeline {
-      width: min(100%, 330px);
-      padding: 18px;
-      border-radius: 22px;
-      background: linear-gradient(180deg, #faf7ff 0%, #fffdf9 100%);
-      border: 1px solid rgba(122, 77, 216, 0.22);
-      text-align: left;
+    .executor {
+      border-color: rgba(112, 82, 199, 0.24);
+      background: #faf8ff;
     }
 
-    .task-pipeline h4 {
-      margin: 0 0 10px;
-      text-align: center;
-    }
-
-    .pipeline-steps {
+    .pipeline {
       display: grid;
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 12px;
     }
 
-    .pipeline-step {
-      padding: 10px 12px;
-      border-radius: 14px;
+    .step {
+      padding: 10px;
       background: #fff;
-      border: 1px solid rgba(122, 77, 216, 0.12);
+      border: 1px solid rgba(112, 82, 199, 0.2);
+      color: #43355f;
       font-size: 13px;
       font-weight: 700;
       text-align: center;
+    }
+
+    .arrow {
+      width: 2px;
+      height: 34px;
+      margin: 6px 0;
+      background: var(--line);
+      position: relative;
+    }
+
+    .note {
+      width: min(100%, 820px);
+      margin: 22px auto 0;
+      padding: 16px 18px;
+      background: #fff;
+      border: 1px solid #dfe5ee;
+    }
+
+    .note strong {
+      color: var(--ink);
     }
 
     .legend {
       margin-top: 18px;
       padding: 18px 20px;
-      border-radius: 22px;
-      background: rgba(255, 255, 255, 0.56);
-      border: 1px solid rgba(29, 36, 48, 0.08);
+      background: #f8fafc;
+      border: 1px solid #dfe5ee;
     }
 
     .legend h3 {
@@ -403,37 +339,49 @@
     }
 
     .footer {
-      margin-top: 16px;
-      text-align: right;
+      margin-top: 14px;
       color: var(--muted);
       font-size: 13px;
+      text-align: right;
     }
 
-    @media (max-width: 1080px) {
+    @media (max-width: 1000px) {
+      .panel-head {
+        display: block;
+      }
+
+      .panel-head span {
+        display: block;
+        margin-top: 8px;
+        text-align: left;
+      }
+
+      .split {
+        display: none;
+      }
+
       .branches {
         grid-template-columns: 1fr;
       }
 
-      .branch-line,
-      .branch-center {
-        display: none;
+      .branch {
+        min-height: auto;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page {
+        width: calc(100% - 20px);
+        margin-top: 10px;
       }
 
-      .branch-col::before {
-        height: 14px;
+      .hero,
+      .panel {
+        padding: 18px;
       }
 
-      .decision-wrap {
-        width: 240px;
-        height: 240px;
-      }
-
-      .decision {
-        inset: 28px;
-      }
-
-      .decision-content {
-        padding: 38px;
+      h1 {
+        font-size: 27px;
       }
     }
   </style>
@@ -441,115 +389,107 @@
 <body>
   <main class="page">
     <section class="hero">
-      <span class="eyebrow">Suggested Flow</span>
-      <h1>Investory 最小编排建议流程图</h1>
+      <p class="eyebrow">Minimal Orchestration Flow</p>
+      <h1>Investory 最小编排适用场景流程图</h1>
       <p>
-        这张图只画建议的 flow，不画分层架构。重点是先做最小入口判断，
-        再根据结果直接返回，或者把可执行学习任务送进现有 `TaskExecutor`。
+        入口编排层只做一次分流判断：缺字段、投资建议请求、可执行学习任务是三个并行分支。
+        只有学习任务分支会继续映射到 qa / summary / brief，并复用现有 TaskExecutor。
       </p>
     </section>
 
     <section class="panel">
       <div class="panel-head">
-        <h2>推荐先实现的主流程</h2>
-        <span>入口判断 -> 分支收口 -> 复用现有任务执行器</span>
+        <h2>入口分流：三个并行分支</h2>
+        <span>LearningEntryFlow.run(input) -> TaskResult</span>
       </div>
 
-      <div class="flowchart">
-        <article class="node entry-node">
-          <span class="tag">Start</span>
+      <div class="flow">
+        <article class="node start">
           <h3>接收用户请求</h3>
-          <p>输入可能包含 `material_text`、`question`、`instrument_name_or_code`、`source_material`。</p>
+          <p>输入是原始 payload，用户不需要提前知道内部 task_type。</p>
         </article>
 
-        <div class="arrow-down" aria-hidden="true"></div>
+        <div class="arrow" aria-hidden="true"></div>
 
-        <section class="decision-wrap" aria-label="入口判断">
-          <div class="decision"></div>
-          <div class="decision-content">
-            <span class="tag">Step 1</span>
-            <h3>入口判断</h3>
-            <p>先判断：缺字段、投资建议请求，还是可执行学习任务。</p>
-          </div>
+        <section class="classifier" aria-label="入口判断">
+          <h3>入口判断与分流</h3>
+          <p>同一层判断请求应该进入哪条分支；三条分支是互斥的并行结果。</p>
         </section>
 
-        <section class="branch-stage">
-          <div class="branch-center" aria-hidden="true"></div>
-          <div class="branch-line" aria-hidden="true"></div>
+        <div class="split" aria-hidden="true">
+          <div class="tap left"></div>
+          <div class="tap center"></div>
+          <div class="tap right"></div>
+        </div>
 
-          <div class="branches">
-            <div class="branch-col">
-              <div class="branch-label">分支 A</div>
-              <article class="branch-node missing">
-                <span class="tag">缺字段</span>
-                <h4>返回补充信息提示</h4>
-                <p>不进入任务执行链路，直接告诉用户还缺哪些输入。</p>
-              </article>
-              <div class="arrow-down" aria-hidden="true"></div>
-              <div class="return-node">TaskResult: ask_for_missing_input</div>
-            </div>
+        <section class="branches" aria-label="并行分支">
+          <article class="branch missing">
+            <span class="label">分支 A：缺字段</span>
+            <h3>返回补充信息提示</h3>
+            <p>例如只有 question、缺 material_text；或只有 instrument_name_or_code、缺 source_material。</p>
+            <div class="result">TaskResult: ask_for_missing_input</div>
+          </article>
 
-            <div class="branch-col">
-              <div class="branch-label">分支 B</div>
-              <article class="branch-node learning">
-                <span class="tag">可执行学习任务</span>
-                <h4>继续判断任务类型</h4>
-                <p>只有这一支继续向下走，并落到已有最小任务集合。</p>
-              </article>
-              <div class="arrow-down" aria-hidden="true"></div>
-              <section class="sub-decision">
-                <h4>任务类型判断</h4>
-                <p>判断该进入哪个已注册任务。</p>
-                <div class="task-switch">
-                  <span class="task-pill">qa</span>
-                  <span class="task-pill">summary</span>
-                  <span class="task-pill">brief</span>
-                </div>
-              </section>
-              <div class="arrow-down" aria-hidden="true"></div>
-              <article class="task-pipeline">
-                <h4>调用现有 TaskExecutor</h4>
-                <p>编排层不重做执行逻辑，只复用当前最小执行链路。</p>
-                <div class="pipeline-steps">
-                  <div class="pipeline-step">TaskSpec</div>
-                  <div class="pipeline-step">TaskExecutor</div>
-                  <div class="pipeline-step">prompt_loader</div>
-                  <div class="pipeline-step">RequestRunner</div>
-                  <div class="pipeline-step">TaskResult</div>
-                </div>
-              </article>
-              <div class="arrow-down" aria-hidden="true"></div>
-              <div class="return-node">TaskResult: learning task response</div>
-            </div>
+          <article class="branch learning">
+            <span class="label">分支 B：可执行学习任务</span>
+            <h3>映射到已注册任务</h3>
+            <p>字段足够且不属于直接投资建议时，才进入现有任务执行链路。</p>
 
-            <div class="branch-col">
-              <div class="branch-label">分支 C</div>
-              <article class="branch-node advice">
-                <span class="tag">投资建议请求</span>
-                <h4>拒答并给学习替代方向</h4>
-                <p>不提供买卖建议，统一改写为安全边界内的学习型响应。</p>
-              </article>
-              <div class="arrow-down" aria-hidden="true"></div>
-              <div class="return-node">TaskResult: refuse_and_redirect</div>
-            </div>
-          </div>
+            <div class="branch-arrow" aria-hidden="true"></div>
+
+            <section class="sub-node">
+              <h4>任务类型判断</h4>
+              <p>映射到最小任务集合。</p>
+              <div class="pills">
+                <span class="pill">qa -> finance_qa</span>
+                <span class="pill">summary -> learning_material_summary</span>
+                <span class="pill">brief -> instrument_brief</span>
+              </div>
+            </section>
+
+            <div class="branch-arrow" aria-hidden="true"></div>
+
+            <section class="sub-node executor">
+              <h4>调用现有 TaskExecutor</h4>
+              <p>编排层不重做执行逻辑。</p>
+              <div class="pipeline">
+                <div class="step">TaskSpec</div>
+                <div class="step">TaskExecutor</div>
+                <div class="step">prompt_loader</div>
+                <div class="step">RequestRunner</div>
+                <div class="step">TaskResult</div>
+              </div>
+            </section>
+
+            <div class="result">TaskResult: learning task response</div>
+          </article>
+
+          <article class="branch advice">
+            <span class="label">分支 C：投资建议请求</span>
+            <h3>拒答并给学习替代方向</h3>
+            <p>不提供买卖、择时、个性化配置建议；统一改写为安全边界内的学习型响应。</p>
+            <div class="result">TaskResult: refuse_and_redirect</div>
+          </article>
         </section>
       </div>
 
-      <section class="legend">
-        <h3>图里表达的实现边界</h3>
+      <section class="note">
         <p>
-          这条 flow 只包含“判断和分流”。`TaskExecutor` 之后的 prompt 加载、模型调用、结构化输出，
-          仍然属于现有最小任务执行链路，不需要被拆成新的编排节点。
+          <strong>关键点：</strong>三条分支不是顺序执行的 step 1 / step 2 / step 3。
+          它们是入口分类后的三个并行出口；只是学习任务分支内部还有后续执行步骤。
         </p>
-        <p style="margin-top: 10px;">
-          如果后面要加第 3 步，也只建议补一个很薄的入口封装，例如
-          `build_learning_entry_flow(...) -> LearningEntryFlow`。
+      </section>
+
+      <section class="legend">
+        <h3>实现边界</h3>
+        <p>
+          这条 flow 只包含判断和分流。TaskExecutor 之后的 prompt 加载、模型调用、结构化输出，
+          仍属于现有最小任务执行链路，不拆成新的编排节点。
         </p>
       </section>
     </section>
 
-    <div class="footer">HTML flow diagram for docs/1-2/investory-最小编排适用场景.md</div>
+    <div class="footer">docs/1-2/investory-最小编排适用场景.md</div>
   </main>
 </body>
 </html>
