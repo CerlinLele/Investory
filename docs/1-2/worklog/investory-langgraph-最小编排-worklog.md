@@ -38,3 +38,16 @@
   - `detect_missing_fields(payload)` returns missing `material_text`, `source_material`, or `instrument_name_or_code` when the provided fields imply a known task but required input is absent.
   - `infer_candidate_task_type(payload)` returns `LearningEntryCandidateTaskType.QA`, `SUMMARY`, `BRIEF`, or `None`.
   - Field names are defined as module-level constants instead of inline string literals.
+
+## 2026-05-28 18:05:06 +10:00 - Step 4. 定义“投资建议判断”结构化输出
+
+- Action: Added a structured policy decision model and flow prompt for learning entry investment-advice classification.
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/learning_entry_decision.py`
+  - `src/investory/agent_core/prompts/flows/learning_entry_decision.md`
+  - `docs/1-2/worklog/investory-langgraph-最小编排-worklog.md`
+- Result: The future policy node has a narrow structured output contract focused only on refusing direct investment advice or allowing a learning task to continue.
+- Evidence:
+  - `LearningEntryPolicyDecision.route_action` uses the existing `LearningEntryDecision` enum.
+  - `POLICY_ROUTE_ACTIONS` limits policy output to `refuse_and_redirect` or `execute_learning_task`.
+  - The prompt explicitly excludes missing-field detection, task type mapping, final answer generation, and investment advice.
