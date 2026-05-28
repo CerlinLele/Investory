@@ -24,5 +24,5 @@
   - `LearningEntryState` stores `session_id` and `input_payload`.
   - `missing_fields` uses a default empty list.
   - `candidate_task_type` is limited by `LearningEntryCandidateTaskType`.
-  - `decision` is limited to `ask_for_missing_input`, `refuse_and_redirect`, or `execute_learning_task`.
+  - `decision` is limited by `LearningEntryDecision`.
   - The new state contract is exported through `investory.agent_core.contracts`.
