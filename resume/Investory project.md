@@ -1,0 +1,1 @@
+- Engineered a production-oriented LLM task runtime for an investment learning assistant with schema-validated structured outputs, prompt isolation, bounded retries, and normalized error handling for reliable single-request execution.
