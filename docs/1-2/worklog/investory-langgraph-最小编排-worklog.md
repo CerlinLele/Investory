@@ -77,3 +77,16 @@
   - `build_learning_entry_flow(...)` accepts `executor: TaskExecutor | None = None`.
   - `build_learning_entry_flow(...)` accepts `runner: RequestRunner | None = None`.
   - The factory prefers a provided `TaskExecutor`; otherwise it creates one `TaskExecutor(runner=runner)` and passes it into `LearningEntryFlow`.
+
+## 2026-05-31 +10:00 - Step 7. 接入 FastAPI
+
+- Action: Added the `/learning-entry` gateway endpoint and initialized the learning entry flow during app creation.
+- Files touched:
+  - `src/investory/gateway/api.py`
+  - `src/investory/main.py`
+  - `docs/1-2/worklog/investory-langgraph-最小编排-worklog.md`
+- Result: The FastAPI app now exposes a LangGraph-backed learning entry route while leaving the existing `/tasks` route in place for direct task execution.
+- Evidence:
+  - `execute_learning_entry_request(...)` resolves the session ID, runs `LearningEntryFlow.run(...)`, and converts the `TaskResult` through `_to_gateway_response(...)`.
+  - `POST /learning-entry` reads `LearningEntryRequest` and uses `app.state.learning_entry_flow` when available.
+  - `create_app()` builds the flow with `build_learning_entry_flow()` and stores it on app state.

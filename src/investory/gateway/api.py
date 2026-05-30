@@ -6,16 +6,24 @@ from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
+from investory.agent_core.runtime.flow.learning_entry_flow import (
+    LearningEntryFlow,
+    build_learning_entry_flow,
+)
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.gateway.routing import UnknownTaskTypeError, resolve_task_spec
 from investory.gateway.schemas import (
     HealthResponse,
+    LearningEntryRequest,
     TaskErrorResponse,
     TaskRequest,
     TaskResponse,
 )
 from investory.gateway.session import resolve_session_id
 
+
+LEARNING_ENTRY_FLOW_STATE_ATTR = "learning_entry_flow"
+LEARNING_ENTRY_ROUTE = "/learning-entry"
 
 router = APIRouter()
 
@@ -49,6 +57,17 @@ def execute_task_request(
     spec = resolve_task_spec(task_request.task_type)
     resolved_executor = executor or TaskExecutor()
     result = resolved_executor.run(spec, task_request.payload)
+    return _to_gateway_response(result, session_id=session_id)
+
+
+def execute_learning_entry_request(
+    learning_request: LearningEntryRequest,
+    *,
+    flow: LearningEntryFlow | None = None,
+) -> TaskResponse:
+    session_id = resolve_session_id(learning_request.session_id)
+    resolved_flow = flow or build_learning_entry_flow()
+    result = resolved_flow.run(learning_request.payload, session_id=session_id)
     return _to_gateway_response(result, session_id=session_id)
 
 
@@ -94,4 +113,18 @@ def run_task(request: Request, task_request: TaskRequest) -> TaskResponse | JSON
         return execute_task_request(task_request, executor=executor)
     except UnknownTaskTypeError as exc:
         session_id = resolve_session_id(task_request.session_id)
+        return _unknown_task_response(exc, session_id=session_id)
+
+
+@router.post(LEARNING_ENTRY_ROUTE, response_model=TaskResponse)
+def run_learning_entry(
+    request: Request,
+    learning_request: LearningEntryRequest,
+) -> TaskResponse | JSONResponse:
+    flow = getattr(request.app.state, LEARNING_ENTRY_FLOW_STATE_ATTR, None)
+
+    try:
+        return execute_learning_entry_request(learning_request, flow=flow)
+    except UnknownTaskTypeError as exc:
+        session_id = resolve_session_id(learning_request.session_id)
         return _unknown_task_response(exc, session_id=session_id)
