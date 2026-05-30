@@ -70,3 +70,25 @@
 
 设计约束：
 - 不抛业务文案异常，所有失败统一走结构化错误对象返回，便于引擎层复用与上层统一处理。
+
+## Step 3: 实现通用 Bounded Loop Engine（引擎层）
+
+- Timestamp: `2026-05-31T05:02:07.2639054+10:00`
+- Actions:
+  - Added reusable bounded loop engine module under `runtime/react_core`.
+  - Implemented injectable interfaces for `plan_next_step`, `validate_step`, and `execute_step` without domain coupling.
+  - Implemented fixed loop orchestration sequence: `plan_next_step` -> `validate_step` -> `execute_step` -> `record_audit` -> `check_stop_condition`.
+  - Implemented fixed stop conditions: finalize, waiting_for_user, max steps, max tool calls, repeated action limit, and non-retry error.
+- Commands:
+  - `pytest tests/test_react_loop_engine.py` -> `6 passed`.
+- Files touched:
+  - `src/investory/agent_core/runtime/react_core/loop_engine.py` (new)
+  - `tests/test_react_loop_engine.py` (new)
+- Result:
+  - Step 3 implementation completed and test target passed.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/react_core/loop_engine.py:15`
+  - `src/investory/agent_core/runtime/react_core/loop_engine.py:90`
+  - `src/investory/agent_core/runtime/react_core/loop_engine.py:224`
+  - `tests/test_react_loop_engine.py:57`
+  - `tests/test_react_loop_engine.py:137`
