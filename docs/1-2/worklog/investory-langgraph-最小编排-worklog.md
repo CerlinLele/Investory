@@ -65,3 +65,15 @@
   - `resolve_task_spec` uses existing gateway task resolution.
   - `execute_task` calls the existing `TaskExecutor` without splitting `TaskExecutionPipeline`.
   - Each terminal branch writes a `TaskResult` to `state.output`.
+
+## 2026-05-31 +10:00 - Step 6. 做一个薄的 flow factory
+
+- Action: Added `build_learning_entry_flow(...)` to `src/investory/agent_core/runtime/flow/learning_entry_flow.py`.
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/learning_entry_flow.py`
+  - `docs/1-2/worklog/investory-langgraph-最小编排-worklog.md`
+- Result: The learning entry graph can now be constructed through a small factory that keeps dependency injection outside graph nodes.
+- Evidence:
+  - `build_learning_entry_flow(...)` accepts `executor: TaskExecutor | None = None`.
+  - `build_learning_entry_flow(...)` accepts `runner: RequestRunner | None = None`.
+  - The factory prefers a provided `TaskExecutor`; otherwise it creates one `TaskExecutor(runner=runner)` and passes it into `LearningEntryFlow`.

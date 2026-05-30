@@ -20,6 +20,7 @@ from investory.agent_core.runtime.flow.learning_entry_rules import (
     detect_missing_fields,
     infer_candidate_task_type,
 )
+from investory.agent_core.runtime.request_runner import RequestRunner
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.gateway.routing import resolve_task_spec
 
@@ -236,6 +237,14 @@ class LearningEntryFlow:
             },
         )
         return {"output": result}
+
+
+def build_learning_entry_flow(
+    executor: TaskExecutor | None = None,
+    runner: RequestRunner | None = None,
+) -> LearningEntryFlow:
+    resolved_executor = executor or TaskExecutor(runner=runner)
+    return LearningEntryFlow(executor=resolved_executor)
 
 
 def _looks_like_investment_advice(payload: dict[str, Any]) -> bool:
