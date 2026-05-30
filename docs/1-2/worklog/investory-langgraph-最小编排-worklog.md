@@ -90,3 +90,17 @@
   - `execute_learning_entry_request(...)` resolves the session ID, runs `LearningEntryFlow.run(...)`, and converts the `TaskResult` through `_to_gateway_response(...)`.
   - `POST /learning-entry` reads `LearningEntryRequest` and uses `app.state.learning_entry_flow` when available.
   - `create_app()` builds the flow with `build_learning_entry_flow()` and stores it on app state.
+
+## 2026-05-31 +10:00 - Step 8. 补齐测试
+
+- Action: Added focused tests for learning entry rules, flow branches, and gateway route wiring.
+- Files touched:
+  - `tests/test_learning_entry_rules.py`
+  - `tests/test_learning_entry_flow.py`
+  - `tests/test_learning_entry_gateway_api.py`
+  - `docs/1-2/worklog/investory-langgraph-最小编排-worklog.md`
+- Result: The learning entry implementation now has regression coverage for missing-input handling, investment-advice refusal, learning task execution, downstream error passthrough, and `/learning-entry` gateway behavior.
+- Evidence:
+  - `test_learning_entry_rules.py` covers missing-field detection and `qa` / `summary` / `brief` task inference.
+  - `test_learning_entry_flow.py` covers missing-field branches, refusal, complete `qa` / `summary` / `brief` execution, and executor error passthrough.
+  - `test_learning_entry_gateway_api.py` covers the injected flow helper and `/learning-entry` endpoint response conversion.
