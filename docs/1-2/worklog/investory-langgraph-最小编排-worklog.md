@@ -104,3 +104,15 @@
   - `test_learning_entry_rules.py` covers missing-field detection and `qa` / `summary` / `brief` task inference.
   - `test_learning_entry_flow.py` covers missing-field branches, refusal, complete `qa` / `summary` / `brief` execution, and executor error passthrough.
   - `test_learning_entry_gateway_api.py` covers the injected flow helper and `/learning-entry` endpoint response conversion.
+
+## 2026-05-31 +10:00 - Step 9. 补 smoke 和文档
+
+- Action: Added an Apifox-oriented smoke document for the `/learning-entry` endpoint.
+- Files touched:
+  - `docs/1-2/learning-entry-apifox-smoke.md`
+  - `docs/1-2/worklog/investory-langgraph-最小编排-worklog.md`
+- Result: The learning entry flow now has a minimal manual verification guide covering the three first-phase branches.
+- Evidence:
+  - `learning-entry-apifox-smoke.md` includes the local API startup command and Apifox request settings.
+  - The smoke examples cover missing-field handling, investment-advice refusal, and a complete QA learning task.
+  - The QA example documents the expected `finance_qa` response markers and notes that it requires valid LLM configuration.
