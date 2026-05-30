@@ -124,3 +124,19 @@
   - `src/investory/agent_core/runtime/flow/learning_entry_flow.py:165`
   - `tests/test_investory_policy_gate.py:17`
   - `tests/test_learning_entry_rules.py:74`
+
+### Step 4 更新逻辑说明
+
+1. 先做动作类型收敛：
+   - 新增 `InvestoryAction` 枚举，统一业务动作值，避免流程层散落裸字符串。
+2. 将规则判断下沉为纯 helper：
+   - 在 `learning_entry_rules.py` 增加投资建议识别、实时能力需求、确认需求、确认结果判断等规则函数与常量。
+   - 规则层只做输入判断，不直接做流程路由。
+3. 新增 `InvestoryPolicyGate` 作为业务决策入口：
+   - 固定决策顺序为：缺字段 -> 越界建议 -> 实时能力 -> 用户确认 -> 可执行。
+   - 返回结构化 `InvestoryPolicyResult`，不抛业务文案异常。
+4. 移除流程层重复规则实现：
+   - `learning_entry_flow.py` 删除本地建议词常量和 `_looks_like_investment_advice`，改为复用 `learning_entry_rules` helper。
+5. 用测试锁定行为：
+   - 新增 `test_investory_policy_gate.py` 覆盖 5 条策略主路径。
+   - 扩展 `test_learning_entry_rules.py` 覆盖新增 helper 判定函数。
