@@ -10,23 +10,30 @@ from investory.agent_core.task_models.learning_material_summary import (
 )
 
 
+FINANCE_QA_NAME = "finance_qa"
+
+LEARNING_MATERIAL_SUMMARY_NAME = "learning_material_summary"
+
+INSTRUMENT_BRIEF_NAME = "instrument_brief"
+
+
 FINANCE_QA_TASK = TaskSpec(
-    name="finance_qa",
-    prompt_name="finance_qa",
+    name=FINANCE_QA_NAME,
+    prompt_name=FINANCE_QA_NAME,
     input_model=FinanceQAInput,
     output_model=FinanceQAResult,
 )
 
 LEARNING_MATERIAL_SUMMARY_TASK = TaskSpec(
-    name="learning_material_summary",
-    prompt_name="learning_material_summary",
+    name=LEARNING_MATERIAL_SUMMARY_NAME,
+    prompt_name=LEARNING_MATERIAL_SUMMARY_NAME,
     input_model=LearningMaterialSummaryInput,
     output_model=LearningMaterialSummaryResult,
 )
 
 INSTRUMENT_BRIEF_TASK = TaskSpec(
-    name="instrument_brief",
-    prompt_name="instrument_brief",
+    name=INSTRUMENT_BRIEF_NAME,
+    prompt_name=INSTRUMENT_BRIEF_NAME,
     input_model=InstrumentBriefInput,
     output_model=InstrumentBriefResult,
 )
