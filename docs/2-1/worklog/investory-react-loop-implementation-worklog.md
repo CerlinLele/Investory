@@ -92,3 +92,35 @@
   - `src/investory/agent_core/runtime/react_core/loop_engine.py:224`
   - `tests/test_react_loop_engine.py:57`
   - `tests/test_react_loop_engine.py:137`
+
+## Step 4: 定义 Investory Action 与 Policy（业务层）
+
+- Timestamp: `2026-05-31T05:25:14.7148728+10:00`
+- Actions:
+  - Added business action enum module `investory_actions.py` with typed action values.
+  - Added `investory_policy_gate.py` to centralize policy checks:
+    - missing field check
+    - investment-advice boundary detection
+    - realtime-data capability check
+    - user-confirmation requirement check
+  - Refactored `learning_entry_rules.py` into pure helpers by adding reusable rule functions and constants.
+  - Updated `learning_entry_flow.py` to reuse `looks_like_investment_advice(...)` from helper rules instead of local duplicated advice-term logic.
+- Commands:
+  - `pytest tests/test_learning_entry_rules.py tests/test_investory_policy_gate.py` -> `15 passed`.
+  - `pytest tests/test_learning_entry_flow.py` -> failed during collection (`ModuleNotFoundError: No module named 'langgraph'` in current environment).
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investory_actions.py` (new)
+  - `src/investory/agent_core/runtime/flow/investory_policy_gate.py` (new)
+  - `src/investory/agent_core/runtime/flow/learning_entry_rules.py`
+  - `src/investory/agent_core/runtime/flow/learning_entry_flow.py`
+  - `tests/test_learning_entry_rules.py`
+  - `tests/test_investory_policy_gate.py` (new)
+- Result:
+  - Step 4 implementation completed and required tests passed.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investory_actions.py:4`
+  - `src/investory/agent_core/runtime/flow/investory_policy_gate.py:39`
+  - `src/investory/agent_core/runtime/flow/learning_entry_rules.py:141`
+  - `src/investory/agent_core/runtime/flow/learning_entry_flow.py:165`
+  - `tests/test_investory_policy_gate.py:17`
+  - `tests/test_learning_entry_rules.py:74`
