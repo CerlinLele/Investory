@@ -6,7 +6,7 @@ from investory.agent_core.runtime.request_runner import RequestRunner
 
 class TaskExecutor:
     def __init__(self, runner: RequestRunner | None = None) -> None:
-        self.flow = TaskExecutionPipeline(runner=runner)
+        self.pipeline = TaskExecutionPipeline(runner=runner)
 
     def run(self, spec: TaskSpec, payload: dict) -> TaskResult:
-        return self.flow.run(spec, payload)
+        return self.pipeline.run(spec, payload)

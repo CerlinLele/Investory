@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from investory.agent_core.runtime.flow.learning_entry_flow import (
+    build_learning_entry_flow,
+)
 from investory.config import load_config
-from investory.gateway.api import router as gateway_router
+from investory.gateway.api import (
+    LEARNING_ENTRY_FLOW_STATE_ATTR,
+    router as gateway_router,
+)
 
 
 def create_app() -> FastAPI:
@@ -18,6 +24,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title=config.app_name)
     app.state.config = config
+    setattr(app.state, LEARNING_ENTRY_FLOW_STATE_ATTR, build_learning_entry_flow())
     app.include_router(gateway_router)
 
     return app
