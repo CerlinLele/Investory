@@ -4,6 +4,15 @@ from investory.agent_core.contracts.learning_entry_state import (
     LearningEntryDecision,
     LearningEntryState,
 )
+from investory.agent_core.contracts.react_loop import (
+    ReactActionType,
+    ReactAuditEvent,
+    ReactBudget,
+    ReactLoopState,
+    ReactLoopStatus,
+    ReactStepRecord,
+    ReactToolCallRecord,
+)
 from investory.agent_core.contracts.result_types import (
     TaskError,
     TaskErrorType,
@@ -17,6 +26,13 @@ __all__ = [
     "LearningEntryCandidateTaskType",
     "LearningEntryDecision",
     "LearningEntryState",
+    "ReactActionType",
+    "ReactAuditEvent",
+    "ReactBudget",
+    "ReactLoopState",
+    "ReactLoopStatus",
+    "ReactStepRecord",
+    "ReactToolCallRecord",
     "TaskError",
     "TaskErrorType",
     "TaskFlowState",
