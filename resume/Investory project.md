@@ -1,2 +1,2 @@
 - Engineered a LangChain + Pydantic LLM task runtime for investment learning QA and material summarization, standardizing schema-validated outputs, prompt isolation, bounded retries, and normalized model-call errors.
-- Engineered a production-oriented LLM task runtime for an investment learning assistant with schema-validated structured outputs, prompt isolation, bounded retries, and normalized error handling for reliable single-request execution.
+- Built a LangGraph + FastAPI learning-intake orchestration layer for safe request routing, short-circuiting missing-input and investment-advice requests before downstream LLM task execution.
