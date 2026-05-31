@@ -10,9 +10,12 @@ from investory.agent_core.runtime.flow.learning_entry_flow import (
     LearningEntryFlow,
 )
 from investory.agent_core.runtime.flow.learning_entry_rules import (
+    CONFIRMATION_GRANTED_FIELD,
     INSTRUMENT_NAME_OR_CODE_FIELD,
     MATERIAL_TEXT_FIELD,
     QUESTION_FIELD,
+    REQUIRES_CONFIRMATION_FIELD,
+    REQUIRES_REALTIME_DATA_FIELD,
     SOURCE_MATERIAL_FIELD,
 )
 from investory.agent_core.tasks import (
@@ -79,6 +82,46 @@ def test_learning_entry_flow_refuses_investment_advice_without_executor_call():
     assert result.result is not None
     assert result.result[ACTION_FIELD] == LearningEntryDecision.REFUSE_AND_REDIRECT
     assert SUGGESTED_LEARNING_DIRECTION_FIELD in result.result
+    assert executor.calls == []
+
+
+def test_learning_entry_flow_refuses_realtime_request_without_capability():
+    executor = FakeExecutor()
+    flow = LearningEntryFlow(executor=executor)
+
+    result = flow.run(
+        {
+            MATERIAL_TEXT_FIELD: "VOO tracks the S&P 500.",
+            QUESTION_FIELD: "Give me the latest price snapshot.",
+            REQUIRES_REALTIME_DATA_FIELD: True,
+        }
+    )
+
+    assert result.ok is True
+    assert result.task_name == LEARNING_ENTRY_TASK_NAME
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == LearningEntryDecision.REFUSE_AND_REDIRECT
+    assert executor.calls == []
+
+
+def test_learning_entry_flow_requests_confirmation_when_policy_requires_it():
+    executor = FakeExecutor()
+    flow = LearningEntryFlow(executor=executor)
+
+    result = flow.run(
+        {
+            MATERIAL_TEXT_FIELD: "VOO tracks the S&P 500.",
+            QUESTION_FIELD: "Summarize this material.",
+            REQUIRES_CONFIRMATION_FIELD: True,
+            CONFIRMATION_GRANTED_FIELD: False,
+        }
+    )
+
+    assert result.ok is True
+    assert result.task_name == LEARNING_ENTRY_TASK_NAME
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == LearningEntryDecision.ASK_FOR_MISSING_INPUT
+    assert result.result[MISSING_FIELDS_FIELD] == [CONFIRMATION_GRANTED_FIELD]
     assert executor.calls == []
 
 
