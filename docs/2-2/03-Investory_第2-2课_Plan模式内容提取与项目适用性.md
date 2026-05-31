@@ -679,3 +679,200 @@ PlanPolicyGate
 ```
 
 这条路径和当前 Investory 架构最兼容：前置由 `InvestoryPolicyGate` 排除不可执行和越界请求，Plan 只处理“可以执行但需要风控”的动作，最后由 `TaskExecutor`、工具层或 To-Do runner 执行。
+
+## 15. 具体 Implementation Steps
+
+下面给一套可以直接落地到当前仓库的实现步骤，默认目标是“新增 Plan 能力，不破坏现有 learning-entry 主链路”。
+
+### Step 1：新增 Plan 合约（先做强类型，不接流量）
+
+新增文件：
+
+```text
+src/investory/agent_core/contracts/execution_plan.py
+```
+
+建议先定义：
+
+```text
+PlanRiskLevel (str, Enum)
+PlanPolicyDecision (str, Enum)
+ExecutionPlanStep (Pydantic)
+ExecutionPlan (Pydantic)
+PlanPolicyResult (Pydantic)
+```
+
+实现要求：
+
+```text
+所有业务状态值用 Enum，不散落 raw string
+默认字段使用模块级常量
+风险等级仅 low/medium/high
+```
+
+### Step 2：新增 PlanPolicyGate（先 deterministic）
+
+新增文件：
+
+```text
+src/investory/agent_core/runtime/flow/plan_policy_gate.py
+```
+
+实现一个纯函数或轻量类：
+
+```text
+evaluate(plan: ExecutionPlan) -> PlanPolicyResult
+```
+
+第一版策略固定为：
+
+```text
+low -> auto_approve
+medium + reversible -> auto_approve_with_audit
+medium + irreversible -> require_user_confirmation
+high -> require_user_confirmation
+```
+
+注意点：
+
+```text
+PlanPolicyGate 只处理“可执行但需风控”的动作
+缺字段 / 投资建议 / 不支持实时数据仍由 InvestoryPolicyGate 前置处理
+```
+
+### Step 3：新增 Plan prompt 和生成器（独立组件）
+
+新增文件：
+
+```text
+src/investory/agent_core/prompts/flows/execution_plan.md
+src/investory/agent_core/runtime/flow/plan_generator.py
+```
+
+`plan_generator.py` 职责：
+
+```text
+输入 task context
+调用 RequestRunner
+按 ExecutionPlan 结构化解析输出
+```
+
+Prompt 约束必须包含：
+
+```text
+只生成计划，不执行动作
+每一步给出 action + impact
+给出 risk_level + risk_reason + reversible
+```
+
+### Step 4：在 learning_entry_flow 中接可选分支（默认关闭）
+
+编辑文件：
+
+```text
+src/investory/agent_core/runtime/flow/learning_entry_flow.py
+```
+
+改造方式：
+
+```text
+在 resolve_task_spec -> execute_task 之间加可选 Plan 分支
+仅当 payload 明确 requires_confirmation 或触发高风险信号时进入 Plan
+默认普通 QA/summary/brief 不进入 Plan
+```
+
+建议新增节点：
+
+```text
+GENERATE_PLAN
+EVALUATE_PLAN_POLICY
+BUILD_CONFIRMATION_REQUIRED_RESULT
+```
+
+并保持向后兼容：
+
+```text
+不触发 Plan 时，行为与当前版本一致
+```
+
+### Step 5：接入工具确认路径（优先于全量接入）
+
+编辑文件：
+
+```text
+src/investory/agent_core/runtime/react_core/tool_registry.py
+```
+
+实现策略：
+
+```text
+ToolSpec.requires_confirmation=True 时
+先生成 tool plan
+返回 confirmation_required + plan
+确认后再执行工具
+```
+
+原因：
+
+```text
+工具调用天然有副作用或成本，Plan 在这里收益最高
+```
+
+### Step 6：补齐测试（按层）
+
+新增或编辑测试：
+
+```text
+tests/test_plan_policy_gate.py
+tests/test_learning_entry_flow.py
+tests/test_learning_entry_gateway_api.py
+```
+
+至少覆盖：
+
+```text
+low / medium reversible / medium irreversible / high
+Plan 触发与不触发路径
+confirmation_required 响应结构
+普通学习请求不被 Plan 拖慢路径
+```
+
+再做编译与回归：
+
+```text
+.venv\Scripts\python.exe -m pytest ...
+python -m py_compile ...
+```
+
+### Step 7：观测与灰度开关
+
+建议加配置项（例如在 `src/investory/config.py`）：
+
+```text
+ENABLE_PLAN_GATE=false
+PLAN_CONFIDENCE_THRESHOLD
+PLAN_MAX_STEPS
+```
+
+上线顺序：
+
+```text
+先灰度到 requires_confirmation 场景
+再扩展到 batch / tool / high-cost requests
+最后评估是否需要更广覆盖
+```
+
+## 16. 最小交付检查清单
+
+MVP 完成标准：
+
+```text
+有 execution_plan 合约
+有 deterministic plan policy gate
+有 plan 生成器和 prompt
+learning_entry_flow 能按条件触发 Plan
+confirmation_required 响应可用
+测试覆盖核心分支并通过
+```
+
+只要这 6 项完成，就可以在不重构主链路的前提下，把 Plan 以“可选风控层”落地。
