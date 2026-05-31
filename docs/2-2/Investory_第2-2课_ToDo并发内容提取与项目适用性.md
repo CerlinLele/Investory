@@ -545,6 +545,378 @@ TodoExecutionRunner.run(plan)
 实时行情类请求
 ```
 
-## 11. 一句话结论
+## 11. 具体 implementation plan
+
+这一版 implementation plan 的目标不是马上改在线请求链路，而是先把 To-Do + 并发能力做成可测试、可复用、低风险的内部执行能力。
+
+### 11.1 Phase 1：新增 To-Do 合约
+
+新增文件：
+
+```text
+src/investory/agent_core/contracts/todo_execution.py
+```
+
+建议定义：
+
+```python
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+
+class TodoTaskKind(str, Enum):
+    FINANCE_QA = "finance_qa"
+    LEARNING_MATERIAL_SUMMARY = "learning_material_summary"
+    INSTRUMENT_BRIEF = "instrument_brief"
+    SYNTHESIZE_RESULTS = "synthesize_results"
+
+
+class TodoTaskStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class TodoFailurePolicy(str, Enum):
+    FAIL_FAST = "fail_fast"
+    BEST_EFFORT = "best_effort"
+    RETRY_THEN_FAIL = "retry_then_fail"
+
+
+class TodoTaskSpec(BaseModel):
+    id: str
+    kind: TodoTaskKind
+    title: str
+    description: str
+    payload: dict[str, Any]
+    depends_on: list[str] = Field(default_factory=list)
+    completion_criteria: list[str] = Field(default_factory=list)
+
+
+class TodoExecutionPlan(BaseModel):
+    tasks: list[TodoTaskSpec]
+    summary: str
+    failure_policy: TodoFailurePolicy = TodoFailurePolicy.RETRY_THEN_FAIL
+
+
+class TodoTaskResult(BaseModel):
+    id: str
+    status: TodoTaskStatus
+    result: dict[str, Any] | None = None
+    error: dict[str, Any] | None = None
+```
+
+注意点：
+
+```text
+1. 任务类型、状态、失败策略都用 str, Enum，不使用散落 raw string。
+2. payload 先保持 dict[str, Any]，因为子任务最终会映射到已有 TaskSpec 输入。
+3. completion_criteria 必须保留，避免任务拆解只有标题、没有验收标准。
+```
+
+验收标准：
+
+```text
+TodoTaskKind 覆盖当前三个任务和 synthesize_results。
+TodoTaskStatus 能表达 pending/running/succeeded/failed/skipped。
+TodoExecutionPlan 能携带 failure_policy。
+所有默认 list 字段使用 Field(default_factory=list)。
+```
+
+### 11.2 Phase 2：实现计划校验
+
+新增文件：
+
+```text
+src/investory/agent_core/runtime/todo_core/plan_validator.py
+```
+
+建议职责：
+
+```text
+validate_todo_plan(plan)
+  -> 检查 task id 唯一
+  -> 检查 depends_on 引用存在
+  -> 检查不能依赖自己
+  -> 检查无循环依赖
+  -> 检查 description 和 completion_criteria 不为空
+```
+
+建议错误码：
+
+```python
+class TodoPlanValidationErrorCode(str, Enum):
+    DUPLICATE_TASK_ID = "duplicate_task_id"
+    UNKNOWN_DEPENDENCY = "unknown_dependency"
+    SELF_DEPENDENCY = "self_dependency"
+    CYCLE_DETECTED = "cycle_detected"
+    EMPTY_COMPLETION_CRITERIA = "empty_completion_criteria"
+```
+
+验收标准：
+
+```text
+非法计划不会进入 runner。
+错误返回结构能指出 task_id 和具体原因。
+循环依赖能被稳定识别。
+```
+
+### 11.3 Phase 3：实现拓扑分层
+
+新增文件：
+
+```text
+src/investory/agent_core/runtime/todo_core/dependency_layers.py
+```
+
+核心函数：
+
+```text
+build_dependency_layers(plan) -> list[list[TodoTaskSpec]]
+```
+
+示例行为：
+
+```text
+t1 depends_on=[] -> layer 1
+t2 depends_on=[] -> layer 1
+t3 depends_on=[t1,t2] -> layer 2
+t4 depends_on=[t3] -> layer 3
+```
+
+实现要求：
+
+```text
+1. 只做依赖分层，不执行任务。
+2. 同一 layer 内的任务可以并发。
+3. 后一 layer 必须等待前一 layer 全部完成后再进入。
+4. 输入必须先经过 plan_validator。
+```
+
+验收标准：
+
+```text
+无依赖任务被放入同一层。
+多依赖任务只在所有依赖所在层之后出现。
+输出顺序稳定，便于测试和审计。
+```
+
+### 11.4 Phase 4：实现 fake executor runner
+
+新增文件：
+
+```text
+src/investory/agent_core/runtime/todo_core/runner.py
+```
+
+先不要接真实模型，先定义可替换 executor：
+
+```python
+from collections.abc import Awaitable, Callable
+
+
+TodoTaskExecutor = Callable[[TodoTaskSpec], Awaitable[TodoTaskResult]]
+```
+
+Runner 职责：
+
+```text
+TodoExecutionRunner.run(plan)
+  -> validate_todo_plan
+  -> build_dependency_layers
+  -> 按 layer 执行
+  -> 同一 layer 内使用 asyncio.gather 并发
+  -> 收集 TodoTaskResult
+  -> 根据 failure_policy 决定继续、跳过或失败
+```
+
+并发上限：
+
+```python
+DEFAULT_TODO_CONCURRENCY = 3
+```
+
+不要把 `3` 写死在 runner 逻辑里。可以先放在 runner 模块常量中，后续再接配置。
+
+验收标准：
+
+```text
+同一 layer 的 fake task 会并发调度。
+后一 layer 等待前一 layer 完成。
+失败策略 fail_fast 会停止后续 layer。
+失败策略 best_effort 会继续可执行任务，并标记依赖失败的任务为 skipped。
+runner 返回完整结果列表，而不是只返回最后一个结果。
+```
+
+### 11.5 Phase 5：接入现有 TaskExecutor，但只用于离线 batch
+
+新增适配文件：
+
+```text
+src/investory/agent_core/runtime/todo_core/task_executor_adapter.py
+```
+
+职责：
+
+```text
+TodoTaskSpec(kind=FINANCE_QA)
+  -> resolve_task_spec("qa" 或 finance_qa 对应常量)
+  -> TaskExecutor.run(payload)
+
+TodoTaskSpec(kind=LEARNING_MATERIAL_SUMMARY)
+  -> resolve_task_spec("summary" 或 learning_material_summary 对应常量)
+  -> TaskExecutor.run(payload)
+
+TodoTaskSpec(kind=INSTRUMENT_BRIEF)
+  -> resolve_task_spec("brief" 或 instrument_brief 对应常量)
+  -> TaskExecutor.run(payload)
+```
+
+注意：
+
+```text
+1. 这里不要修改 TaskExecutionPipeline。
+2. 这里不要修改 /learning-entry 默认链路。
+3. 先只给内部离线 batch runner 使用。
+4. 如果现有任务名还是 raw string，先提取任务名常量再复用。
+```
+
+验收标准：
+
+```text
+已有单任务执行路径不变。
+todo runner 可以复用 TaskExecutor。
+单个子任务失败时能被包装成 TodoTaskResult(error=...)。
+```
+
+### 11.6 Phase 6：新增规则型 plan builder
+
+新增文件：
+
+```text
+src/investory/agent_core/runtime/todo_core/plan_builder.py
+```
+
+第一版只支持明确 batch payload，不让 LLM 任意拆任务。
+
+建议输入：
+
+```python
+class InstrumentBriefBatchItem(BaseModel):
+    instrument_name_or_code: str
+    source_material: str
+
+
+class InstrumentBriefBatchPayload(BaseModel):
+    items: list[InstrumentBriefBatchItem]
+    final_synthesis: bool = False
+```
+
+生成规则：
+
+```text
+每个 item -> 一个 INSTRUMENT_BRIEF 子任务
+final_synthesis=true -> 追加一个 SYNTHESIZE_RESULTS 子任务
+SYNTHESIZE_RESULTS.depends_on = 所有 brief 子任务 id
+```
+
+验收标准：
+
+```text
+3 个 item 生成 3 个可并发 brief task。
+final_synthesis=true 时生成第 4 个汇总 task。
+汇总 task 依赖所有 brief task。
+不接受空 items。
+```
+
+### 11.7 Phase 7：补测试
+
+建议测试文件：
+
+```text
+tests/agent_core/runtime/todo_core/test_plan_validator.py
+tests/agent_core/runtime/todo_core/test_dependency_layers.py
+tests/agent_core/runtime/todo_core/test_runner.py
+tests/agent_core/runtime/todo_core/test_plan_builder.py
+```
+
+测试覆盖：
+
+```text
+合法计划通过校验
+重复 id 被拒绝
+未知 depends_on 被拒绝
+自依赖被拒绝
+循环依赖被拒绝
+completion_criteria 为空被拒绝
+拓扑分层正确
+同 layer 并发执行
+fail_fast 停止后续任务
+best_effort 保留可完成结果
+instrument brief batch 能生成正确计划
+```
+
+按仓库规则，测试通过 `.venv` 执行：
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\agent_core\runtime\todo_core
+```
+
+### 11.8 Phase 8：再考虑 HTTP 或 `/learning-entry` 接入
+
+只有在前面纯单元测试和离线 runner 稳定后，再考虑产品入口。
+
+可选接入方式：
+
+```text
+新增 /batch-tasks：
+  显式 batch API，风险最低。
+
+新增 /learning-entry 的 batch branch：
+  只有 payload 明确包含多材料或多标的时进入 todo runner。
+
+新增离线 evaluation command：
+  用于并发跑 fixture、prompt 版本评估和回归测试。
+```
+
+不建议第一版做：
+
+```text
+所有 /learning-entry 请求先交给 LLM 拆 todo。
+把 TaskExecutionPipeline 改成并发执行器。
+让 ReAct tool call 自动并发执行。
+投资建议、实时行情、交易类任务进入 todo runner。
+```
+
+### 11.9 最小可交付版本
+
+MVP 范围：
+
+```text
+1. todo_execution.py 合约
+2. plan_validator.py
+3. dependency_layers.py
+4. runner.py + fake executor
+5. plan_builder.py 支持 instrument brief batch
+6. 对应单元测试
+```
+
+暂不包括：
+
+```text
+HTTP API
+LLM 自动拆任务
+真实模型并发执行
+ReAct tool 并发
+持久化任务状态
+```
+
+这个 MVP 的价值是：先证明 `depends_on + completion_criteria + concurrency limit` 这套核心机制可行，再决定是否接入在线链路。
+
+## 12. 一句话结论
 
 `To-Do + 并发` 对 Investory 有价值，但当前最适合作为“未来复合学习任务、批量材料处理、离线评估”的结构化执行模式；现有 `/tasks` 和 `/learning-entry` 单任务链路应继续保持线性，等出现多材料、多标的或多工具的真实需求后，再按 `depends_on + completion_criteria + concurrency limit` 落地。
