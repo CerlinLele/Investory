@@ -665,6 +665,94 @@ class TodoPlanValidationErrorCode(str, Enum):
 循环依赖能被稳定识别。
 ```
 
+#### 11.2.1 当前实现逻辑（基于已落地代码）
+
+当前 `plan_validator.py` 的执行顺序是“先收集错误，再统一返回结果”，不会在第一个错误时提前退出。
+
+1. 首轮扫描：收集任务 ID 和重复 ID
+
+```text
+输入：plan.tasks
+处理：
+  - 用 tasks_by_id 保存第一次出现的 task
+  - 用 duplicate_ids 收集重复 id
+输出：
+  - known_task_ids（后续依赖合法性校验会用）
+  - duplicate_task_id 错误列表
+```
+
+2. 二轮扫描：逐任务校验内容字段与依赖字段
+
+```text
+对每个 task：
+  - description.strip() 为空 -> EMPTY_DESCRIPTION
+  - completion_criteria 全为空字符串或空列表 -> EMPTY_COMPLETION_CRITERIA
+  - depends_on 包含自己 -> SELF_DEPENDENCY
+  - depends_on 引用不存在 task id -> UNKNOWN_DEPENDENCY
+```
+
+说明：
+
+```text
+如果 task.id 属于 duplicate_ids，该任务不会参与 dependency_map 构建，
+避免重复节点干扰后续 cycle 检测。
+```
+
+3. 构建 dependency_map 并做循环依赖检测
+
+```text
+dependency_map: dict[task_id, list[dependency_task_id]]
+```
+
+循环检测由 `_find_cycle_path(...)` 完成，使用 DFS 三态标记：
+
+```text
+0: 未访问
+1: 访问中（在当前递归栈）
+2: 已完成
+```
+
+当 DFS 遇到状态为 `1` 的节点，说明存在回边，立即返回 cycle 路径并产生：
+
+```text
+CYCLE_DETECTED
+details.cycle_path = [....]
+```
+
+4. 返回结构与 fail-fast 包装
+
+```text
+validate_todo_plan(plan):
+  - 返回 TodoPlanValidationResult(ok=bool, errors=list[TodoPlanValidationError])
+  - 适合 runner 在进入执行前做统一校验
+
+ensure_valid_todo_plan(plan):
+  - 调用 validate_todo_plan(plan)
+  - 若 ok=False，抛出 TodoPlanValidationException(result)
+  - 适合需要 fail-fast 的调用方
+```
+
+5. 错误对象字段语义
+
+```text
+code:
+  错误类型枚举（机器可判定）
+
+message:
+  人类可读说明
+
+task_id:
+  出错任务 ID
+
+dependency_task_id:
+  关联的依赖任务 ID（仅依赖类错误会有）
+
+details:
+  扩展上下文（如 cycle_path）
+```
+
+该实现满足“非法计划不进入 runner”的前置条件，也为 Phase 3 的分层调度提供稳定输入。
+
 ### 11.3 Phase 3：实现拓扑分层
 
 新增文件：
