@@ -26,6 +26,7 @@ from investory.agent_core.runtime.flow.learning_entry_rules import (
     REQUIRES_CONFIRMATION_FIELD,
     REQUIRES_REALTIME_DATA_FIELD,
     SOURCE_MATERIAL_FIELD,
+    UNKNOWN_INPUT_MISSING_FIELDS,
 )
 
 
@@ -272,3 +273,43 @@ def test_policy_gate_executes_learning_task_for_valid_learning_payload() -> None
     assert result.requires_realtime_data is True
     assert result.requires_user_confirmation is True
     assert result.metadata[CANDIDATE_TASK_TYPE_METADATA_KEY] == "brief"
+
+
+def test_policy_gate_returns_unknown_input_fallback_when_unresolved_without_llm_router():
+    gate = InvestoryPolicyGate()
+    payload = {"user_input": "Help me with this ETF content."}
+
+    result = gate.evaluate(InvestoryPolicyInput(payload=payload))
+
+    assert result.action == InvestoryAction.ASK_FOR_MISSING_INPUT
+    assert result.reason == InvestoryPolicyReason.MISSING_REQUIRED_INPUT
+    assert result.missing_fields == UNKNOWN_INPUT_MISSING_FIELDS
+
+
+@pytest.mark.parametrize(
+    ("route", "expected_task_type"),
+    [
+        (LearningEntryRoute.FINANCE_QA, "qa"),
+        (LearningEntryRoute.LEARNING_MATERIAL_SUMMARY, "summary"),
+        (LearningEntryRoute.INSTRUMENT_BRIEF, "brief"),
+    ],
+)
+def test_policy_gate_maps_llm_learning_routes_to_task_execution(
+    route,
+    expected_task_type,
+) -> None:
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=route,
+            confidence=0.91,
+            reason="Router can classify the educational intent clearly.",
+        )
+    )
+    gate = InvestoryPolicyGate(llm_router=router)
+    payload = {"user_input": "Handle this learning request."}
+
+    result = gate.evaluate(InvestoryPolicyInput(payload=payload))
+
+    assert result.action == InvestoryAction.EXECUTE_LEARNING_TASK
+    assert result.reason == InvestoryPolicyReason.READY_TO_EXECUTE
+    assert result.metadata[CANDIDATE_TASK_TYPE_METADATA_KEY] == expected_task_type

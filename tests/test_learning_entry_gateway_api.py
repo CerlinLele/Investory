@@ -11,6 +11,7 @@ from investory.agent_core.runtime.flow.learning_entry_flow import (
 from investory.agent_core.runtime.flow.learning_entry_rules import (
     MATERIAL_TEXT_FIELD,
     QUESTION_FIELD,
+    UNKNOWN_INPUT_MISSING_FIELDS,
 )
 from investory.agent_core.tasks import FINANCE_QA_TASK
 from investory.gateway.api import (
@@ -115,3 +116,21 @@ def test_learning_entry_endpoint_runs_complete_qa_through_executor():
     assert body["session_id"] == "session-1"
     assert body["result"] == {"handled_by": FINANCE_QA_TASK.name}
     assert executor.calls == [(FINANCE_QA_TASK.name, payload)]
+
+
+def test_learning_entry_endpoint_returns_unknown_input_fallback_for_unresolved_payload():
+    executor = FakeExecutor()
+    client = _client_with_flow(LearningEntryFlow(executor=executor))
+
+    response = client.post(
+        "/learning-entry",
+        json={"payload": {"user_input": "Help me with this ETF content."}},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["task_name"] == LEARNING_ENTRY_TASK_NAME
+    assert body["result"][ACTION_FIELD] == "ask_for_missing_input"
+    assert body["result"][MISSING_FIELDS_FIELD] == UNKNOWN_INPUT_MISSING_FIELDS
+    assert executor.calls == []

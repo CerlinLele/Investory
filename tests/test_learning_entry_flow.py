@@ -6,6 +6,7 @@ from investory.agent_core.runtime.flow.learning_entry_flow import (
     ACTION_FIELD,
     GENERAL_LEARNING_CLARIFICATION_MESSAGE,
     LEARNING_ENTRY_TASK_NAME,
+    MISSING_INPUT_MESSAGE,
     MISSING_FIELDS_FIELD,
     SUGGESTED_LEARNING_DIRECTION_FIELD,
     LearningEntryFlow,
@@ -22,6 +23,7 @@ from investory.agent_core.runtime.flow.learning_entry_rules import (
     REQUIRES_CONFIRMATION_FIELD,
     REQUIRES_REALTIME_DATA_FIELD,
     SOURCE_MATERIAL_FIELD,
+    UNKNOWN_INPUT_MISSING_FIELDS,
 )
 from investory.agent_core.tasks import (
     FINANCE_QA_TASK,
@@ -161,6 +163,52 @@ def test_learning_entry_flow_returns_clarification_for_low_confidence_route():
         == GENERAL_LEARNING_CLARIFICATION_MESSAGE
     )
     assert executor.calls == []
+
+
+def test_learning_entry_flow_returns_unknown_input_fallback_without_llm_router():
+    executor = FakeExecutor()
+    flow = LearningEntryFlow(executor=executor)
+
+    result = flow.run({"user_input": "Help me with this ETF content."})
+
+    assert result.ok is True
+    assert result.task_name == LEARNING_ENTRY_TASK_NAME
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == LearningEntryDecision.ASK_FOR_MISSING_INPUT
+    assert result.result[MISSING_FIELDS_FIELD] == UNKNOWN_INPUT_MISSING_FIELDS
+    assert result.result["message"] == MISSING_INPUT_MESSAGE
+    assert executor.calls == []
+
+
+@pytest.mark.parametrize(
+    ("route", "expected_task_name"),
+    [
+        (LearningEntryRoute.FINANCE_QA, FINANCE_QA_TASK.name),
+        (LearningEntryRoute.LEARNING_MATERIAL_SUMMARY, LEARNING_MATERIAL_SUMMARY_TASK.name),
+        (LearningEntryRoute.INSTRUMENT_BRIEF, INSTRUMENT_BRIEF_TASK.name),
+    ],
+)
+def test_learning_entry_flow_executes_high_confidence_llm_learning_routes(
+    route,
+    expected_task_name,
+):
+    executor = FakeExecutor()
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=route,
+            confidence=0.93,
+            reason="The route is clear and should execute.",
+        )
+    )
+    payload = {"user_input": "Handle this learning request."}
+    flow = LearningEntryFlow(executor=executor, llm_router=router)
+
+    result = flow.run(payload)
+
+    assert result.ok is True
+    assert result.task_name == expected_task_name
+    assert result.result == {"handled_by": expected_task_name}
+    assert executor.calls == [(expected_task_name, payload)]
 
 
 @pytest.mark.parametrize(
