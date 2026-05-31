@@ -16,6 +16,9 @@ from investory.agent_core.runtime.flow.learning_entry_rules import (
 )
 
 
+CANDIDATE_TASK_TYPE_METADATA_KEY = "candidate_task_type"
+
+
 class InvestoryPolicyReason(str, Enum):
     MISSING_REQUIRED_INPUT = "missing_required_input"
     INVESTMENT_ADVICE_REQUEST = "investment_advice_request"
@@ -82,7 +85,7 @@ class InvestoryPolicyGate:
             requires_realtime_data=needs_realtime_data,
             requires_user_confirmation=needs_user_confirmation,
             metadata={
-                "candidate_task_type": (
+                CANDIDATE_TASK_TYPE_METADATA_KEY: (
                     candidate_task_type.value if candidate_task_type is not None else None
                 )
             },

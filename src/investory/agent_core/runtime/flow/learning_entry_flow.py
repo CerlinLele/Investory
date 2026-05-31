@@ -12,6 +12,7 @@ from investory.agent_core.contracts.learning_entry_state import (
 from investory.agent_core.contracts.result_types import TaskResult
 from investory.agent_core.runtime.flow.investory_actions import InvestoryAction
 from investory.agent_core.runtime.flow.investory_policy_gate import (
+    CANDIDATE_TASK_TYPE_METADATA_KEY,
     InvestoryPolicyGate,
     InvestoryPolicyInput,
     InvestoryPolicyResult,
@@ -191,7 +192,7 @@ class LearningEntryFlow:
     def _candidate_task_type_from_policy(
         policy_result: InvestoryPolicyResult,
     ) -> LearningEntryCandidateTaskType | None:
-        candidate_task_type = policy_result.metadata.get("candidate_task_type")
+        candidate_task_type = policy_result.metadata.get(CANDIDATE_TASK_TYPE_METADATA_KEY)
         if candidate_task_type is None:
             return None
         return LearningEntryCandidateTaskType(candidate_task_type)
