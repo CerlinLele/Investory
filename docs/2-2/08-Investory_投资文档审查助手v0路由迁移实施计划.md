@@ -464,6 +464,316 @@ src/investory/gateway/schemas.py
 补齐 gateway 测试。
 ```
 
+### 13.1 具体 Implementation Steps
+
+下面的步骤按可独立验证、可逐步提交的顺序排列。每一步都尽量限制改动面，避免在 v0 阶段同时引入 Todo、Plan、Reflection 或共享 policy 大重构。
+
+#### Step 1: 建立文档审查合约
+
+目标文件：
+
+```text
+src/investory/agent_core/contracts/investment_document_review_state.py
+```
+
+实现内容：
+
+1. 定义输入字段常量：`DOCUMENT_TEXT_FIELD`、`DOCUMENT_TYPE_HINT_FIELD`、`REVIEW_GOAL_FIELD`。
+2. 定义 `InvestmentDocumentType(str, Enum)`，包含 `etf_factsheet`、`fund_prospectus`、`product_brochure`、`earnings_report`、`learning_material`、`unknown`。
+3. 定义 `InvestmentDocumentReviewDecision(str, Enum)`，至少包含 `ask_for_missing_input`、`refuse_and_redirect`、`execute_review`。
+4. 定义 `InvestmentDocumentReviewRouteDecision`，字段为 `document_type`、`confidence`、`reason`、`missing_fields`。
+5. 定义 `DocumentReviewFramework`，字段为 `extract_focus`、`analyze_focus`。
+6. 定义 `InvestmentDocumentReviewState`，字段覆盖 `session_id`、`input_payload`、`decision`、`missing_fields`、`document_type`、`route_reason`、`route_confidence`、`review_framework`、`review_payload`、`output`。
+
+注意事项：
+
+```text
+固定字符串必须落在 Enum 或模块级常量里。
+state 中暂时不要放 Todo/Plan/Reflection 字段，避免 v0 过早膨胀。
+```
+
+验证：
+
+```text
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_rules.py
+```
+
+这一阶段可以先让测试文件只验证 enum、state 默认值和 Pydantic 校验。
+
+#### Step 2: 增加文档审查规则与框架
+
+目标文件：
+
+```text
+src/investory/agent_core/runtime/flow/investment_document_review/document_review_rules.py
+tests/test_investment_document_review_rules.py
+```
+
+实现内容：
+
+1. 定义 `DOCUMENT_ROUTER_MAX_CHARS = 600`，对齐参考代码只看文档开头的思路。
+2. 定义 `DEFAULT_DOCUMENT_ROUTE_CONFIDENCE_THRESHOLD = 0.6`。
+3. 定义 `UNKNOWN_DOCUMENT_MISSING_FIELDS`，用于低置信度或无法判断类型时要求补充信息。
+4. 实现 `detect_missing_fields(payload)`，至少检查 `document_text`。
+5. 实现 `looks_like_investment_advice(payload)`，拦截明显买入、卖出、持有、择时、资产配置建议请求。
+6. 实现 `requires_realtime_data(payload)`，拦截今天价格、实时收益、最新涨跌等请求。
+7. 实现 `build_document_excerpt(payload)`，只取 `document_text` 前 `DOCUMENT_ROUTER_MAX_CHARS` 个字符。
+8. 定义 `DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE`，为每个已知 `InvestmentDocumentType` 提供 `DocumentReviewFramework`。
+9. 实现 `get_review_framework(document_type)`，对 `unknown` 返回 `None` 或抛出明确错误，避免误审查。
+
+测试覆盖：
+
+```text
+missing document_text -> 返回 document_text
+完整 document_text -> 无 missing fields
+买卖建议请求 -> looks_like_investment_advice 为 True
+实时价格请求 -> requires_realtime_data 为 True
+document excerpt 被截断到 600 字符
+每个已知 document_type 都能取到 framework
+unknown 不进入正式 framework
+```
+
+验证：
+
+```text
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_rules.py
+```
+
+#### Step 3: 实现 LLM 文档类型路由器
+
+目标文件：
+
+```text
+src/investory/agent_core/runtime/flow/investment_document_review/document_review_router.py
+src/investory/agent_core/prompts/flows/investment_document_review_router.md
+tests/test_investment_document_review_router.py
+```
+
+实现内容：
+
+1. 定义 `InvestmentDocumentReviewRouter(Protocol)`，方法为 `route(payload) -> InvestmentDocumentReviewRouteDecision`。
+2. 定义 `InvestmentDocumentReviewLLMRouter`，构造参数支持注入 `RequestRunner`。
+3. 在 `route()` 中调用 `build_document_excerpt(payload)`，只把 `document_excerpt`、`document_type_hint`、`review_goal` 传给 prompt。
+4. 使用 `load_prompt_text("base", "system.md")`、`common_rules.md`、`input_data_block.md` 和新的 router prompt。
+5. 使用 `self.runner.run(messages, InvestmentDocumentReviewRouteDecision)` 获取结构化结果。
+6. 增加 `normalize_route_decision(decision)`，当 `confidence < DEFAULT_DOCUMENT_ROUTE_CONFIDENCE_THRESHOLD` 时将 `document_type` 降级为 `unknown`，并保留 `reason`。
+
+Prompt 要求：
+
+```text
+只判断投资相关文档类型。
+只基于 document_excerpt 与 hint。
+不要审查质量。
+不要输出投资建议。
+无法判断或低置信度时使用 unknown。
+```
+
+测试覆盖：
+
+```text
+fake runner 收到的是 document_excerpt，不是全文
+document_type_hint 能进入输入块
+runner 返回 known type 时原样返回
+runner 返回低 confidence 时降级 unknown
+missing_fields 能保留
+```
+
+验证：
+
+```text
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_router.py
+```
+
+#### Step 4: 建立单次综合审查 task model
+
+目标文件：
+
+```text
+src/investory/agent_core/task_models/investment_document_review.py
+src/investory/agent_core/prompts/tasks/investment_document_review_single_pass.md
+```
+
+实现内容：
+
+1. 定义 `InvestmentDocumentReviewInput`，字段为 `document_text`、`document_type`、`extract_focus`、`analyze_focus`、可选 `review_goal`。
+2. 定义 `InvestmentDocumentReviewResult`，字段为 `document_type`、`extracted_facts`、`risk_findings`、`information_gaps`、`boundary_notes`、`summary`、可选 `learning_next_steps`。
+3. 在 prompt 中强调所有结论必须来自材料或明确标为信息缺口。
+4. 删除或避免 `suggestions` 字段，避免输出滑向投资建议。
+5. 明确禁止买入、卖出、持有、收益预测、个性化配置建议。
+
+暂时不做：
+
+```text
+不注册到 TASKS，先让新 flow 内部通过 TaskSpec 或直接 TaskExecutor 使用。
+不接 TodoExecutionRunner。
+```
+
+验证方式：
+
+```text
+.venv\Scripts\python.exe -m pytest tests/test_task_models.py
+```
+
+如果当前没有覆盖 task model 的专门测试，可以在后续 Step 6 的 flow 测试里通过 fake executor 覆盖 payload 结构。
+
+#### Step 5: 注册单次审查任务规格
+
+目标文件：
+
+```text
+src/investory/agent_core/tasks.py
+tests/test_gateway_routing.py 或现有 routing 相关测试
+```
+
+实现内容：
+
+1. 增加模块级常量 `INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_NAME = "investment_document_review_single_pass"`。
+2. 增加 `INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK = TaskSpec(...)`。
+3. 将任务加入 `TASKS`。
+4. 如果不希望 `/tasks` 暴露该底层 task，可以先不注册到 gateway routing，而是在 flow 内部直接引用常量 task spec。二者选一种，不要同时模糊处理。
+
+推荐选择：
+
+```text
+v0 先注册到 TASKS，便于复用 TaskExecutor 和测试。
+业务入口仍然只暴露 /investment-document-review。
+```
+
+测试覆盖：
+
+```text
+resolve_task_spec("investment_document_review_single_pass") 能返回 TaskSpec
+TaskSpec.prompt_name 指向 investment_document_review_single_pass
+input_model/output_model 为文档审查模型
+```
+
+验证：
+
+```text
+.venv\Scripts\python.exe -m pytest tests
+```
+
+#### Step 6: 实现文档审查 Flow
+
+目标文件：
+
+```text
+src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py
+tests/test_investment_document_review_flow.py
+```
+
+实现内容：
+
+1. 定义 `INVESTMENT_DOCUMENT_REVIEW_TASK_NAME = "investment_document_review"`。
+2. 定义结果字段常量：`ACTION_FIELD`、`MESSAGE_FIELD`、`DOCUMENT_TYPE_FIELD`、`REVIEW_FIELD`、`MISSING_FIELDS_FIELD`。
+3. 定义 `InvestmentDocumentReviewNode(str, Enum)`，覆盖 policy、router、framework、review、final、missing、refusal 节点。
+4. `run(payload, session_id=None)` 创建 `InvestmentDocumentReviewState`，调用 LangGraph，返回 `TaskResult`。
+5. `evaluate_policy_gate()` 先用本 flow 的轻量规则处理 missing/advice/realtime，暂不强行复用 learning entry 的 `InvestoryPolicyGate`。
+6. `classify_document_type()` 调用 `InvestmentDocumentReviewRouter`。
+7. `route_after_classification()` 在 `unknown` 或低置信度时走 missing result。
+8. `build_review_framework()` 从 `DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE` 取 framework，构造 `review_payload`。
+9. `run_single_pass_review()` 调用 `TaskExecutor.run(INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK, review_payload)`。
+10. `build_final_result()` 包装为 `TaskResult(ok=True, task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME, result=...)`。
+11. `build_investment_document_review_flow()` 支持注入 fake executor、fake router、runner，保持测试友好。
+
+测试覆盖：
+
+```text
+missing document_text -> 返回 ask_for_missing_input，router/executor 不被调用
+投资建议请求 -> 返回 refuse_and_redirect，router/executor 不被调用
+实时价格请求 -> 返回 refuse_and_redirect 或 missing capability，router/executor 不被调用
+router 返回 unknown -> 返回 ask_for_missing_input，executor 不被调用
+router 返回 known type -> 选择 framework 并调用 executor
+executor 返回 TaskResult error -> flow 保留下游错误
+成功路径 -> 输出 document_type、review、route_reason、route_confidence
+```
+
+验证：
+
+```text
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py
+```
+
+#### Step 7: 接入 Gateway schema 与 API
+
+目标文件：
+
+```text
+src/investory/gateway/schemas.py
+src/investory/gateway/api.py
+src/investory/main.py
+tests/test_investment_document_review_gateway_api.py
+```
+
+实现内容：
+
+1. 在 `schemas.py` 增加 `InvestmentDocumentReviewRequest`，结构与 `LearningEntryRequest` 保持一致。
+2. 在 `api.py` 增加 `INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR` 和 `INVESTMENT_DOCUMENT_REVIEW_ROUTE = "/investment-document-review"`。
+3. 增加 `execute_investment_document_review_request()`，处理 `session_id`、flow 注入和 `_to_gateway_response()`。
+4. 增加 `@router.post(INVESTMENT_DOCUMENT_REVIEW_ROUTE, response_model=TaskResponse)`。
+5. 在 `main.py` 的 `create_app()` 里初始化并挂载 `build_investment_document_review_flow()`。
+6. 保持 `/learning-entry` 不变，不复用 learning entry request model。
+
+测试覆盖：
+
+```text
+POST /investment-document-review 返回 TaskResponse
+session_id 能透传
+app.state fake flow 能被使用
+flow 返回 error result 时 gateway 正确转换
+learning-entry 原有 gateway tests 不受影响
+```
+
+验证：
+
+```text
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_learning_entry_gateway_api.py
+```
+
+#### Step 8: 做一次全量回归与导入检查
+
+目标：
+
+```text
+确认新增 flow 没有破坏 learning_entry、gateway、task execution 和 todo_core。
+```
+
+命令：
+
+```text
+.venv\Scripts\python.exe -m pytest
+```
+
+额外检查：
+
+```text
+rg "runtime\.flow\.learning_entry_router|runtime\.flow\.learning_entry_flow" src tests
+rg "investment_document_review" src tests docs
+git status --short
+git diff --stat
+```
+
+验收：
+
+```text
+测试全绿。
+旧 learning_entry import 路径没有回退到扁平 flow。
+新增文件都位于 investment_document_review 子包内。
+未把 Agently 引入依赖。
+```
+
+#### Step 9: 建议提交拆分
+
+建议按下面粒度提交，便于回滚和 review：
+
+1. `feat(document-review): add review contracts and rules`
+2. `feat(document-review): add document type router`
+3. `feat(document-review): add single pass review task`
+4. `feat(document-review): add review flow orchestration`
+5. `feat(api): expose investment document review endpoint`
+
+如果希望先保持更小变更，也可以把 Step 1 和 Step 2 合并为一个提交，但不要把 API 接入和底层合约混在同一个提交里。
+
 ## 14. 暂不做的事
 
 v0 不做：
@@ -495,4 +805,3 @@ v0 完成时应满足：
 ```text
 .venv\Scripts\python.exe -m pytest tests\test_investment_document_review_rules.py tests\test_investment_document_review_router.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_gateway_api.py
 ```
-
