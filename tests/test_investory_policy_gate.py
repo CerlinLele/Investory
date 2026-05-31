@@ -6,6 +6,7 @@ from investory.agent_core.contracts.learning_entry_state import (
 from investory.agent_core.runtime.flow.investory_actions import InvestoryAction
 from investory.agent_core.runtime.flow.investory_policy_gate import (
     CANDIDATE_TASK_TYPE_METADATA_KEY,
+    DEFAULT_ROUTE_CONFIDENCE_THRESHOLD,
     InvestoryPolicyGate,
     InvestoryPolicyInput,
     InvestoryPolicyReason,
@@ -171,6 +172,47 @@ def test_policy_gate_calls_llm_router_only_when_rule_routing_is_unresolved() -> 
         "The user asks an educational finance question."
     )
     assert router.payloads == [payload]
+
+
+def test_policy_gate_falls_back_when_llm_route_confidence_is_low() -> None:
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=LearningEntryRoute.FINANCE_QA,
+            confidence=0.42,
+            reason="The request looks educational but the task match is uncertain.",
+        )
+    )
+    gate = InvestoryPolicyGate(llm_router=router)
+    payload = {"user_input": "Help me with this ETF content."}
+
+    result = gate.evaluate(InvestoryPolicyInput(payload=payload))
+
+    assert result.action == InvestoryAction.ASK_FOR_MISSING_INPUT
+    assert result.reason == InvestoryPolicyReason.LOW_CONFIDENCE_ROUTE
+    assert result.missing_fields == []
+    assert result.metadata[ROUTE_METADATA_KEY] == "finance_qa"
+    assert result.metadata[ROUTE_CONFIDENCE_METADATA_KEY] < (
+        DEFAULT_ROUTE_CONFIDENCE_THRESHOLD
+    )
+
+
+def test_policy_gate_falls_back_for_general_learning_clarification_route() -> None:
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=LearningEntryRoute.GENERAL_LEARNING_CLARIFICATION,
+            confidence=0.74,
+            reason="The request is educational but too ambiguous to pick one task.",
+        )
+    )
+    gate = InvestoryPolicyGate(llm_router=router)
+    payload = {"user_input": "Can you help me learn from this?"}
+
+    result = gate.evaluate(InvestoryPolicyInput(payload=payload))
+
+    assert result.action == InvestoryAction.ASK_FOR_MISSING_INPUT
+    assert result.reason == InvestoryPolicyReason.LOW_CONFIDENCE_ROUTE
+    assert result.missing_fields == []
+    assert result.metadata[ROUTE_METADATA_KEY] == "general_learning_clarification"
 
 
 def test_policy_gate_maps_llm_missing_route_to_missing_input_result() -> None:

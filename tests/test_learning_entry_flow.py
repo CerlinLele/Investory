@@ -4,10 +4,15 @@ from investory.agent_core.contracts.learning_entry_state import LearningEntryDec
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.runtime.flow.learning_entry_flow import (
     ACTION_FIELD,
+    GENERAL_LEARNING_CLARIFICATION_MESSAGE,
     LEARNING_ENTRY_TASK_NAME,
     MISSING_FIELDS_FIELD,
     SUGGESTED_LEARNING_DIRECTION_FIELD,
     LearningEntryFlow,
+)
+from investory.agent_core.runtime.flow.learning_entry_router import (
+    LearningEntryRoute,
+    LearningEntryRouteDecision,
 )
 from investory.agent_core.runtime.flow.learning_entry_rules import (
     CONFIRMATION_GRANTED_FIELD,
@@ -37,6 +42,14 @@ class FakeExecutor:
             task_name=spec.name,
             result={"handled_by": spec.name},
         )
+
+
+class FakeLearningEntryRouter:
+    def __init__(self, decision: LearningEntryRouteDecision) -> None:
+        self.decision = decision
+
+    def route(self, payload: dict) -> LearningEntryRouteDecision:
+        return self.decision
 
 
 def test_learning_entry_flow_returns_missing_input_result_for_qa_missing_material():
@@ -122,6 +135,31 @@ def test_learning_entry_flow_requests_confirmation_when_policy_requires_it():
     assert result.result is not None
     assert result.result[ACTION_FIELD] == LearningEntryDecision.ASK_FOR_MISSING_INPUT
     assert result.result[MISSING_FIELDS_FIELD] == [CONFIRMATION_GRANTED_FIELD]
+    assert executor.calls == []
+
+
+def test_learning_entry_flow_returns_clarification_for_low_confidence_route():
+    executor = FakeExecutor()
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=LearningEntryRoute.FINANCE_QA,
+            confidence=0.41,
+            reason="The request looks educational but the route confidence is low.",
+        )
+    )
+    flow = LearningEntryFlow(executor=executor, llm_router=router)
+
+    result = flow.run({"user_input": "Help me understand this ETF."})
+
+    assert result.ok is True
+    assert result.task_name == LEARNING_ENTRY_TASK_NAME
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == LearningEntryDecision.ASK_FOR_MISSING_INPUT
+    assert result.result[MISSING_FIELDS_FIELD] == []
+    assert (
+        result.result["message"]
+        == GENERAL_LEARNING_CLARIFICATION_MESSAGE
+    )
     assert executor.calls == []
 
 

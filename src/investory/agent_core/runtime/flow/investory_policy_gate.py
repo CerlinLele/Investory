@@ -26,6 +26,7 @@ CANDIDATE_TASK_TYPE_METADATA_KEY = "candidate_task_type"
 ROUTE_METADATA_KEY = "route"
 ROUTE_CONFIDENCE_METADATA_KEY = "route_confidence"
 ROUTE_REASON_METADATA_KEY = "route_reason"
+DEFAULT_ROUTE_CONFIDENCE_THRESHOLD = 0.6
 
 
 class InvestoryPolicyReason(str, Enum):
@@ -33,6 +34,7 @@ class InvestoryPolicyReason(str, Enum):
     INVESTMENT_ADVICE_REQUEST = "investment_advice_request"
     REALTIME_DATA_NOT_AVAILABLE = "realtime_data_not_available"
     USER_CONFIRMATION_REQUIRED = "user_confirmation_required"
+    LOW_CONFIDENCE_ROUTE = "low_confidence_route"
     READY_TO_EXECUTE = "ready_to_execute"
 
 
@@ -51,8 +53,14 @@ class InvestoryPolicyResult(BaseModel):
 
 
 class InvestoryPolicyGate:
-    def __init__(self, llm_router: LearningEntryRouter | None = None) -> None:
+    def __init__(
+        self,
+        llm_router: LearningEntryRouter | None = None,
+        *,
+        route_confidence_threshold: float = DEFAULT_ROUTE_CONFIDENCE_THRESHOLD,
+    ) -> None:
         self.llm_router = llm_router
+        self.route_confidence_threshold = route_confidence_threshold
 
     def evaluate(self, policy_input: InvestoryPolicyInput) -> InvestoryPolicyResult:
         payload = policy_input.payload
@@ -117,6 +125,14 @@ class InvestoryPolicyGate:
 
         route_decision = self.llm_router.route(payload)
         metadata = self._route_metadata(route_decision)
+
+        if self._should_fallback_for_low_confidence(route_decision):
+            return InvestoryPolicyResult(
+                action=InvestoryAction.ASK_FOR_MISSING_INPUT,
+                reason=InvestoryPolicyReason.LOW_CONFIDENCE_ROUTE,
+                metadata=metadata,
+            )
+
         candidate_task_type = candidate_task_type_for_route(route_decision.route)
 
         if candidate_task_type is not None:
@@ -151,3 +167,12 @@ class InvestoryPolicyGate:
             ROUTE_CONFIDENCE_METADATA_KEY: route_decision.confidence,
             ROUTE_REASON_METADATA_KEY: route_decision.reason,
         }
+
+    def _should_fallback_for_low_confidence(
+        self,
+        route_decision: LearningEntryRouteDecision,
+    ) -> bool:
+        return (
+            route_decision.confidence < self.route_confidence_threshold
+            or route_decision.route == LearningEntryRoute.GENERAL_LEARNING_CLARIFICATION
+        )

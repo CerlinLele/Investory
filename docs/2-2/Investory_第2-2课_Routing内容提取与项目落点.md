@@ -471,6 +471,92 @@ general_learning_clarification -> ask_for_missing_input / clarification fallback
 4. 是否启用 LLM router 由调用方显式注入，方便测试、成本控制和灰度。
 ```
 
+#### Step 4：增加低置信度兜底
+
+Step 4 解决的问题是：即使已经接入 LLM router，也不能因为模型勉强给了一个 route，就直接执行任务。
+
+如果 router 输出像这样：
+
+```json
+{
+  "route": "finance_qa",
+  "confidence": 0.42,
+  "reason": "看起来像问答，但任务类型不够明确。"
+}
+```
+
+这类结果不应该继续走：
+
+```text
+resolve_task_spec -> execute_task
+```
+
+否则系统会把一个其实不够明确的请求，当成明确任务执行掉。
+
+当前实现把这个判断放在 `InvestoryPolicyGate`，而不是放在 flow 或 executor 里。也就是说，LLM route 进入执行前，还会再过一层：
+
+```text
+if confidence < 0.6:
+    fallback -> clarification
+```
+
+当前 gate 的低置信度规则有两类：
+
+```text
+1. route_decision.confidence < 0.6
+2. route == general_learning_clarification
+```
+
+命中后不会执行任务，而是返回：
+
+```text
+action = ask_for_missing_input
+reason = low_confidence_route
+```
+
+这里保留 `ask_for_missing_input` 这个既有 action，而不是再扩一个新的 HTTP/result action，原因是：
+
+```text
+1. 不需要改现有接口返回契约。
+2. flow 仍然走已有 missing-input 分支，改动面更小。
+3. 差异放在 message 和 policy reason 上表达就够了。
+```
+
+因此，Step 4 之后实际链路变成：
+
+```text
+规则可判断
+  -> 直接执行
+
+规则不可判断 + 未启用 llm_router
+  -> ask_for_missing_input
+
+规则不可判断 + 启用 llm_router
+  -> LLM route
+       if confidence < 0.6 -> clarification fallback
+       elif route == general_learning_clarification -> clarification fallback
+       else -> 进入对应任务执行
+```
+
+在 `learning_entry_flow.py` 里，低置信度 fallback 和“真的缺字段”都复用了 `build_missing_input_result()`，但 message 不同：
+
+```text
+缺字段:
+  Please provide enough material or instrument context to continue.
+
+低置信度:
+  Please clarify whether you want an explanation, a summary, or an instrument brief...
+```
+
+这样做的原因：
+
+```text
+1. 低置信度本质上是“信息不足以安全决策”，不是“已经知道该执行哪个任务”。
+2. 兜底应该发生在结构决策层，而不是任务执行层。
+3. gate 统一处理后，flow 只负责分支结果组装，不需要知道 confidence 细节。
+4. prompt 也同步约束：教育型但模糊的请求应优先返回 general_learning_clarification，并把 confidence 压低到 0.6 以下。
+```
+
 #### 没有修改的位置
 
 这几处保持不变是有意设计：

@@ -33,6 +33,10 @@ SUGGESTED_LEARNING_DIRECTION_FIELD = "suggested_learning_direction"
 MISSING_INPUT_MESSAGE = (
     "Please provide enough material or instrument context to continue."
 )
+GENERAL_LEARNING_CLARIFICATION_MESSAGE = (
+    "Please clarify whether you want an explanation, a summary, or an "
+    "instrument brief, and include the relevant material or instrument context."
+)
 REFUSAL_MESSAGE = (
     "I cannot continue with this request as-is, but I can help turn it into an "
     "educational learning question."
@@ -167,13 +171,18 @@ class LearningEntryFlow:
         return {"output": result}
 
     def build_missing_input_result(self, state: LearningEntryState) -> dict[str, Any]:
+        message = (
+            GENERAL_LEARNING_CLARIFICATION_MESSAGE
+            if not state.missing_fields
+            else MISSING_INPUT_MESSAGE
+        )
         result = TaskResult(
             ok=True,
             task_name=LEARNING_ENTRY_TASK_NAME,
             result={
                 ACTION_FIELD: LearningEntryDecision.ASK_FOR_MISSING_INPUT.value,
                 MISSING_FIELDS_FIELD: state.missing_fields,
-                MESSAGE_FIELD: MISSING_INPUT_MESSAGE,
+                MESSAGE_FIELD: message,
             },
         )
         return {"output": result}

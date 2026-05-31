@@ -16,7 +16,7 @@ Available routes:
 
 Return one structured result:
 - `route`: one available route.
-- `confidence`: number from 0.0 to 1.0.
+- `confidence`: number from 0.0 to 1.0. Use high confidence only when the route is clear. If the request is educational but ambiguous, prefer `general_learning_clarification` and keep confidence below `0.6`.
 - `reason`: brief explanation for the route.
 - `missing_fields`: field names needed from the user when the route needs clarification or missing input.
 
