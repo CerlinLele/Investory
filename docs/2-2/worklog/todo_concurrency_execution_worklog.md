@@ -59,3 +59,33 @@
   - `src/investory/agent_core/runtime/todo_core/dependency_layers.py:6`
   - `src/investory/agent_core/runtime/todo_core/dependency_layers.py:44`
   - Command evidence: `.\.venv\Scripts\python.exe -m py_compile src\investory\agent_core\runtime\todo_core\dependency_layers.py` (pass)
+
+## 2026-06-01T02:23:31.1339308+10:00 Phase 4
+
+- Step: Phase 4 - 实现 fake executor runner
+- Action: Added async todo execution runner at `src/investory/agent_core/runtime/todo_core/runner.py`.
+- Files touched:
+  - `src/investory/agent_core/runtime/todo_core/runner.py`
+- Result:
+  - Added `TodoTaskExecutor = Callable[[TodoTaskSpec], Awaitable[TodoTaskResult]]`.
+  - Added `TodoExecutionRunner.run(plan)` with flow:
+    - `ensure_valid_todo_plan(plan)`
+    - `build_dependency_layers(plan)`
+    - execute per layer with same-layer `asyncio.gather(...)`
+    - apply failure policy behavior and collect full results
+  - Added configurable concurrency limit via `DEFAULT_TODO_CONCURRENCY = 3`.
+  - Added retry behavior for `RETRY_THEN_FAIL` (`max_retries` configurable).
+  - Added policy handling:
+    - `FAIL_FAST`: stop scheduling later tasks after a failure; later tasks marked skipped.
+    - `BEST_EFFORT`: continue runnable tasks; tasks with failed dependencies marked skipped.
+    - `RETRY_THEN_FAIL`: retry failed tasks before final failure; dependent failures propagate to skipped.
+  - Ensured result list is complete and returned in original plan order.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/runner.py:18`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:37`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:54`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:89`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:104`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:119`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:195`
+  - Command evidence: `.\.venv\Scripts\python.exe -m py_compile src\investory\agent_core\runtime\todo_core\runner.py` (pass)

@@ -840,6 +840,85 @@ DEFAULT_TODO_CONCURRENCY = 3
 runner 返回完整结果列表，而不是只返回最后一个结果。
 ```
 
+#### 11.4.1 当前实现逻辑（基于已落地代码）
+
+当前 `runner.py` 的执行模型是“按 layer 批次推进 + layer 内并发 + 统一结果回填”。
+
+1. 入口校验与分层
+
+```text
+run(plan)
+  -> ensure_valid_todo_plan(plan)
+  -> build_dependency_layers(plan)
+```
+
+说明：
+
+```text
+build_dependency_layers(plan) 内部也会调用 ensure_valid_todo_plan(plan)，
+因此当前实现是“双重前置校验”，保证非法计划不会进入执行阶段。
+```
+
+2. 并发执行模型
+
+```text
+for each layer:
+  - 先筛 runnable_tasks（依赖满足且未被 fail_fast 停止）
+  - 同 layer 用 asyncio.gather(...) 并发执行
+  - 并发上限由 asyncio.Semaphore(concurrency) 控制
+```
+
+`DEFAULT_TODO_CONCURRENCY = 3` 只作为默认值，构造 `TodoExecutionRunner` 时可覆盖。
+
+3. 依赖失败传播
+
+```text
+如果任务的任一 depends_on 结果不是 succeeded：
+  -> 当前任务直接标记 skipped（dependency_failed）
+  -> 不进入 executor
+```
+
+这保证了 dependent task 不会在缺失前置结果时误执行。
+
+4. 三种 failure policy 的实际行为
+
+```text
+FAIL_FAST:
+  当前 layer 已启动的任务会执行完；
+  只在 layer 收敛后设置 stop 标记；
+  后续 layer 的可运行任务标记为 skipped（fail_fast_stopped）。
+
+BEST_EFFORT:
+  不因单任务失败而停止；
+  继续执行后续可运行任务；
+  仅把依赖失败链路上的任务标记 skipped。
+
+RETRY_THEN_FAIL:
+  仅对 status=failed 的执行结果重试；
+  默认总尝试次数 = 1 + max_retries（默认 3 次）；
+  status=skipped 不会重试。
+```
+
+5. Executor 结果防御性校验
+
+```text
+executor 抛异常 -> failed（executor_exception）
+result.id 与 task.id 不一致 -> failed（invalid_executor_result）
+result.status 不在 {succeeded, failed, skipped} -> failed（invalid_executor_result）
+```
+
+这部分确保 runner 对外输出的状态集合可控、可审计。
+
+6. 输出契约
+
+```text
+run(plan) 返回 list[TodoTaskResult]
+顺序与 plan.tasks 原始顺序一致
+每个 task 都会有结果（成功/失败/跳过）
+```
+
+这满足后续汇总与审计场景“按任务 ID 全量回填”的要求。
+
 ### 11.5 Phase 5：接入现有 TaskExecutor，但只用于离线 batch
 
 新增适配文件：
