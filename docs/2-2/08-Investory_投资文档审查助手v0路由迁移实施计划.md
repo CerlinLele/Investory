@@ -480,10 +480,9 @@ src/investory/agent_core/contracts/investment_document_review_state.py
 
 1. 定义输入字段常量：`DOCUMENT_TEXT_FIELD`、`DOCUMENT_TYPE_HINT_FIELD`、`REVIEW_GOAL_FIELD`。
 2. 定义 `InvestmentDocumentType(str, Enum)`，包含 `etf_factsheet`、`fund_prospectus`、`product_brochure`、`earnings_report`、`learning_material`、`unknown`。
-3. 定义 `InvestmentDocumentReviewDecision(str, Enum)`，至少包含 `ask_for_missing_input`、`refuse_and_redirect`、`execute_review`。
-4. 定义 `InvestmentDocumentReviewRouteDecision`，字段为 `document_type`、`confidence`、`reason`、`missing_fields`。
-5. 定义 `DocumentReviewFramework`，字段为 `extract_focus`、`analyze_focus`。
-6. 定义 `InvestmentDocumentReviewState`，字段覆盖 `session_id`、`input_payload`、`decision`、`missing_fields`、`document_type`、`route_reason`、`route_confidence`、`review_framework`、`review_payload`、`output`。
+3. 定义 `InvestmentDocumentReviewRouteDecision`，字段为 `document_type`、`confidence`、`reason`、`missing_fields`。
+4. 定义 `DocumentReviewFramework`，字段为 `extract_focus`、`analyze_focus`。
+5. 定义 `InvestmentDocumentReviewState`，字段覆盖 `session_id`、`input_payload`、`missing_fields`、`document_type`、`route_reason`、`route_confidence`、`review_framework`、`review_payload`、`output`。
 
 注意事项：
 
