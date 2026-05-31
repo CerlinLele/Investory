@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from investory.agent_core.runtime.flow.learning_entry_router import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_router import (
     LearningEntryLLMRouter,
     LearningEntryRoute,
     LearningEntryRouteDecision,

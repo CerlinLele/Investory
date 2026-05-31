@@ -2,13 +2,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from investory.agent_core.contracts.result_types import TaskResult
-from investory.agent_core.runtime.flow.learning_entry_flow import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_flow import (
     ACTION_FIELD,
     LEARNING_ENTRY_TASK_NAME,
     MISSING_FIELDS_FIELD,
     LearningEntryFlow,
 )
-from investory.agent_core.runtime.flow.learning_entry_rules import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_rules import (
     MATERIAL_TEXT_FIELD,
     QUESTION_FIELD,
     UNKNOWN_INPUT_MISSING_FIELDS,

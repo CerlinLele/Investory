@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
-from investory.agent_core.runtime.flow.learning_entry_flow import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_flow import (
     LearningEntryFlow,
     build_learning_entry_flow,
 )

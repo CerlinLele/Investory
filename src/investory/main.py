@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from investory.agent_core.runtime.flow.learning_entry_flow import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_flow import (
     build_learning_entry_flow,
 )
 from investory.config import load_config

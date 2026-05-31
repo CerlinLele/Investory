@@ -2,7 +2,7 @@ import pytest
 
 from investory.agent_core.contracts.learning_entry_state import LearningEntryDecision
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
-from investory.agent_core.runtime.flow.learning_entry_flow import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_flow import (
     ACTION_FIELD,
     GENERAL_LEARNING_CLARIFICATION_MESSAGE,
     LEARNING_ENTRY_TASK_NAME,
@@ -11,11 +11,11 @@ from investory.agent_core.runtime.flow.learning_entry_flow import (
     SUGGESTED_LEARNING_DIRECTION_FIELD,
     LearningEntryFlow,
 )
-from investory.agent_core.runtime.flow.learning_entry_router import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_router import (
     LearningEntryRoute,
     LearningEntryRouteDecision,
 )
-from investory.agent_core.runtime.flow.learning_entry_rules import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_rules import (
     CONFIRMATION_GRANTED_FIELD,
     INSTRUMENT_NAME_OR_CODE_FIELD,
     MATERIAL_TEXT_FIELD,
