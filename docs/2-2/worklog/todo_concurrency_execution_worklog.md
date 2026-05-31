@@ -39,3 +39,23 @@
   - `src/investory/agent_core/runtime/todo_core/plan_validator.py:136`
   - `src/investory/agent_core/runtime/todo_core/plan_validator.py:142`
   - Command evidence: `.\.venv\Scripts\python.exe -m py_compile src\investory\agent_core\runtime\todo_core\plan_validator.py` (pass)
+
+## 2026-06-01T02:18:56.0893029+10:00 Phase 3
+
+- Step: Phase 3 - 实现拓扑分层
+- Action: Added dependency layering module at `src/investory/agent_core/runtime/todo_core/dependency_layers.py`.
+- Files touched:
+  - `src/investory/agent_core/runtime/todo_core/dependency_layers.py`
+- Result:
+  - Added `build_dependency_layers(plan)` returning `list[list[TodoTaskSpec]]`.
+  - Enforced upfront validation via `ensure_valid_todo_plan(plan)`.
+  - Implemented layered topological scheduling by dependency count:
+    - same-layer tasks are all tasks whose unresolved dependencies are zero at that layer
+    - next layer is unlocked only after current layer is fully resolved
+  - Preserved deterministic ordering inside each layer using original task order.
+  - Added defensive unresolved-task guard to prevent partial layering output.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/dependency_layers.py:5`
+  - `src/investory/agent_core/runtime/todo_core/dependency_layers.py:6`
+  - `src/investory/agent_core/runtime/todo_core/dependency_layers.py:44`
+  - Command evidence: `.\.venv\Scripts\python.exe -m py_compile src\investory\agent_core\runtime\todo_core\dependency_layers.py` (pass)
