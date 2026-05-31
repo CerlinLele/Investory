@@ -4,6 +4,12 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from investory.agent_core.runtime.flow.investory_actions import InvestoryAction
+from investory.agent_core.runtime.flow.learning_entry_router import (
+    LearningEntryRoute,
+    LearningEntryRouteDecision,
+    LearningEntryRouter,
+    candidate_task_type_for_route,
+)
 from investory.agent_core.runtime.flow.learning_entry_rules import (
     CONFIRMATION_GRANTED_FIELD,
     UNKNOWN_INPUT_MISSING_FIELDS,
@@ -17,6 +23,9 @@ from investory.agent_core.runtime.flow.learning_entry_rules import (
 
 
 CANDIDATE_TASK_TYPE_METADATA_KEY = "candidate_task_type"
+ROUTE_METADATA_KEY = "route"
+ROUTE_CONFIDENCE_METADATA_KEY = "route_confidence"
+ROUTE_REASON_METADATA_KEY = "route_reason"
 
 
 class InvestoryPolicyReason(str, Enum):
@@ -42,13 +51,13 @@ class InvestoryPolicyResult(BaseModel):
 
 
 class InvestoryPolicyGate:
+    def __init__(self, llm_router: LearningEntryRouter | None = None) -> None:
+        self.llm_router = llm_router
+
     def evaluate(self, policy_input: InvestoryPolicyInput) -> InvestoryPolicyResult:
         payload = policy_input.payload
 
         missing_fields = detect_missing_fields(payload)
-        candidate_task_type = infer_candidate_task_type(payload)
-        if candidate_task_type is None and not missing_fields:
-            missing_fields = list(UNKNOWN_INPUT_MISSING_FIELDS)
         if missing_fields:
             return InvestoryPolicyResult(
                 action=InvestoryAction.ASK_FOR_MISSING_INPUT,
@@ -79,6 +88,17 @@ class InvestoryPolicyGate:
                 requires_user_confirmation=True,
             )
 
+        candidate_task_type = infer_candidate_task_type(payload)
+        if candidate_task_type is None:
+            if self.llm_router is not None:
+                return self._evaluate_llm_route(payload)
+
+            return InvestoryPolicyResult(
+                action=InvestoryAction.ASK_FOR_MISSING_INPUT,
+                reason=InvestoryPolicyReason.MISSING_REQUIRED_INPUT,
+                missing_fields=list(UNKNOWN_INPUT_MISSING_FIELDS),
+            )
+
         return InvestoryPolicyResult(
             action=InvestoryAction.EXECUTE_LEARNING_TASK,
             reason=InvestoryPolicyReason.READY_TO_EXECUTE,
@@ -90,3 +110,44 @@ class InvestoryPolicyGate:
                 )
             },
         )
+
+    def _evaluate_llm_route(self, payload: dict[str, Any]) -> InvestoryPolicyResult:
+        if self.llm_router is None:
+            raise RuntimeError("LLM router is not configured.")
+
+        route_decision = self.llm_router.route(payload)
+        metadata = self._route_metadata(route_decision)
+        candidate_task_type = candidate_task_type_for_route(route_decision.route)
+
+        if candidate_task_type is not None:
+            metadata[CANDIDATE_TASK_TYPE_METADATA_KEY] = candidate_task_type.value
+            return InvestoryPolicyResult(
+                action=InvestoryAction.EXECUTE_LEARNING_TASK,
+                reason=InvestoryPolicyReason.READY_TO_EXECUTE,
+                metadata=metadata,
+            )
+
+        if route_decision.route == LearningEntryRoute.REFUSE_AND_REDIRECT:
+            return InvestoryPolicyResult(
+                action=InvestoryAction.REFUSE_AND_REDIRECT,
+                reason=InvestoryPolicyReason.INVESTMENT_ADVICE_REQUEST,
+                metadata=metadata,
+            )
+
+        return InvestoryPolicyResult(
+            action=InvestoryAction.ASK_FOR_MISSING_INPUT,
+            reason=InvestoryPolicyReason.MISSING_REQUIRED_INPUT,
+            missing_fields=route_decision.missing_fields
+            or list(UNKNOWN_INPUT_MISSING_FIELDS),
+            metadata=metadata,
+        )
+
+    @staticmethod
+    def _route_metadata(
+        route_decision: LearningEntryRouteDecision,
+    ) -> dict[str, Any]:
+        return {
+            ROUTE_METADATA_KEY: route_decision.route.value,
+            ROUTE_CONFIDENCE_METADATA_KEY: route_decision.confidence,
+            ROUTE_REASON_METADATA_KEY: route_decision.reason,
+        }

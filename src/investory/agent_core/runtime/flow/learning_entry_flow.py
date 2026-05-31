@@ -17,6 +17,7 @@ from investory.agent_core.runtime.flow.investory_policy_gate import (
     InvestoryPolicyInput,
     InvestoryPolicyResult,
 )
+from investory.agent_core.runtime.flow.learning_entry_router import LearningEntryRouter
 from investory.agent_core.runtime.request_runner import RequestRunner
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.gateway.routing import resolve_task_spec
@@ -59,11 +60,12 @@ class LearningEntryFlow:
         self,
         executor: TaskExecutor | None = None,
         policy_gate: InvestoryPolicyGate | None = None,
+        llm_router: LearningEntryRouter | None = None,
         *,
         supports_realtime_data: bool = False,
     ) -> None:
         self.executor = executor or TaskExecutor()
-        self.policy_gate = policy_gate or InvestoryPolicyGate()
+        self.policy_gate = policy_gate or InvestoryPolicyGate(llm_router=llm_router)
         self.supports_realtime_data = supports_realtime_data
         self.graph = self._build_graph()
 
@@ -205,6 +207,7 @@ class LearningEntryFlow:
 def build_learning_entry_flow(
     executor: TaskExecutor | None = None,
     runner: RequestRunner | None = None,
+    llm_router: LearningEntryRouter | None = None,
 ) -> LearningEntryFlow:
     resolved_executor = executor or TaskExecutor(runner=runner)
-    return LearningEntryFlow(executor=resolved_executor)
+    return LearningEntryFlow(executor=resolved_executor, llm_router=llm_router)

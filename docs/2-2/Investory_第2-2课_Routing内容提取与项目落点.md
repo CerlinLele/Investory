@@ -327,6 +327,172 @@ class LearningEntryRouteDecision(BaseModel):
 
 这比“所有输入先问 LLM”更稳，也更便宜。
 
+### 6.4 当前实现修改逻辑
+
+当前代码修改遵循一个原则：`/learning-entry` 是结构决策层，`TaskExecutionPipeline` 仍然只是被选中任务的执行层。
+
+也就是说，routing 相关判断集中在：
+
+```text
+src/investory/agent_core/runtime/flow/learning_entry_flow.py
+src/investory/agent_core/runtime/flow/investory_policy_gate.py
+src/investory/agent_core/runtime/flow/learning_entry_rules.py
+src/investory/agent_core/runtime/flow/learning_entry_router.py
+```
+
+执行任务仍然交给：
+
+```text
+resolve_task_spec -> TaskExecutor.run() -> TaskExecutionPipeline
+```
+
+#### Step 1：先统一 policy gate
+
+修改前，`learning_entry_flow.py` 自己做了两类判断：
+
+```text
+detect_missing_fields()
+looks_like_investment_advice()
+```
+
+但项目里已经有 `InvestoryPolicyGate.evaluate()`，而且它能覆盖更多前置策略：
+
+```text
+missing_required_input
+investment_advice_request
+realtime_data_not_available
+user_confirmation_required
+ready_to_execute
+```
+
+所以 Step 1 的逻辑是：让 flow 的第一个节点变成 policy gate 评估，而不是在 flow 里分散写策略判断。
+
+现在链路变成：
+
+```text
+/learning-entry
+  -> evaluate_policy_gate
+       ask_for_missing_input -> build_missing_input_result
+       refuse_and_redirect -> build_refusal_result
+       execute_learning_task -> resolve_task_spec
+  -> execute_task
+```
+
+这样做的原因：
+
+```text
+1. 缺字段、拒绝、实时数据、确认要求属于前置策略，不属于任务执行。
+2. flow 只根据 gate 的结构化 action 分流，不重复实现策略细节。
+3. 后续新增 policy 分支时，优先扩展 gate，而不是继续加 flow handler。
+```
+
+#### Step 2：保留规则路由
+
+Step 2 没有把所有请求都交给 LLM，而是继续保留 `infer_candidate_task_type()`。
+
+规则路由仍然负责最稳定的 payload shape 判断：
+
+```text
+material_text + question -> qa
+material_text -> summary
+instrument_name_or_code + source_material -> brief
+```
+
+当前实现中，`InvestoryPolicyGate.evaluate()` 在 policy 放行后调用 `infer_candidate_task_type()`。如果规则能判断出候选任务，就直接返回：
+
+```text
+action = execute_learning_task
+metadata["candidate_task_type"] = qa | summary | brief
+```
+
+这里新增了 `CANDIDATE_TASK_TYPE_METADATA_KEY`，原因是 `candidate_task_type` 是 gate 和 flow 之间的稳定字段，不应该以 raw string 分散在多个文件里。
+
+这样做的原因：
+
+```text
+1. 明确字段组合比 LLM 判断更稳定、更便宜、更容易测试。
+2. 用户已经提供足够结构化 payload 时，不需要额外模型调用。
+3. LLM router 只作为规则无法判断时的补充，而不是替代规则。
+```
+
+#### Step 3：增加可选 LLM router
+
+Step 3 新增的是可选 router，而不是默认强制调用 LLM。
+
+新增模块：
+
+```text
+src/investory/agent_core/runtime/flow/learning_entry_router.py
+src/investory/agent_core/prompts/flows/learning_entry_router.md
+```
+
+router 的结构化输出是：
+
+```text
+route
+confidence
+reason
+missing_fields
+```
+
+当前 `InvestoryPolicyGate` 只有在以下条件全部满足时才会调用 `llm_router`：
+
+```text
+1. 缺字段规则没有直接拦截。
+2. 投资建议、实时数据、确认要求等 policy gate 没有直接拦截。
+3. infer_candidate_task_type() 无法判断 qa / summary / brief。
+4. 调用方显式注入了 llm_router。
+```
+
+如果没有注入 `llm_router`，默认行为仍然保持保守：
+
+```text
+candidate_task_type is None
+  -> ask_for_missing_input
+```
+
+LLM router 的 route 会被映射回现有 flow action：
+
+```text
+finance_qa -> execute_learning_task + candidate_task_type=qa
+learning_material_summary -> execute_learning_task + candidate_task_type=summary
+instrument_brief -> execute_learning_task + candidate_task_type=brief
+ask_for_missing_input -> ask_for_missing_input
+refuse_and_redirect -> refuse_and_redirect
+general_learning_clarification -> ask_for_missing_input / clarification fallback
+```
+
+这样做的原因：
+
+```text
+1. 先保护确定性路径，避免 LLM 覆盖稳定规则。
+2. LLM router 只处理自然语言入口里规则看不懂的请求。
+3. router 只输出结构化决策，不生成最终答案。
+4. 是否启用 LLM router 由调用方显式注入，方便测试、成本控制和灰度。
+```
+
+#### 没有修改的位置
+
+这几处保持不变是有意设计：
+
+```text
+src/investory/gateway/routing.py
+```
+
+显式 `/tasks` 请求已经带 `task_type`，继续用 deterministic routing，不引入 LLM。
+
+```text
+src/investory/agent_core/runtime/task_execution_pipeline.py
+```
+
+它仍然只做：
+
+```text
+validate input -> build prompt -> call model -> validate output -> build result
+```
+
+不在执行层里判断业务意图，避免 routing 层和 execution 层混在一起。
+
 ## 7. 推荐落地步骤
 
 ### Step 1：统一 policy gate

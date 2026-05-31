@@ -9,6 +9,13 @@ from investory.agent_core.runtime.flow.investory_policy_gate import (
     InvestoryPolicyGate,
     InvestoryPolicyInput,
     InvestoryPolicyReason,
+    ROUTE_CONFIDENCE_METADATA_KEY,
+    ROUTE_METADATA_KEY,
+    ROUTE_REASON_METADATA_KEY,
+)
+from investory.agent_core.runtime.flow.learning_entry_router import (
+    LearningEntryRoute,
+    LearningEntryRouteDecision,
 )
 from investory.agent_core.runtime.flow.learning_entry_rules import (
     CONFIRMATION_GRANTED_FIELD,
@@ -19,6 +26,16 @@ from investory.agent_core.runtime.flow.learning_entry_rules import (
     REQUIRES_REALTIME_DATA_FIELD,
     SOURCE_MATERIAL_FIELD,
 )
+
+
+class FakeLearningEntryRouter:
+    def __init__(self, decision: LearningEntryRouteDecision) -> None:
+        self.decision = decision
+        self.payloads: list[dict] = []
+
+    def route(self, payload: dict) -> LearningEntryRouteDecision:
+        self.payloads.append(payload)
+        return self.decision
 
 
 def test_policy_gate_asks_for_missing_input_when_fields_are_missing() -> None:
@@ -112,6 +129,86 @@ def test_policy_gate_preserves_rule_routing_for_complete_learning_payloads(
     assert result.action == InvestoryAction.EXECUTE_LEARNING_TASK
     assert result.reason == InvestoryPolicyReason.READY_TO_EXECUTE
     assert result.metadata[CANDIDATE_TASK_TYPE_METADATA_KEY] == expected_task_type.value
+
+
+def test_policy_gate_does_not_call_llm_router_when_rule_routing_succeeds() -> None:
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=LearningEntryRoute.FINANCE_QA,
+            confidence=0.9,
+            reason="unused",
+        )
+    )
+    gate = InvestoryPolicyGate(llm_router=router)
+    payload = {MATERIAL_TEXT_FIELD: "An ETF is a basket of assets."}
+
+    result = gate.evaluate(InvestoryPolicyInput(payload=payload))
+
+    assert result.action == InvestoryAction.EXECUTE_LEARNING_TASK
+    assert result.metadata[CANDIDATE_TASK_TYPE_METADATA_KEY] == "summary"
+    assert router.payloads == []
+
+
+def test_policy_gate_calls_llm_router_only_when_rule_routing_is_unresolved() -> None:
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=LearningEntryRoute.FINANCE_QA,
+            confidence=0.86,
+            reason="The user asks an educational finance question.",
+        )
+    )
+    gate = InvestoryPolicyGate(llm_router=router)
+    payload = {"user_input": "Explain ETF fees using the material I pasted above."}
+
+    result = gate.evaluate(InvestoryPolicyInput(payload=payload))
+
+    assert result.action == InvestoryAction.EXECUTE_LEARNING_TASK
+    assert result.reason == InvestoryPolicyReason.READY_TO_EXECUTE
+    assert result.metadata[CANDIDATE_TASK_TYPE_METADATA_KEY] == "qa"
+    assert result.metadata[ROUTE_METADATA_KEY] == "finance_qa"
+    assert result.metadata[ROUTE_CONFIDENCE_METADATA_KEY] == 0.86
+    assert result.metadata[ROUTE_REASON_METADATA_KEY] == (
+        "The user asks an educational finance question."
+    )
+    assert router.payloads == [payload]
+
+
+def test_policy_gate_maps_llm_missing_route_to_missing_input_result() -> None:
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=LearningEntryRoute.ASK_FOR_MISSING_INPUT,
+            confidence=0.77,
+            reason="The request mentions a brief but lacks source material.",
+            missing_fields=[SOURCE_MATERIAL_FIELD],
+        )
+    )
+    gate = InvestoryPolicyGate(llm_router=router)
+    payload = {"user_input": "Write a brief for VOO."}
+
+    result = gate.evaluate(InvestoryPolicyInput(payload=payload))
+
+    assert result.action == InvestoryAction.ASK_FOR_MISSING_INPUT
+    assert result.reason == InvestoryPolicyReason.MISSING_REQUIRED_INPUT
+    assert result.missing_fields == [SOURCE_MATERIAL_FIELD]
+    assert result.metadata[ROUTE_METADATA_KEY] == "ask_for_missing_input"
+
+
+def test_policy_gate_maps_llm_refusal_route_to_refusal_result() -> None:
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=LearningEntryRoute.REFUSE_AND_REDIRECT,
+            confidence=0.92,
+            reason="The request asks whether to buy.",
+        )
+    )
+    gate = InvestoryPolicyGate(llm_router=router)
+    payload = {"user_input": "Is now a good entry point for VOO?"}
+
+    result = gate.evaluate(InvestoryPolicyInput(payload=payload))
+
+    assert result.action == InvestoryAction.REFUSE_AND_REDIRECT
+    assert result.reason == InvestoryPolicyReason.INVESTMENT_ADVICE_REQUEST
+    assert result.metadata[ROUTE_METADATA_KEY] == "refuse_and_redirect"
 
 
 def test_policy_gate_executes_learning_task_for_valid_learning_payload() -> None:
