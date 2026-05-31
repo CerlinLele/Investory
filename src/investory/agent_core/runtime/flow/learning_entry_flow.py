@@ -19,6 +19,7 @@ from investory.agent_core.runtime.flow.learning_entry_rules import (
     SOURCE_MATERIAL_FIELD,
     detect_missing_fields,
     infer_candidate_task_type,
+    looks_like_investment_advice,
 )
 from investory.agent_core.runtime.request_runner import RequestRunner
 from investory.agent_core.runtime.task_executor import TaskExecutor
@@ -50,28 +51,6 @@ UNKNOWN_INPUT_MISSING_FIELDS = [
     INSTRUMENT_NAME_OR_CODE_FIELD,
     SOURCE_MATERIAL_FIELD,
 ]
-
-INVESTMENT_ADVICE_TERMS = (
-    "buy",
-    "sell",
-    "should i invest",
-    "should i buy",
-    "should i sell",
-    "recommend",
-    "allocation",
-    "position size",
-    "\u4e70",
-    "\u5356",
-    "\u4e70\u5165",
-    "\u5356\u51fa",
-    "\u8be5\u4e0d\u8be5",
-    "\u9002\u5408\u4e70\u5417",
-    "\u80fd\u4e70\u5417",
-    "\u8981\u4e0d\u8981\u4e70",
-    "\u914d\u7f6e",
-    "\u4ed3\u4f4d",
-    "\u62e9\u65f6",
-)
 
 MISSING_ROUTE = "missing"
 COMPLETE_ROUTE = "complete"
@@ -181,7 +160,7 @@ class LearningEntryFlow:
         route_action = LearningEntryDecision.EXECUTE_LEARNING_TASK
         reason = "The request can continue as an educational learning task."
 
-        if _looks_like_investment_advice(state.input_payload):
+        if looks_like_investment_advice(state.input_payload):
             route_action = LearningEntryDecision.REFUSE_AND_REDIRECT
             reason = "The request appears to ask for direct investment advice."
 
@@ -245,8 +224,3 @@ def build_learning_entry_flow(
 ) -> LearningEntryFlow:
     resolved_executor = executor or TaskExecutor(runner=runner)
     return LearningEntryFlow(executor=resolved_executor)
-
-
-def _looks_like_investment_advice(payload: dict[str, Any]) -> bool:
-    text = " ".join(str(value) for value in payload.values()).lower()
-    return any(term in text for term in INVESTMENT_ADVICE_TERMS)

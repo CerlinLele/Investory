@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LoopEngine Runtime Flowchart (Offline)</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #4b5563;
+      --line: #94a3b8;
+      --node: #e2e8f0;
+      --accent: #2563eb;
+      --ok: #166534;
+      --warn: #92400e;
+      --bad: #991b1b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1360px;
+      margin: 18px auto 30px;
+      padding: 0 14px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+    }
+    .sub {
+      margin: 0 0 14px;
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 2.1fr 1fr;
+      gap: 12px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid #dbe2ea;
+      border-radius: 12px;
+      padding: 12px;
+      overflow: auto;
+    }
+    h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      line-height: 1.6;
+    }
+    code {
+      background: #eef2ff;
+      color: #1e40af;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    .legend {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 99px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>LoopEngine 运行流程图（离线可用）</h1>
+    <p class="sub">不依赖 Mermaid/CDN，直接打开本地 HTML 即可显示。</p>
+
+    <div class="grid">
+      <section class="card">
+        <h2>run() 主流程</h2>
+        <svg width="100%" viewBox="0 0 1320 1040" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LoopEngine runtime flowchart">
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+              <polygon points="0,0 10,4 0,8" fill="#64748b"></polygon>
+            </marker>
+            <style>
+              .box { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.2; rx: 10; }
+              .decision { fill: #eff6ff; stroke: #2563eb; stroke-width: 1.4; }
+              .stop { fill: #fff1f2; stroke: #be123c; stroke-width: 1.2; }
+              .ok { fill: #ecfdf5; stroke: #16a34a; stroke-width: 1.2; }
+              .warn { fill: #fffbeb; stroke: #d97706; stroke-width: 1.2; }
+              .txt { font: 13px "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #111827; }
+              .small { font: 12px "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #334155; }
+              .edge { stroke: #64748b; stroke-width: 1.4; fill: none; marker-end: url(#arrow); }
+              .label { font: 12px "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #0f172a; }
+            </style>
+          </defs>
+
+          <!-- Start -->
+          <rect class="box" x="500" y="20" width="300" height="54"></rect>
+          <text class="txt" x="650" y="44" text-anchor="middle">run(state)</text>
+          <text class="small" x="650" y="60" text-anchor="middle">status=RUNNING, record LOOP_STARTED</text>
+
+          <!-- Check stop -->
+          <polygon class="decision" points="650,120 780,180 650,240 520,180"></polygon>
+          <text class="txt" x="650" y="170" text-anchor="middle">check_stop_condition()</text>
+          <text class="small" x="650" y="188" text-anchor="middle">有 stop reason?</text>
+
+          <!-- Stop output -->
+          <rect class="stop" x="920" y="145" width="340" height="96" rx="10"></rect>
+          <text class="txt" x="1090" y="172" text-anchor="middle">apply_stop_reason + LOOP_STOPPED</text>
+          <text class="small" x="1090" y="192" text-anchor="middle">FINALIZED / WAITING_FOR_USER / STOPPED / FAILED</text>
+          <text class="small" x="1090" y="210" text-anchor="middle">return state</text>
+
+          <!-- Plan -->
+          <rect class="box" x="500" y="282" width="300" height="66"></rect>
+          <text class="txt" x="650" y="307" text-anchor="middle">plan_next_step()</text>
+          <text class="small" x="650" y="325" text-anchor="middle">_record_step: step_count++, current_action, repeated_action_count</text>
+
+          <!-- Validate -->
+          <rect class="box" x="500" y="384" width="300" height="58"></rect>
+          <text class="txt" x="650" y="409" text-anchor="middle">validate_step()</text>
+          <text class="small" x="650" y="427" text-anchor="middle">record STEP_VALIDATED</text>
+
+          <polygon class="decision" points="650,468 760,520 650,572 540,520"></polygon>
+          <text class="txt" x="650" y="515" text-anchor="middle">validation ok?</text>
+
+          <!-- Validation fail branch -->
+          <rect class="warn" x="120" y="486" width="320" height="68" rx="10"></rect>
+          <text class="txt" x="280" y="512" text-anchor="middle">_handle_validation_error()</text>
+          <text class="small" x="280" y="530" text-anchor="middle">retryable && retry_count &lt; max_retries ?</text>
+          <text class="small" x="280" y="548" text-anchor="middle">Yes: retry_count++ ; No: status=FAILED</text>
+
+          <!-- Execute -->
+          <rect class="box" x="500" y="606" width="300" height="58"></rect>
+          <text class="txt" x="650" y="632" text-anchor="middle">execute_step()</text>
+          <text class="small" x="650" y="650" text-anchor="middle">可回传 tool_call_record / finalize / waiting_for_user</text>
+
+          <rect class="box" x="500" y="694" width="300" height="62"></rect>
+          <text class="txt" x="650" y="720" text-anchor="middle">工具计数与记录</text>
+          <text class="small" x="650" y="738" text-anchor="middle">append tool_call_record; CALL_TOOL =&gt; tool_call_count++</text>
+
+          <polygon class="decision" points="650,782 760,834 650,886 540,834"></polygon>
+          <text class="txt" x="650" y="829" text-anchor="middle">execution error_message?</text>
+
+          <!-- Execution fail branch -->
+          <rect class="warn" x="120" y="800" width="320" height="68" rx="10"></rect>
+          <text class="txt" x="280" y="826" text-anchor="middle">_handle_execution_error()</text>
+          <text class="small" x="280" y="844" text-anchor="middle">retryable_error && retry_count &lt; max_retries ?</text>
+          <text class="small" x="280" y="862" text-anchor="middle">Yes: retry_count++ ; No: status=FAILED</text>
+
+          <!-- Success branch -->
+          <rect class="ok" x="500" y="916" width="300" height="86" rx="10"></rect>
+          <text class="txt" x="650" y="942" text-anchor="middle">成功收尾</text>
+          <text class="small" x="650" y="960" text-anchor="middle">retry_count=0</text>
+          <text class="small" x="650" y="978" text-anchor="middle">finalize =&gt; FINALIZED</text>
+          <text class="small" x="650" y="996" text-anchor="middle">wait =&gt; WAITING_FOR_USER; else RUNNING</text>
+
+          <!-- Edges main -->
+          <path class="edge" d="M650 74 L650 120"></path>
+          <path class="edge" d="M780 180 L920 190"></path>
+          <text class="label" x="844" y="170">Yes</text>
+          <path class="edge" d="M650 240 L650 282"></path>
+          <text class="label" x="664" y="262">No</text>
+          <path class="edge" d="M650 348 L650 384"></path>
+          <path class="edge" d="M650 442 L650 468"></path>
+
+          <path class="edge" d="M540 520 L440 520"></path>
+          <text class="label" x="488" y="506">No</text>
+          <path class="edge" d="M280 486 L280 350 L500 350"></path>
+          <path class="edge" d="M760 520 L840 520 L840 635 L800 635"></path>
+          <text class="label" x="784" y="506">Yes</text>
+          <path class="edge" d="M650 572 L650 606"></path>
+
+          <path class="edge" d="M650 664 L650 694"></path>
+          <path class="edge" d="M650 756 L650 782"></path>
+
+          <path class="edge" d="M540 834 L440 834"></path>
+          <text class="label" x="488" y="820">Yes</text>
+          <path class="edge" d="M280 800 L280 350 L500 350"></path>
+
+          <path class="edge" d="M650 886 L650 916"></path>
+          <text class="label" x="666" y="902">No</text>
+          <path class="edge" d="M800 958 L860 958 L860 350 L800 350"></path>
+          <text class="label" x="870" y="655">loop</text>
+        </svg>
+      </section>
+
+      <section class="card">
+        <h2>读图说明</h2>
+        <ul>
+          <li>每轮都先过 <code>check_stop_condition()</code>，再决定是否继续。</li>
+          <li>失败路径分两类：校验失败、执行失败；都走同样的重试门控。</li>
+          <li>非重试失败会把状态落到 <code>FAILED</code>，下一轮开始就被 stop 条件截停。</li>
+          <li><code>CALL_TOOL</code> 既记详细记录，也更新 <code>tool_call_count</code>，用于预算收敛。</li>
+          <li>成功路径会重置 <code>retry_count</code>，并按动作落到
+            <code>FINALIZED</code> / <code>WAITING_FOR_USER</code> / <code>RUNNING</code>。</li>
+        </ul>
+        <div class="legend">
+          <p><span class="dot" style="background:#2563eb;"></span>蓝色菱形：条件判断</p>
+          <p><span class="dot" style="background:#16a34a;"></span>绿色块：成功收尾</p>
+          <p><span class="dot" style="background:#d97706;"></span>黄色块：失败处理（可能重试）</p>
+          <p><span class="dot" style="background:#be123c;"></span>粉色块：停止并返回</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

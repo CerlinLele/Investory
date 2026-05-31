@@ -18,3 +18,8 @@ class TaskFlowState(BaseModel):
     model_result: dict[str, Any] | None = None
     output: TaskResult | None = None
     error: TaskError | None = None
+    step_count: int = 0
+    max_steps: int | None = None
+    retry_count: int = 0
+    requires_user_input: bool = False
+    last_error: str | None = None

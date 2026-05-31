@@ -29,6 +29,11 @@ def test_task_flow_state_defaults_to_pending():
     assert state.model_result is None
     assert state.output is None
     assert state.error is None
+    assert state.step_count == 0
+    assert state.max_steps is None
+    assert state.retry_count == 0
+    assert state.requires_user_input is False
+    assert state.last_error is None
 
 
 def test_task_flow_state_rejects_unknown_status():
