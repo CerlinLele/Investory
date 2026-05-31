@@ -279,3 +279,47 @@ Investory 的对应落点是：
 当前项目已经具备 Routing、Policy Gate、TaskSpec、Todo runner 的基础。还缺的是把 Todo 复杂任务路径接入主流程，以及把 Reflection 做成独立的输出验收层。
 
 因此，这个方向适合作为 Investory 从“单任务学习助手”升级到“投资材料审查与学习报告系统”的下一步。
+
+## 9. learning_entry_flow 是否需要这么复杂
+
+结论：通常不需要。
+
+`learning_entry_flow` 更适合作为“学习入口分流层”，而不是“全链路编排层”。如果把 To-Do、Plan、Reflection、复杂文档审查全部堆进同一个入口 flow，会带来：
+
+```text
+普通请求路径变长（QA/summary/brief 也被拖慢）
+状态字段膨胀（flow state 变成大而全）
+测试矩阵急剧扩大（分支组合指数增长）
+后续新增能力时改动面过大（回归风险上升）
+```
+
+更稳妥的边界是：
+
+```text
+learning_entry_flow
+  -> 只负责前置策略 + 路由 + 单任务执行
+
+investment_document_review_flow
+  -> 负责文档类型识别、多任务审查、报告汇总、反思验收
+```
+
+推荐保留在 `learning_entry_flow` 的能力：
+
+```text
+InvestoryPolicyGate
+规则路由（infer_candidate_task_type）
+可选 LLM router（仅规则无法决策时）
+低置信度兜底澄清
+resolve_task_spec -> TaskExecutor
+```
+
+不建议默认塞进 `learning_entry_flow` 的能力：
+
+```text
+TodoExecutionRunner 主编排
+PlanPolicyGate 审批编排
+ReflectionRunner 多轮改写
+文档审查专用 state / report 模型
+```
+
+一句话：`learning_entry_flow` 应该保持“轻入口”，复杂链路放到独立 flow，才能同时保证速度、可维护性和可扩展性。
