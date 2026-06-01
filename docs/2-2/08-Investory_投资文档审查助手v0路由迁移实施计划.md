@@ -264,6 +264,7 @@ learning_entry_rules
 
 1. 短期：在 `investment_document_review` 包内新增轻量规则函数，先检查 `document_text` 是否存在、是否包含明显投资建议请求、是否请求实时价格或收益预测。
 2. 中期：抽出共享的投资安全规则模块，例如 `runtime/flow/investory_policy/`，让 learning entry 和 document review 都复用。
+2.1 中期（实现细化）：把 payload 文本拼接与字段判空辅助函数沉淀到共享模块（如 `runtime/flow/common/payload_rules.py`），两侧规则文件通过导入复用，避免 `_has_value`、`_as_text`、拼接逻辑重复。
 3. 长期：把 policy gate 做成业务无关的输入安全层，再由不同 flow 添加各自的 missing-field 和 routing 规则。
 
 v0 可以先不做大重构，避免为了新 flow 牵动 learning entry。
@@ -545,6 +546,7 @@ tests/test_investment_document_review_rules.py
 7. 实现 `build_document_excerpt(payload)`，只取 `document_text` 前 `DOCUMENT_ROUTER_MAX_CHARS` 个字符。
 8. 定义 `DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE`，为每个已知 `InvestmentDocumentType` 提供 `DocumentReviewFramework`。
 9. 实现 `get_review_framework(document_type)`，对 `unknown` 返回 `None` 或抛出明确错误，避免误审查。
+10. 可选复用优化：抽取 `has_value` / `as_text` / `join_text_fields` 等 payload 处理辅助函数到共享模块（例如 `runtime/flow/common/payload_rules.py`），供 `document_review_rules` 与 `learning_entry_rules` 共同使用，避免重复实现。
 
 测试覆盖：
 
