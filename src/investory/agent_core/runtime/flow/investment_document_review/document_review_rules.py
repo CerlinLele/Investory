@@ -7,6 +7,11 @@ from investory.agent_core.contracts.investment_document_review_state import (
     DocumentReviewFramework,
     InvestmentDocumentType,
 )
+from investory.agent_core.runtime.flow.common.payload_rules import (
+    as_text,
+    has_value,
+    join_text_fields,
+)
 
 
 DOCUMENT_ROUTER_MAX_CHARS = 600
@@ -115,33 +120,15 @@ DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE = {
     ),
 }
 
-
-def _has_value(payload: dict[str, Any], field_name: str) -> bool:
-    value = payload.get(field_name)
-    if isinstance(value, str):
-        return bool(value.strip())
-    return value is not None
-
-
-def _as_text(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value
-    return str(value)
-
-
 def _intent_text(payload: dict[str, Any]) -> str:
-    return " ".join(
-        (
-            _as_text(payload.get(REVIEW_GOAL_FIELD)),
-            _as_text(payload.get(DOCUMENT_TYPE_HINT_FIELD)),
-        )
-    ).lower()
+    return join_text_fields(
+        payload,
+        (REVIEW_GOAL_FIELD, DOCUMENT_TYPE_HINT_FIELD),
+    )
 
 
 def detect_missing_fields(payload: dict[str, Any]) -> list[str]:
-    if _has_value(payload, DOCUMENT_TEXT_FIELD):
+    if has_value(payload, DOCUMENT_TEXT_FIELD):
         return []
     return [DOCUMENT_TEXT_FIELD]
 
@@ -157,7 +144,7 @@ def requires_realtime_data(payload: dict[str, Any]) -> bool:
 
 
 def build_document_excerpt(payload: dict[str, Any]) -> str:
-    document_text = _as_text(payload.get(DOCUMENT_TEXT_FIELD))
+    document_text = as_text(payload.get(DOCUMENT_TEXT_FIELD))
     return document_text[:DOCUMENT_ROUTER_MAX_CHARS]
 
 
