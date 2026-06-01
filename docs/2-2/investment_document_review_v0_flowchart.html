@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investment Document Review v0 Flow</title>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #4b5563;
+      --line: #0f172a;
+      --accent: #0ea5e9;
+      --warn: #b45309;
+      --ok: #166534;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    p.meta {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .canvas {
+      background: var(--panel);
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      overflow: auto;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+    }
+
+    svg {
+      display: block;
+      min-width: 1200px;
+      width: 100%;
+      height: auto;
+    }
+
+    .node {
+      fill: #fff;
+      stroke: var(--line);
+      stroke-width: 2;
+      rx: 10;
+      ry: 10;
+    }
+
+    .decision {
+      fill: #eff6ff;
+      stroke: #1d4ed8;
+      stroke-width: 2;
+    }
+
+    .terminal {
+      fill: #ecfeff;
+      stroke: #0e7490;
+      stroke-width: 2;
+      rx: 20;
+      ry: 20;
+    }
+
+    .missing {
+      fill: #fffbeb;
+      stroke: var(--warn);
+      stroke-width: 2;
+    }
+
+    .success {
+      fill: #f0fdf4;
+      stroke: var(--ok);
+      stroke-width: 2;
+    }
+
+    .label {
+      font-size: 14px;
+      fill: #111827;
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .small {
+      font-size: 12px;
+      font-weight: 500;
+      fill: #1f2937;
+    }
+
+    .edge {
+      stroke: var(--line);
+      stroke-width: 2;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+
+    .edge-note {
+      font-size: 12px;
+      fill: #111827;
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Investment Document Review v0 Flow</h1>
+    <p class="meta">
+      Source: docs/2-2/08-Investory_投资文档审查助手v0路由迁移实施计划.md
+    </p>
+
+    <section class="canvas">
+      <svg viewBox="0 0 1280 760" role="img" aria-label="Investment document review flowchart">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f172a"></path>
+          </marker>
+        </defs>
+
+        <rect class="terminal" x="520" y="24" width="240" height="52"></rect>
+        <text class="label" x="640" y="50">START</text>
+
+        <rect class="node" x="470" y="110" width="340" height="66"></rect>
+        <text class="label" x="640" y="140">evaluate_policy_gate</text>
+        <text class="small label" x="640" y="160">missing / advice / realtime checks</text>
+
+        <rect class="decision" x="470" y="212" width="340" height="62"></rect>
+        <text class="label" x="640" y="242">route_after_policy_gate</text>
+
+        <rect class="missing" x="60" y="328" width="320" height="72"></rect>
+        <text class="label" x="220" y="356">build_missing_or_refusal_result</text>
+        <text class="small label" x="220" y="376">ask_for_missing_input / refuse_and_redirect</text>
+
+        <rect class="node" x="470" y="328" width="340" height="64"></rect>
+        <text class="label" x="640" y="356">classify_document_type</text>
+        <text class="small label" x="640" y="376">LLM router with excerpt + hints</text>
+
+        <rect class="decision" x="470" y="430" width="340" height="62"></rect>
+        <text class="label" x="640" y="460">route_after_classification</text>
+
+        <rect class="missing" x="60" y="544" width="320" height="72"></rect>
+        <text class="label" x="220" y="572">build_missing_input_result</text>
+        <text class="small label" x="220" y="592">low confidence / unknown</text>
+
+        <rect class="node" x="470" y="544" width="340" height="64"></rect>
+        <text class="label" x="640" y="572">build_review_framework</text>
+        <text class="small label" x="640" y="592">framework by document_type</text>
+
+        <rect class="node" x="900" y="544" width="320" height="64"></rect>
+        <text class="label" x="1060" y="572">run_single_pass_review</text>
+        <text class="small label" x="1060" y="592">TaskExecutor(single_pass_task)</text>
+
+        <rect class="success" x="900" y="654" width="320" height="64"></rect>
+        <text class="label" x="1060" y="682">build_final_result</text>
+        <text class="small label" x="1060" y="702">document_type + review + route_reason</text>
+
+        <rect class="terminal" x="60" y="654" width="320" height="52"></rect>
+        <text class="label" x="220" y="680">END (missing / refusal)</text>
+
+        <rect class="terminal" x="960" y="24" width="200" height="52"></rect>
+        <text class="label" x="1060" y="50">END (success)</text>
+
+        <path class="edge" d="M 640 76 L 640 110"></path>
+        <path class="edge" d="M 640 176 L 640 212"></path>
+
+        <path class="edge" d="M 470 243 L 220 243 L 220 328"></path>
+        <text class="edge-note" x="300" y="230">missing / refusal</text>
+
+        <path class="edge" d="M 640 274 L 640 328"></path>
+        <text class="edge-note" x="700" y="300">complete</text>
+
+        <path class="edge" d="M 640 392 L 640 430"></path>
+
+        <path class="edge" d="M 470 461 L 220 461 L 220 544"></path>
+        <text class="edge-note" x="290" y="448">low confidence / unknown</text>
+
+        <path class="edge" d="M 640 492 L 640 544"></path>
+        <text class="edge-note" x="700" y="515">known type</text>
+
+        <path class="edge" d="M 810 576 L 900 576"></path>
+        <path class="edge" d="M 1060 608 L 1060 654"></path>
+
+        <path class="edge" d="M 220 616 L 220 654"></path>
+        <path class="edge" d="M 1220 686 L 1248 686 L 1248 50 L 1160 50"></path>
+      </svg>
+    </section>
+  </main>
+</body>
+</html>
