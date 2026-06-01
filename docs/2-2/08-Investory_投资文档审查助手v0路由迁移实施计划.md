@@ -161,6 +161,21 @@ DOCUMENT_TYPE_HINT_FIELD = "document_type_hint"
 REVIEW_GOAL_FIELD = "review_goal"
 ```
 
+字段语义建议（v0）：
+
+```text
+document_type_hint：
+- 含义：用户提供的“文档类型提示”，用于辅助路由，不替代路由判断。
+- 示例：etf_factsheet / fund_prospectus / product_brochure / earnings_report / learning_material。
+- 处理原则：当 hint 与文档内容冲突时，以文档内容为主，并在 route reason 说明。
+
+review_goal：
+- 含义：用户希望本次审查重点关注的方向。
+- 合法示例：检查费用与风险披露、提取关键事实、识别信息缺口、总结学习重点。
+- 非法示例：是否现在买入、给我仓位建议、预测今天/下周收益。
+- 处理原则：review_goal 仅影响审查关注点，不得改变投资边界。
+```
+
 ### 6.2 路由输出
 
 ```python
@@ -525,8 +540,8 @@ tests/test_investment_document_review_rules.py
 2. 定义 `DEFAULT_DOCUMENT_ROUTE_CONFIDENCE_THRESHOLD = 0.6`。
 3. 定义 `UNKNOWN_DOCUMENT_MISSING_FIELDS = [DOCUMENT_TYPE_HINT_FIELD]`，用于低置信度或无法判断类型时要求补充信息。
 4. 实现 `detect_missing_fields(payload)`，v0 仅检查 `document_text` 这一硬性必填项。
-5. 实现 `looks_like_investment_advice(payload)`，拦截明显买入、卖出、持有、择时、资产配置建议请求。
-6. 实现 `requires_realtime_data(payload)`，拦截今天价格、实时收益、最新涨跌等请求。
+5. 实现 `looks_like_investment_advice(payload)`，主要检测 `review_goal` / `document_type_hint` 等用户意图字段中的明显买入、卖出、持有、择时、资产配置建议请求；不要仅因 `document_text` 出现相关词汇而拒绝。
+6. 实现 `requires_realtime_data(payload)`，主要检测 `review_goal` / `document_type_hint` 等用户意图字段中的今天价格、实时收益、最新涨跌、短期预测请求；不要把文档正文中的历史或日期描述误判为实时请求。
 7. 实现 `build_document_excerpt(payload)`，只取 `document_text` 前 `DOCUMENT_ROUTER_MAX_CHARS` 个字符。
 8. 定义 `DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE`，为每个已知 `InvestmentDocumentType` 提供 `DocumentReviewFramework`。
 9. 实现 `get_review_framework(document_type)`，对 `unknown` 返回 `None` 或抛出明确错误，避免误审查。
@@ -539,6 +554,8 @@ missing document_text -> 返回 document_text
 unknown / 低置信度 -> missing_fields 包含 document_type_hint
 买卖建议请求 -> looks_like_investment_advice 为 True
 实时价格请求 -> requires_realtime_data 为 True
+document_text 含 buy/sell 等术语但用户未提出建议请求 -> 不触发 advice 拦截
+document_text 含 latest/quarter/date 等历史描述但用户未请求实时数据 -> 不触发 realtime 拦截
 document excerpt 被截断到 600 字符
 每个已知 document_type 都能取到 framework
 unknown 不进入正式 framework
