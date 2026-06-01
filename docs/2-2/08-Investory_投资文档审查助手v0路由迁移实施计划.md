@@ -171,6 +171,17 @@ class InvestmentDocumentReviewRouteDecision(BaseModel):
     missing_fields: list[str] = Field(default_factory=list)
 ```
 
+`missing_fields` 在 v0 建议区分两类语义：
+
+```text
+硬性缺失（阻塞执行）：
+- 仅 `document_text`。没有材料时直接要求补充。
+
+补充信息（用于提升路由/审查质量）：
+- 低置信度或 `unknown` 时，优先要求 `document_type_hint`。
+- `review_goal` 作为可选补充信息，不作为默认阻塞字段。
+```
+
 ### 6.3 审查输出
 
 ```python
@@ -512,8 +523,8 @@ tests/test_investment_document_review_rules.py
 
 1. 定义 `DOCUMENT_ROUTER_MAX_CHARS = 600`，对齐参考代码只看文档开头的思路。
 2. 定义 `DEFAULT_DOCUMENT_ROUTE_CONFIDENCE_THRESHOLD = 0.6`。
-3. 定义 `UNKNOWN_DOCUMENT_MISSING_FIELDS`，用于低置信度或无法判断类型时要求补充信息。
-4. 实现 `detect_missing_fields(payload)`，至少检查 `document_text`。
+3. 定义 `UNKNOWN_DOCUMENT_MISSING_FIELDS = [DOCUMENT_TYPE_HINT_FIELD]`，用于低置信度或无法判断类型时要求补充信息。
+4. 实现 `detect_missing_fields(payload)`，v0 仅检查 `document_text` 这一硬性必填项。
 5. 实现 `looks_like_investment_advice(payload)`，拦截明显买入、卖出、持有、择时、资产配置建议请求。
 6. 实现 `requires_realtime_data(payload)`，拦截今天价格、实时收益、最新涨跌等请求。
 7. 实现 `build_document_excerpt(payload)`，只取 `document_text` 前 `DOCUMENT_ROUTER_MAX_CHARS` 个字符。
@@ -525,6 +536,7 @@ tests/test_investment_document_review_rules.py
 ```text
 missing document_text -> 返回 document_text
 完整 document_text -> 无 missing fields
+unknown / 低置信度 -> missing_fields 包含 document_type_hint
 买卖建议请求 -> looks_like_investment_advice 为 True
 实时价格请求 -> requires_realtime_data 为 True
 document excerpt 被截断到 600 字符
