@@ -270,6 +270,16 @@ learning_entry_rules
 因此必须在 policy gate 阶段中止，并返回 refusal / redirect 结果。
 ```
 
+这里需要保留 `missing` 分支的原因是：
+
+```text
+missing 不是拒绝，而是当前材料或上下文不足以完成稳定路由或审查；
+例如缺少 `document_text`、`document_type_hint` 或 `review_goal` 时，
+系统仍然应该给出缺失字段，让用户补齐后继续执行。
+如果把这类输入直接归到 refuse，会把“材料不足”误判成“越过投资边界”，
+也会让用户失去明确的补充指引。
+```
+
 推荐做法：
 
 1. 短期：在 `investment_document_review` 包内新增轻量规则函数，先检查 `document_text` 是否存在、是否包含明显投资建议请求、是否请求实时价格或收益预测。
