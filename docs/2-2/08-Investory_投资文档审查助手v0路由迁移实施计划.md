@@ -289,6 +289,29 @@ missing 不是拒绝，而是当前材料或上下文不足以完成稳定路由
 
 v0 可以先不做大重构，避免为了新 flow 牵动 learning entry。
 
+补充说明：当前 v0 实现中，这两个分支的进入条件建议明确写成：
+
+```text
+ask_for_missing_input：
+- policy gate 阶段：`document_text` 缺失。
+- document type classification 阶段：router 返回 `document_type = unknown`。
+- document type classification 阶段：router 返回了需要补充的 `missing_fields`，v0 默认优先是 `document_type_hint`。
+
+refuse_and_redirect：
+- `review_goal` / `document_type_hint` 中出现明显的投资建议请求，例如买入、卖出、持有、择时、仓位、资产配置。
+- `review_goal` / `document_type_hint` 中出现明显的实时数据请求，例如今天价格、最新涨跌、实时收益、live quote。
+- 这类请求属于“目标越界”，不是“补材料后即可继续”，因此应在 policy gate 直接终止。
+```
+
+实现约束也建议写明：
+
+```text
+- `ask_for_missing_input` 只处理“材料不足、类型不清、上下文不够”。
+- `refuse_and_redirect` 只处理“请求目标越过投资学习/文档审查边界”。
+- 不要因为 `document_text` 正文中出现 buy/sell/latest/today 等术语就直接 refuse；
+ 只有当这些术语出现在用户意图字段（如 `review_goal`、`document_type_hint`）并表达请求目标时，才进入 refusal。
+```
+
 ## 9. Review Framework 设计
 
 参考代码的 `review_framework.yaml` 可以借鉴，但 Investory v0 建议先用 Python 常量，便于类型检查和测试。
