@@ -306,6 +306,15 @@ review_synthesis_payload: dict[str, Any] | None = None
 
 目标：让投资文档审查可以表达 plan、extract、analyze、synthesize 四类动作。
 
+Step:
+
+1. 先整理现有 `TodoExecution` 合约和 `InvestmentDocumentReview` 任务模型，确认哪些字段可以直接复用。
+2. 增加投资文档审查专用 `TodoTaskKind` 常量和枚举值。
+3. 补齐 plan / extract / analyze / synthesize 的输入输出模型。
+4. 更新 `tasks.py` 的 TaskSpec 注册。
+5. 把对应 prompts 的文件名和职责一并固定下来。
+6. 先用最小样例验证这些模型可以在 Pydantic 层通过校验。
+
 实施项：
 
 - 在 `todo_execution.py` 增加投资文档相关 `TodoTaskKind` 枚举值和常量。
@@ -323,6 +332,15 @@ review_synthesis_payload: dict[str, Any] | None = None
 ### 阶段 2：生成投资文档审查 To-Do Plan
 
 目标：在 `build_review_framework` 之后生成结构化 plan。
+
+Step:
+
+1. 先把 `generate_review_todo_plan` 作为独立节点设计出来，不直接塞进执行器。
+2. 明确 plan 生成输入，至少包含 `document_text`、`document_type`、`extract_focus`、`analyze_focus`、`review_goal`。
+3. 设计 prompt 约束，限定 extract 和 analyze 的职责边界。
+4. 把 `depends_on`、`completion_criteria`、task id 规则写进输出要求。
+5. 用 `ensure_valid_todo_plan()` 做模型输出的二次校验。
+6. 先用一个或两个文档类型跑通 plan 生成，再扩大覆盖面。
 
 实施项：
 
@@ -346,6 +364,15 @@ review_synthesis_payload: dict[str, Any] | None = None
 
 目标：用现有 runner 按依赖分层并发执行投资文档子任务。
 
+Step:
+
+1. 先把 `TodoExecutionRunner` 当成唯一执行入口，而不是在 flow 里临时拼执行逻辑。
+2. 设计 task.kind 到具体 TaskSpec 的分发规则。
+3. 为 extract/analyze/synthesize 准备各自的 payload 结构。
+4. 确认依赖结果如何传给 analyze 任务。
+5. 让 runner 先只支持单次请求内执行，不引入 resume。
+6. 用失败任务和依赖任务做边界测试，确认 skip 和 retry 的行为稳定。
+
 实施项：
 
 - 新增 `InvestmentDocumentTodoTaskExecutor` 或私有方法 `_execute_review_todo_task()`。
@@ -365,6 +392,16 @@ review_synthesis_payload: dict[str, Any] | None = None
 ### 阶段 4：补充 resume_state / previous_results 断点续跑
 
 目标：让 To-Do 执行支持中断后继续，避免重复执行已经成功的子任务。
+
+Step:
+
+1. 先定义 resume 的数据边界，只保存恢复所需信息，不保存整个运行对象。
+2. 设计 `TodoExecutionResumeState`，固定 `results_by_id` 和 `attempts_by_id` 的结构。
+3. 给 `TodoExecutionRunner.run()` 增加 `resume_state` 参数。
+4. 实现已完成任务跳过逻辑，确保 succeeded 任务不会重复调用 executor。
+5. 实现恢复时的依赖重建和重新分层。
+6. 在 flow 层留出 load / save 持久化的插槽。
+7. 用部分成功、部分失败、依赖失败三种场景验证恢复行为。
 
 实施项：
 
@@ -420,6 +457,14 @@ load persisted resume_state
 
 目标：把多个子任务结果汇总为现有 `InvestmentDocumentReviewResult`。
 
+Step:
+
+1. 先明确 synthesize 的输入只来自已完成任务结果，不直接读模型原始输出。
+2. 设计 `todo_plan`、`todo_results` 和 review summary 的汇总方式。
+3. 确认 route reason、route confidence、document type 如何进入最终结果。
+4. 让 summary 对 failed 或 skipped 任务给出明确的 information gaps 或 boundary notes。
+5. 验证 resume 场景下不会把已完成结果重复计算。
+
 实施项：
 
 - 新增 `synthesize_review_result` 节点。
@@ -444,6 +489,14 @@ load persisted resume_state
 ### 阶段 6：网关与兼容性测试
 
 目标：不破坏 `/investment-document-review` 的公开入口。
+
+Step:
+
+1. 先补 flow 层单测，再补 gateway 层单测。
+2. 验证 policy gate、missing input、refusal 和 unknown document type 的原有行为。
+3. 验证 plan 生成、执行、汇总的正向路径。
+4. 验证 resume 相关场景。
+5. 最后跑全量测试，确认公开 API 返回结构没有变化。
 
 实施项：
 
