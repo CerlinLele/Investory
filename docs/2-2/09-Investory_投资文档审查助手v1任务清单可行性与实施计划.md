@@ -498,7 +498,88 @@ validate -> dependency layers -> bounded concurrency -> retries -> skipped/faile
 
 如果后续需要 LangGraph 原生 checkpoint、streaming trace、或者在调试 UI 中可视化每个子任务节点，再考虑把 plan execution 改成 `Send` 或运行时子图。
 
-### 10.2 拓扑图具体执行顺序是否需要展示给用户？
+### 10.2 当前 TodoExecutionRunner 和 LangGraph Send 的区别是什么？
+
+当前 `TodoExecutionRunner` 是业务级任务调度器；LangGraph `Send` 更像图内 fan-out 分发机制。两者不是同一层能力。
+
+当前 executor 已经负责：
+
+```text
+1. 校验 plan 是否合法
+   duplicate id / unknown dependency / self dependency / cycle / empty criteria
+
+2. 把 DAG 转成执行层
+   第一层无依赖任务并发跑
+   第二层等第一层依赖成功后再跑
+   依此类推
+
+3. 控制并发
+   DEFAULT_TODO_CONCURRENCY = 3
+
+4. 管失败策略
+   fail_fast / best_effort / retry_then_fail
+
+5. 管 retry
+   DEFAULT_TODO_MAX_RETRIES = 2
+
+6. 管 dependency failure
+   上游失败，下游自动 skipped
+
+7. 管 executor 结果合法性
+   result.id 必须等于 task.id
+   status 只能是 succeeded / failed / skipped
+
+8. 最后按原始 plan 顺序返回结果
+```
+
+`Send` 本身不直接负责这些。它的核心职责是：
+
+```text
+这里有 N 个 payload
+请把它们分别发给某个节点执行
+```
+
+因此两者的区别可以这样看：
+
+| 能力 | 当前 TodoExecutionRunner | LangGraph Send |
+|---|---|---|
+| 运行时任务数量动态 | 支持 | 支持 |
+| 同构任务 fan-out | 支持，通过 `asyncio.gather` | 支持，图原生 |
+| 复杂 `depends_on` DAG | 支持，分层拓扑 | 不内置，需要自行设计 |
+| plan 合法性校验 | 已有 | 不内置 |
+| retry 策略 | 已有 | 需要节点或 graph 另配 |
+| dependency failed -> skipped | 已有 | 需要自行实现 |
+| fail_fast / best_effort | 已有 | 需要自行实现 |
+| LangGraph trace / checkpoint | 不细到每个子任务 | 更适合 |
+| 用户可见实时进度 | 需要额外实现 | 更自然 |
+
+放到 Investory 当前场景，`TodoExecutionRunner` 更像：
+
+```text
+plan -> validate -> dependency layers -> bounded concurrency -> retry/skip/fail -> ordered results
+```
+
+`Send` 更像：
+
+```text
+state -> generate many payloads -> call same node many times -> merge results
+```
+
+所以第一版 v1 更适合继续使用现有 executor。当前核心需求是可靠执行 To-Do 依赖计划，而不是让 LangGraph trace 展示每个子任务节点。
+
+后续可以考虑 `Send` 的情况：
+
+```text
+1. 希望 LangGraph trace 里看到每个 extract / analyze 子任务
+2. 需要 checkpoint / resume 到子任务级别
+3. 要 streaming 展示每个子任务进度
+4. 任务依赖比较简单，主要是大量同类并发
+5. 愿意把 retry、skip、fail_fast 等策略重新搬进 LangGraph 设计
+```
+
+一句话：当前 executor 是调度器，`Send` 是分发语法。现在的问题用调度器更合适。
+
+### 10.3 拓扑图具体执行顺序是否需要展示给用户？
 
 通常不需要。拓扑图的主要价值是内部执行质量控制，不是用户侧主要内容。
 
