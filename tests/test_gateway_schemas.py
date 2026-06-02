@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from investory.gateway.schemas import (
     HealthResponse,
     InvestmentDocumentReviewRequest,
+    LearningEntryRequest,
     TaskErrorResponse,
     TaskRequest,
     TaskResponse,
@@ -51,6 +52,19 @@ def test_investment_document_review_request_accepts_minimal_required_fields():
 
     assert request.session_id is None
     assert request.payload["document_text"] == "ETF factsheet summary."
+
+
+def test_learning_entry_request_accepts_minimal_required_fields():
+    request = LearningEntryRequest.model_validate(
+        {
+            "payload": {
+                "question": "What is an ETF?",
+            }
+        }
+    )
+
+    assert request.session_id is None
+    assert request.payload["question"] == "What is an ETF?"
 
 
 def test_health_response_shape():

@@ -34,26 +34,25 @@ class TaskRequest(BaseModel):
     session_id: NonEmptyString | None = None
 
 
-class LearningEntryRequest(BaseModel):
+class FlowRequest(BaseModel):
+    """Shared request shape for orchestration-style gateway endpoints."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    payload: dict[str, Any]
+    session_id: NonEmptyString | None = None
+
+
+class LearningEntryRequest(FlowRequest):
     """Public request for the learning entry orchestration endpoint.
 
     The payload stays generic because the entry flow decides which task, if
     any, can safely handle the request.
     """
 
-    model_config = ConfigDict(extra="forbid")
 
-    payload: dict[str, Any]
-    session_id: NonEmptyString | None = None
-
-
-class InvestmentDocumentReviewRequest(BaseModel):
+class InvestmentDocumentReviewRequest(FlowRequest):
     """Public request for the investment document review flow endpoint."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    payload: dict[str, Any]
-    session_id: NonEmptyString | None = None
 
 
 class TaskErrorResponse(BaseModel):
