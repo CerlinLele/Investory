@@ -1,4 +1,8 @@
 from investory.agent_core.task_models.finance_qa import FinanceQAInput, FinanceQAResult
+from investory.agent_core.task_models.investment_document_review import (
+    InvestmentDocumentReviewInput,
+    InvestmentDocumentReviewResult,
+)
 from investory.agent_core.task_models.instrument_brief import (
     InstrumentBriefInput,
     InstrumentBriefResult,
@@ -9,6 +13,7 @@ from investory.agent_core.task_models.learning_material_summary import (
 )
 from investory.agent_core.tasks import (
     FINANCE_QA_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
     INSTRUMENT_BRIEF_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK,
     TASKS,
@@ -36,9 +41,31 @@ def test_instrument_brief_task_spec_registers_models_and_prompt():
     assert INSTRUMENT_BRIEF_TASK.output_model is InstrumentBriefResult
 
 
+def test_investment_document_review_single_pass_task_spec_registers_models_and_prompt():
+    assert (
+        INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name
+        == "investment_document_review_single_pass"
+    )
+    assert (
+        INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.prompt_name
+        == "investment_document_review_single_pass"
+    )
+    assert (
+        INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.input_model
+        is InvestmentDocumentReviewInput
+    )
+    assert (
+        INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.output_model
+        is InvestmentDocumentReviewResult
+    )
+
+
 def test_tasks_registry_contains_initial_tasks():
     assert TASKS == {
         "finance_qa": FINANCE_QA_TASK,
         "learning_material_summary": LEARNING_MATERIAL_SUMMARY_TASK,
         "instrument_brief": INSTRUMENT_BRIEF_TASK,
+        "investment_document_review_single_pass": (
+            INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK
+        ),
     }

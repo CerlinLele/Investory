@@ -2,6 +2,7 @@ import pytest
 
 from investory.agent_core.tasks import (
     FINANCE_QA_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
     INSTRUMENT_BRIEF_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK,
 )
@@ -34,8 +35,15 @@ def test_resolve_task_name_strips_surrounding_whitespace():
 
 def test_resolve_task_spec_returns_registered_task_spec():
     assert resolve_task_spec("qa") is FINANCE_QA_TASK
-    assert resolve_task_spec("learning_material_summary") is LEARNING_MATERIAL_SUMMARY_TASK
+    assert (
+        resolve_task_spec("learning_material_summary")
+        is LEARNING_MATERIAL_SUMMARY_TASK
+    )
     assert resolve_task_spec("instrument_brief") is INSTRUMENT_BRIEF_TASK
+    assert (
+        resolve_task_spec("investment_document_review_single_pass")
+        is INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK
+    )
 
 
 def test_resolve_task_name_rejects_unknown_task_type():

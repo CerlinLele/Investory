@@ -1,5 +1,9 @@
 from investory.agent_core.contracts.task_spec import TaskSpec
 from investory.agent_core.task_models.finance_qa import FinanceQAInput, FinanceQAResult
+from investory.agent_core.task_models.investment_document_review import (
+    InvestmentDocumentReviewInput,
+    InvestmentDocumentReviewResult,
+)
 from investory.agent_core.task_models.instrument_brief import (
     InstrumentBriefInput,
     InstrumentBriefResult,
@@ -15,6 +19,10 @@ FINANCE_QA_NAME = "finance_qa"
 LEARNING_MATERIAL_SUMMARY_NAME = "learning_material_summary"
 
 INSTRUMENT_BRIEF_NAME = "instrument_brief"
+
+INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_NAME = (
+    "investment_document_review_single_pass"
+)
 
 
 FINANCE_QA_TASK = TaskSpec(
@@ -38,8 +46,18 @@ INSTRUMENT_BRIEF_TASK = TaskSpec(
     output_model=InstrumentBriefResult,
 )
 
+INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK = TaskSpec(
+    name=INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_NAME,
+    prompt_name=INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_NAME,
+    input_model=InvestmentDocumentReviewInput,
+    output_model=InvestmentDocumentReviewResult,
+)
+
 TASKS = {
     FINANCE_QA_TASK.name: FINANCE_QA_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK.name: LEARNING_MATERIAL_SUMMARY_TASK,
     INSTRUMENT_BRIEF_TASK.name: INSTRUMENT_BRIEF_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name: (
+        INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK
+    ),
 }
