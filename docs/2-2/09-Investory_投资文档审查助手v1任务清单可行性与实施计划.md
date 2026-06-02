@@ -353,6 +353,7 @@ review_synthesis_payload: dict[str, Any] | None = None
 - analyze 任务 payload 必须包含依赖任务结果。
 - 使用 `TodoExecutionRunner`，默认并发先使用 `DEFAULT_TODO_CONCURRENCY`。
 - 对失败策略先使用 `RETRY_THEN_FAIL`，避免单次模型波动导致整体失败。
+- 先保持单次请求内执行，不在本阶段引入跨请求 resume。
 
 验收：
 
@@ -361,7 +362,61 @@ review_synthesis_payload: dict[str, Any] | None = None
 - 依赖失败时下游任务被 skipped。
 - executor 返回 id 不匹配时被 runner 识别为 failed。
 
-### 阶段 4：最终汇总
+### 阶段 4：补充 resume_state / previous_results 断点续跑
+
+目标：让 To-Do 执行支持中断后继续，避免重复执行已经成功的子任务。
+
+实施项：
+
+- 新增 `TodoExecutionResumeState` 合约，表达已持久化的执行状态。
+- `TodoExecutionResumeState` 至少包含：
+  - `run_id` 或 `session_id`
+  - `plan`
+  - `results_by_id`
+  - `attempts_by_id`
+  - `updated_at`
+- 扩展 `TodoExecutionRunner.run()`，支持类似参数：
+
+```python
+async def run(
+    self,
+    plan: TodoExecutionPlan,
+    *,
+    resume_state: TodoExecutionResumeState | None = None,
+) -> list[TodoTaskResult]:
+    ...
+```
+
+- 恢复时跳过 `status=succeeded` 的任务。
+- 对 `failed`、`skipped`、`running` 或缺失结果的任务，按 `failure_policy` 和依赖状态决定是否重跑。
+- 如果依赖任务已成功，允许下游未完成任务继续执行。
+- 如果依赖任务失败且无法恢复，下游继续返回 `skipped`。
+- 在 flow 层预留加载和保存状态的位置：
+
+```text
+load persisted resume_state
+-> runner.run(plan, resume_state=resume_state)
+-> persist new task results
+-> synthesize
+```
+
+- 第一版可以先把持久化接口抽象出来，不强行绑定数据库；后续再决定使用文件、SQLite、Postgres 或 LangGraph checkpointer。
+
+验收：
+
+- 已成功任务不会再次调用 executor。
+- 未完成任务可以在依赖满足后继续执行。
+- 依赖失败的任务仍按现有 skipped 语义处理。
+- retry 次数不会因为 resume 被错误重置。
+- 返回结果仍按原始 plan 顺序排列。
+- 新增测试覆盖：
+  - partial success resume
+  - failed dependency resume
+  - running task treated as retry candidate
+  - attempts_by_id preserved
+  - completed task executor not called again
+
+### 阶段 5：最终汇总
 
 目标：把多个子任务结果汇总为现有 `InvestmentDocumentReviewResult`。
 
@@ -384,8 +439,9 @@ review_synthesis_payload: dict[str, Any] | None = None
 - 成功响应仍包含 `action=document_review.complete` 对应值，即当前 `complete`。
 - `review.extracted_facts`、`risk_findings`、`information_gaps`、`boundary_notes` 有稳定来源。
 - 失败或 skipped 子任务不会导致最终结果伪装成完整审查；必须进入 `information_gaps` 或 `boundary_notes`。
+- resume 后的最终汇总不得重复计算已完成任务的结果。
 
-### 阶段 5：网关与兼容性测试
+### 阶段 6：网关与兼容性测试
 
 目标：不破坏 `/investment-document-review` 的公开入口。
 
@@ -409,6 +465,8 @@ review_synthesis_payload: dict[str, Any] | None = None
   - plan valid path
   - invalid dependency
   - dependency failure skip
+  - resume skips completed task
+  - resume preserves attempts
   - task result synthesis
   - gateway response shape
 
@@ -421,6 +479,7 @@ src/investory/agent_core/contracts/todo_execution.py
 src/investory/agent_core/contracts/investment_document_review_state.py
 src/investory/agent_core/task_models/investment_document_review.py
 src/investory/agent_core/tasks.py
+src/investory/agent_core/runtime/todo_core/runner.py
 src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py
 src/investory/agent_core/prompts/tasks/investment_document_review_plan.md
 src/investory/agent_core/prompts/tasks/investment_document_extract.md
@@ -430,6 +489,30 @@ tests/test_investment_document_review_flow.py
 tests/test_investment_document_review_gateway_api.py
 tests/test_investment_document_review_todo_plan.py
 tests/test_investment_document_review_todo_execution.py
+tests/test_todo_execution_resume.py
+```
+
+如果第一版就落实断点续跑，还建议新增或扩展：
+
+```text
+src/investory/agent_core/contracts/todo_execution.py
+  - TodoExecutionResumeState
+  - attempts_by_id / results_by_id 合约字段
+
+src/investory/agent_core/runtime/todo_core/runner.py
+  - run(..., resume_state=None)
+  - completed task skip 逻辑
+  - attempts 保留逻辑
+
+src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py
+  - load persisted resume_state 的插入点
+  - persist updated todo_results 的插入点
+
+tests/test_todo_execution_resume.py
+  - resume skips succeeded tasks
+  - resume retries incomplete tasks
+  - resume preserves attempts
+  - resume keeps result order
 ```
 
 不建议第一轮改动：
@@ -451,6 +534,10 @@ tests/test_investment_document_review_todo_execution.py
 | 输出结构不兼容 | gateway 调用方破坏 | 保持 `InvestmentDocumentReviewResult` 主结构 |
 | 投资建议越界 | 安全风险 | policy gate 前置，prompt 和 synthesis 双重约束 |
 | 实时数据误用 | 给出过期或虚构价格 | 当前继续拒绝 realtime request |
+| resume 重复执行已完成任务 | 成本上升、结果重复 | `resume_state.results_by_id` 中 `succeeded` 任务必须跳过 |
+| resume 丢失 retry 次数 | 重试超限或无限重试 | 持久化 `attempts_by_id`，恢复时继续累计 |
+| resume 后依赖状态不一致 | 下游过早执行或错误 skipped | 恢复前重新跑 `ensure_valid_todo_plan()` 并按依赖状态重建 layers |
+| 持久化层过早绑定数据库 | 实现范围膨胀 | 第一版先抽象 load/save 位置，数据库选择后置 |
 
 ## 9. 建议优先级
 
@@ -458,9 +545,11 @@ tests/test_investment_document_review_todo_execution.py
 
 1. 先保留现有 v0 flow，新增 v1 节点但不删除 single-pass task。
 2. 用 fake runner / fake executor 写完 flow 单元测试。
-3. 接入真实 prompts 和 TaskSpec。
-4. 用 `.venv` 跑全量测试。
-5. 如果 v1 稳定，再决定是否移除或降级 single-pass 为 fallback。
+3. 先接入 `TodoExecutionRunner` 的单次请求执行。
+4. 再补 `resume_state / previous_results`，让已完成任务不重复执行。
+5. 接入真实 prompts 和 TaskSpec。
+6. 用 `.venv` 跑全量测试。
+7. 如果 v1 稳定，再决定是否移除或降级 single-pass 为 fallback。
 
 第一版最务实的目标不是“让每个文档都自动拆得很复杂”，而是让长文档审查具备可验证的事实提取、依赖分析和汇总链路，同时不破坏 Investory 当前的投资边界和 API 契约。
 
