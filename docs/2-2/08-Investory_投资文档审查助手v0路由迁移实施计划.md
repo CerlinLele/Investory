@@ -260,6 +260,16 @@ LearningEntryCandidateTaskType
 learning_entry_rules
 ```
 
+这里需要保留 `refuse` 分支的原因是：
+
+```text
+缺少材料和低置信度属于“还不能完成审查”，本质上是补充输入问题；
+而投资建议请求、实时价格请求、短期收益预测请求属于“请求目标越过投资边界”，
+不是补材料后就可以继续执行的问题。
+如果这类请求继续进入 review，会把系统输出拉向投资建议、实时判断或收益预测，
+因此必须在 policy gate 阶段中止，并返回 refusal / redirect 结果。
+```
+
 推荐做法：
 
 1. 短期：在 `investment_document_review` 包内新增轻量规则函数，先检查 `document_text` 是否存在、是否包含明显投资建议请求、是否请求实时价格或收益预测。
