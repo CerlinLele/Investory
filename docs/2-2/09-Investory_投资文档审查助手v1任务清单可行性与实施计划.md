@@ -463,3 +463,71 @@ tests/test_investment_document_review_todo_execution.py
 5. 如果 v1 稳定，再决定是否移除或降级 single-pass 为 fallback。
 
 第一版最务实的目标不是“让每个文档都自动拆得很复杂”，而是让长文档审查具备可验证的事实提取、依赖分析和汇总链路，同时不破坏 Investory 当前的投资边界和 API 契约。
+
+## 10. 补充问答与设计决策
+
+### 10.1 能不能在 LangGraph 内动态画子图？
+
+可以，但第一版不建议把它作为 Investory 的主实现方式。
+
+LangGraph 中“动态画子图”通常有三种理解：
+
+```text
+1. 预定义节点 + 条件边
+   add_conditional_edges(...)
+
+2. 动态 fan-out
+   Send(...)
+
+3. 节点内部根据当前 plan 临时构建 StateGraph，compile 后 invoke
+```
+
+第 1 种适合 policy gate、文档类型路由、是否拒绝或继续审查这类稳定分支。第 2 种适合根据任务清单把多个同类任务分发到同一个执行节点。第 3 种最接近参考示例里按 plan 动态编译依赖执行图，但会把 LangGraph 节点、依赖调度、失败处理和测试复杂度都集中到一个运行时子图里。
+
+对当前 Investory，更合适的第一版架构是：
+
+```text
+LangGraph 负责主流程：
+policy gate -> route -> build framework -> generate plan -> execute plan -> synthesize
+
+TodoExecutionRunner 负责 plan 内部动态依赖：
+validate -> dependency layers -> bounded concurrency -> retries -> skipped/failed results
+```
+
+原因是项目已经有 `TodoExecutionRunner`、`build_dependency_layers()` 和 `ensure_valid_todo_plan()`，这些能力已经覆盖动态依赖执行，并且更容易写单元测试、控制失败策略和保持 API 行为稳定。
+
+如果后续需要 LangGraph 原生 checkpoint、streaming trace、或者在调试 UI 中可视化每个子任务节点，再考虑把 plan execution 改成 `Send` 或运行时子图。
+
+### 10.2 拓扑图具体执行顺序是否需要展示给用户？
+
+通常不需要。拓扑图的主要价值是内部执行质量控制，不是用户侧主要内容。
+
+用户真正需要看到的是：
+
+```text
+1. 系统审查了哪些方面
+2. 哪些结论来自文档原文事实
+3. 哪些是风险、缺口或不一致
+4. 哪些材料不足导致结论有限
+5. 最终摘要和可继续补充的材料
+```
+
+拓扑图更适合内部使用：
+
+```text
+- 保证先提取事实，再做分析判断
+- 控制哪些任务可以并发
+- 处理依赖失败后的 skipped 结果
+- 支持测试、排错和审计
+- 为后续 tracing / debug 模式提供依据
+```
+
+因此产品层建议区分三层输出：
+
+| 层级 | 建议输出 |
+|---|---|
+| 用户响应 | 审查维度、事实、风险、信息缺口、边界说明、摘要 |
+| 调试追踪 | `todo_plan`、`todo_results`、task status、depends_on、耗时、错误 |
+| API 默认行为 | 默认不暴露完整拓扑，必要时通过 `debug=true` 或 internal trace 返回 |
+
+也就是说，v1 的 To-Do 依赖图应定位为内部 orchestration trace。它提升执行可靠性，但不应成为普通用户的主要展示内容。
