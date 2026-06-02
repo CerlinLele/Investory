@@ -579,7 +579,86 @@ state -> generate many payloads -> call same node many times -> merge results
 
 一句话：当前 executor 是调度器，`Send` 是分发语法。现在的问题用调度器更合适。
 
-### 10.3 拓扑图具体执行顺序是否需要展示给用户？
+### 10.3 如果中断后不想重复执行已完成任务，哪种方式合适？
+
+这种需求本质是 checkpoint / resume：执行到一半中断后，下次从已完成结果继续，而不是重新跑全部任务。
+
+判断标准是：
+
+```text
+需要子任务级断点续跑 -> 更适合 LangGraph checkpoint 或给 TodoExecutionRunner 增加持久化 resume
+只是一次请求内跑完 -> 当前 TodoExecutionRunner 更合适
+```
+
+对当前 Investory，建议第一阶段继续用 `TodoExecutionRunner`，但增加持久化恢复能力。需要保存的状态包括：
+
+```text
+run_id / session_id
+todo_plan
+todo_results_by_id
+task status: succeeded / failed / skipped / running
+task output
+task error
+updated_at
+```
+
+恢复时的执行逻辑：
+
+```text
+1. 读取已有 todo_plan 和 todo_results_by_id
+2. 跳过 status=succeeded 的任务
+3. 对 failed / skipped / running 任务按 failure_policy 决定是否重跑
+4. 只执行依赖已满足且未完成的任务
+5. 所有必要任务完成后继续 synthesize
+```
+
+这条路线更贴合当前代码，因为现有 runner 已经负责依赖、retry、skip、顺序返回和失败策略。需要扩展的是 runner 的输入与状态层，例如支持：
+
+```python
+runner.run(plan, resume_state=previous_results)
+```
+
+或在 flow 层包装：
+
+```text
+load persisted results
+-> call runner with completed task ids
+-> persist new task results
+-> synthesize
+```
+
+另一条路线是 LangGraph checkpoint + `Send`。它适合希望 LangGraph 原生记录每个子任务节点状态，并支持中断恢复、streaming 和 trace 的场景：
+
+```text
+generate_plan
+-> Send 多个 extract / analyze 子任务
+-> checkpoint 每个节点结果
+-> 中断后从 graph checkpoint 恢复
+```
+
+但这会要求把当前 runner 已经处理好的策略搬到 LangGraph 设计中：
+
+```text
+- 依赖失败后的 skipped 结果
+- fail_fast / best_effort / retry_then_fail
+- retry 次数
+- result.id 和 status 合法性校验
+- 最终按 plan 顺序聚合结果
+```
+
+所以本项目的推荐顺序是：
+
+```text
+第一阶段：
+  扩展 TodoExecutionRunner，支持 resume_state / previous_results。
+
+第二阶段：
+  如果需要子任务级 LangGraph trace、checkpoint、streaming 进度 UI，再考虑 Send + checkpoint。
+```
+
+也就是说，核心问题不是 fan-out，而是“已完成任务不要重复执行”。这个能力可以先在当前调度器里解决。
+
+### 10.4 拓扑图具体执行顺序是否需要展示给用户？
 
 通常不需要。拓扑图的主要价值是内部执行质量控制，不是用户侧主要内容。
 
