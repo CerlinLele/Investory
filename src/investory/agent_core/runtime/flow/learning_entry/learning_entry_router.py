@@ -1,4 +1,3 @@
-import json
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -7,7 +6,7 @@ from pydantic import BaseModel, Field
 from investory.agent_core.contracts.learning_entry_state import (
     LearningEntryCandidateTaskType,
 )
-from investory.agent_core.runtime.prompt_loader import load_prompt_text
+from investory.agent_core.runtime.message_builder import build_prompt_messages
 
 if TYPE_CHECKING:
     from investory.agent_core.runtime.request_runner import RequestRunner
@@ -61,25 +60,10 @@ class LearningEntryLLMRouter:
         self.runner = runner
 
     def route(self, payload: dict[str, Any]) -> LearningEntryRouteDecision:
-        from langchain_core.prompts import ChatPromptTemplate
-
-        input_json = json.dumps(payload, ensure_ascii=False, indent=2)
-        system_prompt = load_prompt_text("base", "system.md")
-        common_rules = load_prompt_text("base", "common_rules.md")
-        input_data_block = load_prompt_text("base", "input_data_block.md")
-        router_prompt = load_prompt_text("flows", LEARNING_ENTRY_ROUTER_PROMPT_FILE)
-
-        prompt = ChatPromptTemplate(
-            [
-                ("system", system_prompt),
-                ("human", router_prompt),
-            ]
+        messages = build_prompt_messages(
+            "flows",
+            LEARNING_ENTRY_ROUTER_PROMPT_FILE,
+            payload,
         )
-        messages = prompt.invoke(
-            {
-                "common_rules": common_rules,
-                "input_data_block": input_data_block.format(input_json=input_json),
-            }
-        ).messages
 
         return self.runner.run(messages, LearningEntryRouteDecision)

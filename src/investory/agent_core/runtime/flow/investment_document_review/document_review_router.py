@@ -1,4 +1,3 @@
-import json
 from typing import TYPE_CHECKING, Any, Protocol
 
 from investory.agent_core.contracts.investment_document_review_state import (
@@ -12,7 +11,7 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     UNKNOWN_DOCUMENT_MISSING_FIELDS,
     build_document_excerpt,
 )
-from investory.agent_core.runtime.prompt_loader import load_prompt_text
+from investory.agent_core.runtime.message_builder import build_prompt_messages
 
 if TYPE_CHECKING:
     from investory.agent_core.runtime.request_runner import RequestRunner
@@ -56,35 +55,16 @@ class InvestmentDocumentReviewLLMRouter:
         self.runner = runner
 
     def route(self, payload: dict[str, Any]) -> InvestmentDocumentReviewRouteDecision:
-        from langchain_core.prompts import ChatPromptTemplate
-
         router_payload = {
             DOCUMENT_EXCERPT_FIELD: build_document_excerpt(payload),
             DOCUMENT_TYPE_HINT_FIELD: payload.get(DOCUMENT_TYPE_HINT_FIELD),
             REVIEW_GOAL_FIELD: payload.get(REVIEW_GOAL_FIELD),
         }
-        input_json = json.dumps(router_payload, ensure_ascii=False, indent=2)
-
-        system_prompt = load_prompt_text("base", "system.md")
-        common_rules = load_prompt_text("base", "common_rules.md")
-        input_data_block = load_prompt_text("base", "input_data_block.md")
-        router_prompt = load_prompt_text(
+        messages = build_prompt_messages(
             "flows",
             INVESTMENT_DOCUMENT_REVIEW_ROUTER_PROMPT_FILE,
+            router_payload,
         )
-
-        prompt = ChatPromptTemplate(
-            [
-                ("system", system_prompt),
-                ("human", router_prompt),
-            ]
-        )
-        messages = prompt.invoke(
-            {
-                "common_rules": common_rules,
-                "input_data_block": input_data_block.format(input_json=input_json),
-            }
-        ).messages
 
         decision = self.runner.run(messages, InvestmentDocumentReviewRouteDecision)
         return normalize_route_decision(decision)
