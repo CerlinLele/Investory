@@ -47,6 +47,15 @@ class LearningEntryRequest(BaseModel):
     session_id: NonEmptyString | None = None
 
 
+class InvestmentDocumentReviewRequest(BaseModel):
+    """Public request for the investment document review flow endpoint."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    payload: dict[str, Any]
+    session_id: NonEmptyString | None = None
+
+
 class TaskErrorResponse(BaseModel):
     """Public task error shape returned by the gateway."""
 
@@ -77,6 +86,7 @@ class TaskResponse(BaseModel):
 
 __all__ = [
     "HealthResponse",
+    "InvestmentDocumentReviewRequest",
     "LearningEntryRequest",
     "TaskErrorResponse",
     "TaskRequest",

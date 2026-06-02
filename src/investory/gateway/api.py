@@ -10,10 +10,15 @@ from investory.agent_core.runtime.flow.learning_entry.learning_entry_flow import
     LearningEntryFlow,
     build_learning_entry_flow,
 )
+from investory.agent_core.runtime.flow.investment_document_review.document_review_flow import (
+    InvestmentDocumentReviewFlow,
+    build_investment_document_review_flow,
+)
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.gateway.routing import UnknownTaskTypeError, resolve_task_spec
 from investory.gateway.schemas import (
     HealthResponse,
+    InvestmentDocumentReviewRequest,
     LearningEntryRequest,
     TaskErrorResponse,
     TaskRequest,
@@ -24,6 +29,8 @@ from investory.gateway.session import resolve_session_id
 
 LEARNING_ENTRY_FLOW_STATE_ATTR = "learning_entry_flow"
 LEARNING_ENTRY_ROUTE = "/learning-entry"
+INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR = "investment_document_review_flow"
+INVESTMENT_DOCUMENT_REVIEW_ROUTE = "/investment-document-review"
 
 router = APIRouter()
 
@@ -68,6 +75,17 @@ def execute_learning_entry_request(
     session_id = resolve_session_id(learning_request.session_id)
     resolved_flow = flow or build_learning_entry_flow()
     result = resolved_flow.run(learning_request.payload, session_id=session_id)
+    return _to_gateway_response(result, session_id=session_id)
+
+
+def execute_investment_document_review_request(
+    review_request: InvestmentDocumentReviewRequest,
+    *,
+    flow: InvestmentDocumentReviewFlow | None = None,
+) -> TaskResponse:
+    session_id = resolve_session_id(review_request.session_id)
+    resolved_flow = flow or build_investment_document_review_flow()
+    result = resolved_flow.run(review_request.payload, session_id=session_id)
     return _to_gateway_response(result, session_id=session_id)
 
 
@@ -127,4 +145,18 @@ def run_learning_entry(
         return execute_learning_entry_request(learning_request, flow=flow)
     except UnknownTaskTypeError as exc:
         session_id = resolve_session_id(learning_request.session_id)
+        return _unknown_task_response(exc, session_id=session_id)
+
+
+@router.post(INVESTMENT_DOCUMENT_REVIEW_ROUTE, response_model=TaskResponse)
+def run_investment_document_review(
+    request: Request,
+    review_request: InvestmentDocumentReviewRequest,
+) -> TaskResponse | JSONResponse:
+    flow = getattr(request.app.state, INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR, None)
+
+    try:
+        return execute_investment_document_review_request(review_request, flow=flow)
+    except UnknownTaskTypeError as exc:
+        session_id = resolve_session_id(review_request.session_id)
         return _unknown_task_response(exc, session_id=session_id)

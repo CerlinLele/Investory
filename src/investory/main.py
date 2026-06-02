@@ -7,8 +7,12 @@ from fastapi import FastAPI
 from investory.agent_core.runtime.flow.learning_entry.learning_entry_flow import (
     build_learning_entry_flow,
 )
+from investory.agent_core.runtime.flow.investment_document_review.document_review_flow import (
+    build_investment_document_review_flow,
+)
 from investory.config import load_config
 from investory.gateway.api import (
+    INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR,
     LEARNING_ENTRY_FLOW_STATE_ATTR,
     router as gateway_router,
 )
@@ -25,6 +29,11 @@ def create_app() -> FastAPI:
     app = FastAPI(title=config.app_name)
     app.state.config = config
     setattr(app.state, LEARNING_ENTRY_FLOW_STATE_ATTR, build_learning_entry_flow())
+    setattr(
+        app.state,
+        INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR,
+        build_investment_document_review_flow(),
+    )
     app.include_router(gateway_router)
 
     return app
