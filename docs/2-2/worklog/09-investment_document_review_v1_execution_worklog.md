@@ -48,3 +48,42 @@
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:248`
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:258`
   - `src/investory/gateway/routing.py:34`
+
+## 2026-06-06T23:40:30.5929326+10:00 Step 2
+
+- Step: Phase 1 Step 2 - add investment document review-specific `TodoTaskKind` constants and enum values.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "TodoTaskKind|TASK_KIND|todo_execution" tests src\investory`
+  - `rg --files tests`
+  - `Get-Content src\investory\agent_core\contracts\todo_execution.py`
+  - `Get-Content tests\test_tasks.py`
+  - `Get-Content tests\test_investment_document_review_task_model.py`
+  - `rg -n "INVESTMENT_DOCUMENT|class TodoTaskKind" src\investory\agent_core\contracts\todo_execution.py tests\test_todo_execution_contracts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/todo_execution.py`
+  - `tests/test_todo_execution_contracts.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added module-level constants:
+    - `INVESTMENT_DOCUMENT_EXTRACT_TASK_KIND = "investment_document_extract"`
+    - `INVESTMENT_DOCUMENT_ANALYZE_TASK_KIND = "investment_document_analyze"`
+    - `INVESTMENT_DOCUMENT_SYNTHESIZE_TASK_KIND = "investment_document_synthesize"`
+  - Added matching `TodoTaskKind` enum members:
+    - `INVESTMENT_DOCUMENT_EXTRACT`
+    - `INVESTMENT_DOCUMENT_ANALYZE`
+    - `INVESTMENT_DOCUMENT_SYNTHESIZE`
+  - Added focused test coverage for the new constants and enum values.
+  - First focused pytest attempt hit a Windows sandbox spawn error before test execution. The same `.venv` command was rerun with escalation and passed.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/todo_execution.py:11`
+  - `src/investory/agent_core/contracts/todo_execution.py:12`
+  - `src/investory/agent_core/contracts/todo_execution.py:13`
+  - `src/investory/agent_core/contracts/todo_execution.py:28`
+  - `src/investory/agent_core/contracts/todo_execution.py:33`
+  - `src/investory/agent_core/contracts/todo_execution.py:34`
+  - `src/investory/agent_core/contracts/todo_execution.py:35`
+  - `tests/test_todo_execution_contracts.py:11`
+  - `tests/test_todo_execution_contracts.py:23`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py` (1 passed)
