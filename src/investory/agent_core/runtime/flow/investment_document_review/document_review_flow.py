@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
+from pydantic import ValidationError
 
 from investory.agent_core.contracts.investment_document_review_state import (
     ANALYZE_FOCUS_FIELD,
@@ -12,7 +13,7 @@ from investory.agent_core.contracts.investment_document_review_state import (
     InvestmentDocumentReviewState,
     InvestmentDocumentType,
 )
-from investory.agent_core.contracts.result_types import TaskResult
+from investory.agent_core.contracts.result_types import TaskResult, normalize_task_error
 from investory.agent_core.contracts.todo_execution import TodoExecutionPlan
 from investory.agent_core.runtime.flow.investment_document_review.document_review_router import (
     InvestmentDocumentReviewLLMRouter,
@@ -25,6 +26,10 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     requires_realtime_data,
 )
 from investory.agent_core.runtime.task_executor import TaskExecutor
+from investory.agent_core.runtime.todo_core.plan_validator import (
+    TodoPlanValidationException,
+    ensure_valid_todo_plan,
+)
 from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
@@ -274,7 +279,18 @@ class InvestmentDocumentReviewFlow:
         if not result.ok:
             return {"output": result}
 
-        todo_plan = TodoExecutionPlan.model_validate(result.result)
+        try:
+            todo_plan = TodoExecutionPlan.model_validate(result.result)
+            ensure_valid_todo_plan(todo_plan)
+        except (ValidationError, TodoPlanValidationException) as exc:
+            return {
+                "output": TaskResult(
+                    ok=False,
+                    task_name=INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
+                    error=normalize_task_error(exc, stage="output_validation"),
+                )
+            }
+
         return {"todo_plan": todo_plan}
 
     def build_review_todo_plan_payload(

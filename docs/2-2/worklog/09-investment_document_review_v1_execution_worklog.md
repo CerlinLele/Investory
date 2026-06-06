@@ -397,3 +397,32 @@
   - `tests/test_investment_document_review_todo_prompts.py:65`
   - `tests/test_investment_document_review_todo_prompts.py:66`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py` (20 passed)
+
+## 2026-06-07T02:07:54.9995657+10:00 Phase 2 Step 5
+
+- Step: Phase 2 Step 5 - validate generated To-Do plans with `ensure_valid_todo_plan()` after model output rehydration.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content` on the plan workflow skill, implementation plan, worklog, review flow, todo plan validator, flow tests, task execution pipeline, and todo runner.
+  - `rg -n "ensure_valid_todo_plan|TodoPlanValidationException|normalize_task_error|returns_error_for_invalid_plan|unknown_dependency" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added secondary plan validation in `generate_review_todo_plan()` by calling `ensure_valid_todo_plan()` immediately after `TodoExecutionPlan.model_validate()`.
+  - Converted Pydantic output validation failures and `TodoPlanValidationException` into structured `TaskResult(ok=False)` errors for the plan task with `stage="output_validation"`.
+  - Added a focused flow-node test proving an unknown dependency does not populate `todo_plan` and instead returns a structured `structured_output_failed` error whose debug message includes `unknown_dependency`.
+  - Existing missing-input, refusal, single-pass, prompt, task registry, gateway routing, and todo contract tests remain passing.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:16`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:30`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:31`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:284`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:285`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:290`
+  - `tests/test_investment_document_review_flow.py:314`
+  - `tests/test_investment_document_review_flow.py:368`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (30 passed)

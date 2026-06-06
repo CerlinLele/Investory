@@ -311,6 +311,63 @@ def test_generate_review_todo_plan_requires_review_payload() -> None:
         raise AssertionError("Expected missing review payload to raise RuntimeError.")
 
 
+def test_generate_review_todo_plan_returns_error_for_invalid_plan() -> None:
+    invalid_plan_payload = {
+        "tasks": [
+            {
+                "id": "analyze_fee_disclosure",
+                "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                "title": "Analyze fee disclosure",
+                "description": "Assess fee disclosure from extracted facts.",
+                "payload": {"analyze_focus": ["fee disclosure"]},
+                "depends_on": ["extract_fees"],
+                "completion_criteria": ["Findings cite upstream facts."],
+            },
+        ],
+        "summary": "Invalid plan with a missing dependency.",
+    }
+    executor = FakeExecutor(
+        result=TaskResult(
+            ok=True,
+            task_name=INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
+            result=invalid_plan_payload,
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+
+    update = flow.generate_review_todo_plan(
+        InvestmentDocumentReviewState(
+            input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
+            review_payload={
+                DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt.",
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                EXTRACT_FOCUS_FIELD: ["fees"],
+                ANALYZE_FOCUS_FIELD: ["fee disclosure"],
+                REVIEW_GOAL_FIELD: None,
+            },
+        )
+    )
+
+    assert "todo_plan" not in update
+    output = update["output"]
+    assert output.ok is False
+    assert output.task_name == INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name
+    assert output.error is not None
+    assert output.error.error_type == "structured_output_failed"
+    assert output.error.stage == "output_validation"
+    assert output.error.debug_message is not None
+    assert "unknown_dependency" in output.error.debug_message
+
+
 def test_document_review_flow_preserves_downstream_executor_error_result() -> None:
     error_result = TaskResult(
         ok=False,
