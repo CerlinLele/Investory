@@ -87,3 +87,43 @@
   - `tests/test_todo_execution_contracts.py:11`
   - `tests/test_todo_execution_contracts.py:23`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py` (1 passed)
+
+## 2026-06-06T23:45:32.1078253+10:00 Step 3
+
+- Step: Phase 1 Step 3 - add plan / extract / analyze / synthesize input-output models.
+- Commands/actions:
+  - `git status --short`
+  - `Get-ChildItem -LiteralPath src\investory\agent_core\task_models`
+  - `Get-Content` on existing task model files and relevant contracts.
+  - `rg -n "TodoExecutionPlan|TodoTaskResult|TodoTaskSpec" tests src\investory`
+  - `rg -n "InvestmentDocumentReviewPlanInput|InvestmentDocumentReviewPlanResult|InvestmentDocumentReviewExtractInput|InvestmentDocumentReviewExtractResult|InvestmentDocumentReviewAnalyzeInput|InvestmentDocumentReviewAnalyzeResult|InvestmentDocumentReviewSynthesizeInput|InvestmentDocumentReviewSynthesizeResult" src\investory\agent_core\task_models tests\test_investment_document_review_todo_task_models.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/task_models/investment_document_review_plan.py`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py`
+  - `tests/test_investment_document_review_todo_task_models.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `InvestmentDocumentReviewPlanInput` by reusing the existing single-pass review input fields.
+  - Made plan output explicit by aliasing `InvestmentDocumentReviewPlanResult` to the existing `TodoExecutionPlan` contract.
+  - Added extract task input/result models for factual extraction, citations, information gaps, boundary notes, and summary.
+  - Added analyze task input/result models that carry upstream `TodoTaskResult` dependency results and produce supported risk findings, evidence, gaps, boundary notes, and summary.
+  - Added synthesize input model containing document type, route metadata, optional review goal, validated To-Do plan, and ordered To-Do results.
+  - Made synthesis output explicit by aliasing `InvestmentDocumentReviewSynthesizeResult` to the existing `InvestmentDocumentReviewResult`.
+  - Added focused Pydantic validation tests for plan, extract, analyze, and synthesize models.
+- Evidence anchors:
+  - `src/investory/agent_core/task_models/investment_document_review_plan.py:7`
+  - `src/investory/agent_core/task_models/investment_document_review_plan.py:11`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:15`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:31`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:40`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:56`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:68`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:84`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:106`
+  - `tests/test_investment_document_review_todo_task_models.py:56`
+  - `tests/test_investment_document_review_todo_task_models.py:71`
+  - `tests/test_investment_document_review_todo_task_models.py:78`
+  - `tests/test_investment_document_review_todo_task_models.py:105`
+  - `tests/test_investment_document_review_todo_task_models.py:132`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py` (6 passed)
