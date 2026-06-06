@@ -178,3 +178,45 @@
   - `tests/test_gateway_routing.py:60`
   - `tests/test_gateway_routing.py:64`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py` (22 passed)
+
+## 2026-06-07T00:24:17.3809208+10:00 Step 5
+
+- Step: Phase 1 Step 5 - add prompt files and fix their filenames/responsibilities.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-ChildItem -LiteralPath src\investory\agent_core\prompts\tasks`
+  - `Get-Content src\investory\agent_core\prompts\tasks\investment_document_review_single_pass.md`
+  - `Get-Content tests\test_prompt_loader.py`
+  - `Get-Content src\investory\agent_core\runtime\message_builder.py`
+  - `Get-Content` on existing prompt-related tests and base prompt snippets.
+  - `rg -n "Task:|investment_document_extract|investment_document_analyze|failed or were skipped|structured To-Do plan|upstream extraction results" src\investory\agent_core\prompts\tasks\investment_document_review_plan.md src\investory\agent_core\prompts\tasks\investment_document_extract.md src\investory\agent_core\prompts\tasks\investment_document_analyze.md src\investory\agent_core\prompts\tasks\investment_document_synthesize.md tests\test_investment_document_review_todo_prompts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md`
+  - `src/investory/agent_core/prompts/tasks/investment_document_extract.md`
+  - `src/investory/agent_core/prompts/tasks/investment_document_analyze.md`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md`
+  - `tests/test_investment_document_review_todo_prompts.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `investment_document_review_plan.md` to generate bounded `TodoExecutionPlan` tasks after routing/framework construction.
+  - Added `investment_document_extract.md` for fact-only extraction with citations, gaps, boundary notes, and factual summary.
+  - Added `investment_document_analyze.md` for dependency-result-grounded analysis of risks, gaps, inconsistencies, and disclosure quality.
+  - Added `investment_document_synthesize.md` for final review synthesis from route metadata, validated plan, and ordered task results.
+  - Kept prompt filenames aligned with Step 4 `TaskSpec.prompt_name` values.
+  - Added prompt build tests that verify all four new task specs can load their prompt files and render messages with representative payloads.
+- Evidence anchors:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:1`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:10`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:12`
+  - `src/investory/agent_core/prompts/tasks/investment_document_extract.md:1`
+  - `src/investory/agent_core/prompts/tasks/investment_document_analyze.md:1`
+  - `src/investory/agent_core/prompts/tasks/investment_document_analyze.md:2`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md:1`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md:9`
+  - `tests/test_investment_document_review_todo_prompts.py:60`
+  - `tests/test_investment_document_review_todo_prompts.py:65`
+  - `tests/test_investment_document_review_todo_prompts.py:85`
+  - `tests/test_investment_document_review_todo_prompts.py:121`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py` (26 passed)
