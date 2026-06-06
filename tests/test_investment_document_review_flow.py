@@ -3,9 +3,14 @@ from investory.agent_core.contracts.investment_document_review_state import (
     DOCUMENT_TYPE_HINT_FIELD,
     REVIEW_GOAL_FIELD,
     InvestmentDocumentReviewRouteDecision,
+    InvestmentDocumentReviewState,
     InvestmentDocumentType,
 )
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
+from investory.agent_core.contracts.todo_execution import (
+    TodoExecutionPlan,
+    TodoTaskKind,
+)
 from investory.agent_core.runtime.flow.investment_document_review.document_review_flow import (
     ACTION_FIELD,
     DOCUMENT_TYPE_FIELD,
@@ -21,7 +26,10 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
 from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
     get_review_framework,
 )
-from investory.agent_core.tasks import INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK
+from investory.agent_core.tasks import (
+    INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
+)
 
 
 class FakeExecutor:
@@ -200,6 +208,72 @@ def test_document_review_flow_executes_known_document_review_task() -> None:
                 "analyze_focus": framework.analyze_focus if framework else [],
                 REVIEW_GOAL_FIELD: payload[REVIEW_GOAL_FIELD],
             },
+        )
+    ]
+
+
+def test_generate_review_todo_plan_node_builds_plan_without_executing_tasks() -> None:
+    plan_payload = {
+        "tasks": [
+            {
+                "id": "extract_fees",
+                "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                "title": "Extract fees",
+                "description": "Extract fee facts from the document.",
+                "payload": {"extract_focus": ["fees"]},
+                "depends_on": [],
+                "completion_criteria": ["Fees are listed with source citations."],
+            },
+            {
+                "id": "analyze_fee_disclosure",
+                "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                "title": "Analyze fee disclosure",
+                "description": "Assess fee disclosure from extracted facts.",
+                "payload": {"analyze_focus": ["fee disclosure"]},
+                "depends_on": ["extract_fees"],
+                "completion_criteria": ["Findings cite upstream facts."],
+            },
+        ],
+        "summary": "Extract fee facts before assessing disclosure quality.",
+    }
+    executor = FakeExecutor(
+        result=TaskResult(
+            ok=True,
+            task_name=INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
+            result=plan_payload,
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    review_payload = {
+        DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% fee.",
+        DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+        "extract_focus": ["fees"],
+        "analyze_focus": ["fee disclosure"],
+        REVIEW_GOAL_FIELD: "Review fee disclosure",
+    }
+
+    update = flow.generate_review_todo_plan(
+        InvestmentDocumentReviewState(
+            input_payload={DOCUMENT_TEXT_FIELD: review_payload[DOCUMENT_TEXT_FIELD]},
+            review_payload=review_payload,
+        )
+    )
+
+    assert update["todo_plan"] == TodoExecutionPlan.model_validate(plan_payload)
+    assert "output" not in update
+    assert executor.calls == [
+        (
+            INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
+            review_payload,
         )
     ]
 

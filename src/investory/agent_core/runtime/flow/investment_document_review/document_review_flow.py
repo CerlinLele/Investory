@@ -11,6 +11,7 @@ from investory.agent_core.contracts.investment_document_review_state import (
     InvestmentDocumentType,
 )
 from investory.agent_core.contracts.result_types import TaskResult
+from investory.agent_core.contracts.todo_execution import TodoExecutionPlan
 from investory.agent_core.runtime.flow.investment_document_review.document_review_router import (
     InvestmentDocumentReviewLLMRouter,
     InvestmentDocumentReviewRouter,
@@ -22,7 +23,10 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     requires_realtime_data,
 )
 from investory.agent_core.runtime.task_executor import TaskExecutor
-from investory.agent_core.tasks import INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK
+from investory.agent_core.tasks import (
+    INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
+)
 
 if TYPE_CHECKING:
     from investory.agent_core.runtime.request_runner import RequestRunner
@@ -67,6 +71,7 @@ class InvestmentDocumentReviewNode(str, Enum):
     EVALUATE_POLICY_GATE = "evaluate_policy_gate"
     CLASSIFY_DOCUMENT_TYPE = "classify_document_type"
     BUILD_REVIEW_FRAMEWORK = "build_review_framework"
+    GENERATE_REVIEW_TODO_PLAN = "generate_review_todo_plan"
     RUN_SINGLE_PASS_REVIEW = "run_single_pass_review"
     BUILD_FINAL_RESULT = "build_final_result"
     BUILD_MISSING_INPUT_RESULT = "build_missing_input_result"
@@ -254,6 +259,20 @@ class InvestmentDocumentReviewFlow:
             state.review_payload or state.input_payload,
         )
         return {"output": result}
+
+    def generate_review_todo_plan(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> dict[str, Any]:
+        result = self.executor.run(
+            INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
+            state.review_payload or state.input_payload,
+        )
+        if not result.ok:
+            return {"output": result}
+
+        todo_plan = TodoExecutionPlan.model_validate(result.result)
+        return {"todo_plan": todo_plan}
 
     def build_final_result(
         self,

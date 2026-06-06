@@ -254,3 +254,38 @@
   - `tests/test_investment_document_review_v1_minimal_validation.py:141`
   - `tests/test_investment_document_review_v1_minimal_validation.py:144`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (27 passed)
+
+## 2026-06-07T00:54:08.8734682+10:00 Phase 2 Step 1
+
+- Step: Phase 2 Step 1 - design `generate_review_todo_plan` as an independent flow node without wiring it into the executor path.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\task_executor.py`
+  - `Get-Content src\investory\agent_core\contracts\investment_document_review_state.py`
+  - `rg -n "todo_plan|GENERATE_REVIEW_TODO_PLAN|generate_review_todo_plan|INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK|test_generate_review_todo_plan" src\investory\agent_core\contracts\investment_document_review_state.py src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `todo_plan: TodoExecutionPlan | None` to `InvestmentDocumentReviewState`.
+  - Added `GENERATE_REVIEW_TODO_PLAN = "generate_review_todo_plan"` to `InvestmentDocumentReviewNode`.
+  - Added `generate_review_todo_plan()` as a callable flow node method that runs `INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK`, rehydrates successful output into `TodoExecutionPlan`, and stores it as `todo_plan`.
+  - Preserved existing compiled graph wiring; the current runtime path still uses `build_review_framework -> run_single_pass_review -> build_final_result`.
+  - Added a focused test proving the node builds a plan and does not execute child To-Do tasks.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:45`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:74`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:263`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:268`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:274`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:275`
+  - `tests/test_investment_document_review_flow.py:215`
+  - `tests/test_investment_document_review_flow.py:264`
+  - `tests/test_investment_document_review_flow.py:271`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (30 passed)
