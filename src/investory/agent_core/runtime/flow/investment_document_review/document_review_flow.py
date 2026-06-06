@@ -5,7 +5,9 @@ from uuid import uuid4
 from langgraph.graph import END, START, StateGraph
 
 from investory.agent_core.contracts.investment_document_review_state import (
+    ANALYZE_FOCUS_FIELD,
     DOCUMENT_TEXT_FIELD,
+    EXTRACT_FOCUS_FIELD,
     REVIEW_GOAL_FIELD,
     InvestmentDocumentReviewState,
     InvestmentDocumentType,
@@ -241,8 +243,8 @@ class InvestmentDocumentReviewFlow:
         review_payload = {
             DOCUMENT_TEXT_FIELD: state.input_payload.get(DOCUMENT_TEXT_FIELD),
             DOCUMENT_TYPE_FIELD: state.document_type,
-            "extract_focus": review_framework.extract_focus,
-            "analyze_focus": review_framework.analyze_focus,
+            EXTRACT_FOCUS_FIELD: review_framework.extract_focus,
+            ANALYZE_FOCUS_FIELD: review_framework.analyze_focus,
             REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
         }
         return {
@@ -264,15 +266,31 @@ class InvestmentDocumentReviewFlow:
         self,
         state: InvestmentDocumentReviewState,
     ) -> dict[str, Any]:
+        plan_payload = self.build_review_todo_plan_payload(state)
         result = self.executor.run(
             INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
-            state.review_payload or state.input_payload,
+            plan_payload,
         )
         if not result.ok:
             return {"output": result}
 
         todo_plan = TodoExecutionPlan.model_validate(result.result)
         return {"todo_plan": todo_plan}
+
+    def build_review_todo_plan_payload(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> dict[str, Any]:
+        if state.review_payload is None:
+            raise RuntimeError("Document review flow has no review payload to plan.")
+
+        return {
+            DOCUMENT_TEXT_FIELD: state.review_payload.get(DOCUMENT_TEXT_FIELD),
+            DOCUMENT_TYPE_FIELD: state.review_payload.get(DOCUMENT_TYPE_FIELD),
+            EXTRACT_FOCUS_FIELD: state.review_payload.get(EXTRACT_FOCUS_FIELD),
+            ANALYZE_FOCUS_FIELD: state.review_payload.get(ANALYZE_FOCUS_FIELD),
+            REVIEW_GOAL_FIELD: state.review_payload.get(REVIEW_GOAL_FIELD),
+        }
 
     def build_final_result(
         self,

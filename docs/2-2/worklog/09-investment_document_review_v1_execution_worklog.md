@@ -289,3 +289,43 @@
   - `tests/test_investment_document_review_flow.py:264`
   - `tests/test_investment_document_review_flow.py:271`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (30 passed)
+
+## 2026-06-07T01:26:08.0066261+10:00 Phase 2 Step 2
+
+- Step: Phase 2 Step 2 - make plan-generation input explicit.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `rg -n "generate_review_todo_plan|review_payload|DOCUMENT_TEXT_FIELD|DOCUMENT_TYPE_FIELD|extract_focus|analyze_focus|REVIEW_GOAL_FIELD" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `rg -n "EXTRACT_FOCUS_FIELD|ANALYZE_FOCUS_FIELD|build_review_todo_plan_payload|unexpected_field|requires_review_payload" src\investory\agent_core\contracts\investment_document_review_state.py src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `EXTRACT_FOCUS_FIELD` and `ANALYZE_FOCUS_FIELD` constants so review payload focus fields are no longer raw strings.
+  - Updated `build_review_framework()` to populate the focus fields through the new constants.
+  - Added `build_review_todo_plan_payload()` to produce the exact plan-generation input shape:
+    - `document_text`
+    - `document_type`
+    - `extract_focus`
+    - `analyze_focus`
+    - `review_goal`
+  - Updated `generate_review_todo_plan()` to call the explicit payload builder instead of passing `state.review_payload or state.input_payload`.
+  - Added focused tests proving extra review payload fields are not passed to the plan task and missing `review_payload` raises a clear runtime error.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:13`
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:14`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:246`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:247`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:269`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:280`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:290`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:291`
+  - `tests/test_investment_document_review_flow.py:264`
+  - `tests/test_investment_document_review_flow.py:282`
+  - `tests/test_investment_document_review_flow.py:290`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (31 passed)

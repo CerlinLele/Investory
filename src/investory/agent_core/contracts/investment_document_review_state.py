@@ -10,6 +10,8 @@ from investory.agent_core.contracts.todo_execution import TodoExecutionPlan
 DOCUMENT_TEXT_FIELD = "document_text"
 DOCUMENT_TYPE_HINT_FIELD = "document_type_hint"
 REVIEW_GOAL_FIELD = "review_goal"
+EXTRACT_FOCUS_FIELD = "extract_focus"
+ANALYZE_FOCUS_FIELD = "analyze_focus"
 
 
 class InvestmentDocumentType(str, Enum):
@@ -49,6 +51,8 @@ class InvestmentDocumentReviewState(BaseModel):
 __all__ = [
     "DOCUMENT_TEXT_FIELD",
     "DOCUMENT_TYPE_HINT_FIELD",
+    "ANALYZE_FOCUS_FIELD",
+    "EXTRACT_FOCUS_FIELD",
     "REVIEW_GOAL_FIELD",
     "DocumentReviewFramework",
     "InvestmentDocumentReviewRouteDecision",

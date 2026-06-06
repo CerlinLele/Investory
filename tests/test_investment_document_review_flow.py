@@ -1,6 +1,8 @@
 from investory.agent_core.contracts.investment_document_review_state import (
+    ANALYZE_FOCUS_FIELD,
     DOCUMENT_TEXT_FIELD,
     DOCUMENT_TYPE_HINT_FIELD,
+    EXTRACT_FOCUS_FIELD,
     REVIEW_GOAL_FIELD,
     InvestmentDocumentReviewRouteDecision,
     InvestmentDocumentReviewState,
@@ -204,8 +206,8 @@ def test_document_review_flow_executes_known_document_review_task() -> None:
             {
                 DOCUMENT_TEXT_FIELD: payload[DOCUMENT_TEXT_FIELD],
                 DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
-                "extract_focus": framework.extract_focus if framework else [],
-                "analyze_focus": framework.analyze_focus if framework else [],
+                EXTRACT_FOCUS_FIELD: framework.extract_focus if framework else [],
+                ANALYZE_FOCUS_FIELD: framework.analyze_focus if framework else [],
                 REVIEW_GOAL_FIELD: payload[REVIEW_GOAL_FIELD],
             },
         )
@@ -256,9 +258,10 @@ def test_generate_review_todo_plan_node_builds_plan_without_executing_tasks() ->
     review_payload = {
         DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% fee.",
         DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
-        "extract_focus": ["fees"],
-        "analyze_focus": ["fee disclosure"],
+        EXTRACT_FOCUS_FIELD: ["fees"],
+        ANALYZE_FOCUS_FIELD: ["fee disclosure"],
         REVIEW_GOAL_FIELD: "Review fee disclosure",
+        "unexpected_field": "not part of plan input",
     }
 
     update = flow.generate_review_todo_plan(
@@ -273,9 +276,39 @@ def test_generate_review_todo_plan_node_builds_plan_without_executing_tasks() ->
     assert executor.calls == [
         (
             INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
-            review_payload,
+            {
+                DOCUMENT_TEXT_FIELD: review_payload[DOCUMENT_TEXT_FIELD],
+                DOCUMENT_TYPE_FIELD: review_payload[DOCUMENT_TYPE_FIELD],
+                EXTRACT_FOCUS_FIELD: review_payload[EXTRACT_FOCUS_FIELD],
+                ANALYZE_FOCUS_FIELD: review_payload[ANALYZE_FOCUS_FIELD],
+                REVIEW_GOAL_FIELD: review_payload[REVIEW_GOAL_FIELD],
+            },
         )
     ]
+
+
+def test_generate_review_todo_plan_requires_review_payload() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+
+    try:
+        flow.generate_review_todo_plan(
+            InvestmentDocumentReviewState(
+                input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."}
+            )
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "Document review flow has no review payload to plan."
+    else:
+        raise AssertionError("Expected missing review payload to raise RuntimeError.")
 
 
 def test_document_review_flow_preserves_downstream_executor_error_result() -> None:
