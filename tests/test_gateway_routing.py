@@ -2,7 +2,11 @@ import pytest
 
 from investory.agent_core.tasks import (
     FINANCE_QA_TASK,
+    INVESTMENT_DOCUMENT_ANALYZE_TASK,
+    INVESTMENT_DOCUMENT_EXTRACT_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
+    INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
     INSTRUMENT_BRIEF_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK,
 )
@@ -43,6 +47,22 @@ def test_resolve_task_spec_returns_registered_task_spec():
     assert (
         resolve_task_spec("investment_document_review_single_pass")
         is INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK
+    )
+    assert (
+        resolve_task_spec("investment_document_review_plan")
+        is INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK
+    )
+    assert (
+        resolve_task_spec("investment_document_extract")
+        is INVESTMENT_DOCUMENT_EXTRACT_TASK
+    )
+    assert (
+        resolve_task_spec("investment_document_analyze")
+        is INVESTMENT_DOCUMENT_ANALYZE_TASK
+    )
+    assert (
+        resolve_task_spec("investment_document_synthesize")
+        is INVESTMENT_DOCUMENT_SYNTHESIZE_TASK
     )
 
 

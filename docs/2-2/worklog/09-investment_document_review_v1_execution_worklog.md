@@ -127,3 +127,54 @@
   - `tests/test_investment_document_review_todo_task_models.py:105`
   - `tests/test_investment_document_review_todo_task_models.py:132`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py` (6 passed)
+
+## 2026-06-07T00:05:06.8345746+10:00 Step 4
+
+- Step: Phase 1 Step 4 - update `tasks.py` TaskSpec registration for plan / extract / analyze / synthesize tasks.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content src\investory\agent_core\tasks.py`
+  - `Get-Content tests\test_tasks.py`
+  - `Get-Content tests\test_gateway_routing.py`
+  - `rg -n "INVESTMENT_DOCUMENT_REVIEW_PLAN|INVESTMENT_DOCUMENT_EXTRACT|INVESTMENT_DOCUMENT_ANALYZE|INVESTMENT_DOCUMENT_SYNTHESIZE|investment_document_review_plan|investment_document_extract|investment_document_analyze|investment_document_synthesize" src\investory\agent_core\tasks.py tests\test_tasks.py tests\test_gateway_routing.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/tasks.py`
+  - `tests/test_tasks.py`
+  - `tests/test_gateway_routing.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added module-level task name constants for:
+    - `investment_document_review_plan`
+    - `investment_document_extract`
+    - `investment_document_analyze`
+    - `investment_document_synthesize`
+  - Registered new `TaskSpec`s:
+    - `INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK`
+    - `INVESTMENT_DOCUMENT_EXTRACT_TASK`
+    - `INVESTMENT_DOCUMENT_ANALYZE_TASK`
+    - `INVESTMENT_DOCUMENT_SYNTHESIZE_TASK`
+  - Added the new internal tasks to `TASKS` so `resolve_task_spec()` can find them by internal task name.
+  - Kept public aliases unchanged.
+  - Updated task registry tests for model/prompt wiring and registry contents.
+  - Updated gateway routing tests to verify all new internal task names resolve to the registered `TaskSpec`s.
+- Evidence anchors:
+  - `src/investory/agent_core/tasks.py:38`
+  - `src/investory/agent_core/tasks.py:39`
+  - `src/investory/agent_core/tasks.py:40`
+  - `src/investory/agent_core/tasks.py:41`
+  - `src/investory/agent_core/tasks.py:72`
+  - `src/investory/agent_core/tasks.py:79`
+  - `src/investory/agent_core/tasks.py:86`
+  - `src/investory/agent_core/tasks.py:93`
+  - `src/investory/agent_core/tasks.py:107`
+  - `tests/test_tasks.py:79`
+  - `tests/test_tasks.py:93`
+  - `tests/test_tasks.py:104`
+  - `tests/test_tasks.py:115`
+  - `tests/test_gateway_routing.py:52`
+  - `tests/test_gateway_routing.py:56`
+  - `tests/test_gateway_routing.py:60`
+  - `tests/test_gateway_routing.py:64`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py` (22 passed)
