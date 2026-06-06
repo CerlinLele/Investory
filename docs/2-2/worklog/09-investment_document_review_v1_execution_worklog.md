@@ -1,0 +1,50 @@
+# Investment Document Review v1 Execution Worklog
+
+## 2026-06-06T23:35:09.1806100+10:00 Step 1
+
+- Step: Phase 1 Step 1 - inventory current TodoExecution contract and InvestmentDocumentReview task model for reusable fields.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Date -Format o`
+  - `rg -n "class Todo|TodoTaskKind|TodoExecutionPlan|TodoTaskSpec|TodoTaskResult|TodoFailurePolicy|TodoTaskStatus" src\investory\agent_core\contracts\todo_execution.py`
+  - `rg -n "InvestmentDocumentReview|document_review|TaskSpec|Input|Result|Review" src\investory\agent_core\task_models\investment_document_review.py src\investory\agent_core\contracts\investment_document_review_state.py src\investory\agent_core\tasks.py`
+  - `Get-Content` on the todo contract, investment document review task model, review state contract, task registry, gateway routing, and prior todo worklog.
+  - `rg -n` checks for field-level and flow handoff anchors.
+- Files touched:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/contracts/todo_execution.py`
+  - `src/investory/agent_core/task_models/investment_document_review.py`
+  - `src/investory/agent_core/contracts/investment_document_review_state.py`
+  - `src/investory/agent_core/tasks.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `src/investory/gateway/routing.py`
+- Result:
+  - `TodoExecutionPlan` is reusable as the plan output shape because it already contains ordered `tasks`, `summary`, and a default `RETRY_THEN_FAIL` failure policy.
+  - `TodoTaskSpec` is reusable for v1 plan tasks because it already contains `id`, `kind`, `title`, `description`, `payload`, `depends_on`, and `completion_criteria`.
+  - `TodoTaskResult` is reusable for subtask execution results because it already stores `id`, `status`, optional structured `result`, and optional structured `error`.
+  - `TodoTaskKind` currently lacks investment document review-specific kinds. Step 2 should add constants and enum values for extract/analyze/synthesize rather than using raw strings.
+  - `InvestmentDocumentReviewInput` already has the core plan-generation and single-pass inputs: `document_text`, routed `document_type`, `extract_focus`, `analyze_focus`, and optional `review_goal`.
+  - `InvestmentDocumentReviewResult` already provides the final synthesis target buckets: `extracted_facts`, `risk_findings`, `information_gaps`, `boundary_notes`, `summary`, and optional `learning_next_steps`.
+  - `InvestmentDocumentReviewState` already carries route and framework state, but does not yet have `todo_plan`, `todo_results`, or `review_synthesis_payload`.
+  - `tasks.py` currently registers only `investment_document_review_single_pass`; new plan/extract/analyze/synthesize TaskSpecs will need new module-level name constants and registry entries.
+  - Gateway task resolution uses `TASKS` through `resolve_task_spec()`, so new internal task specs can be discoverable without adding public aliases unless product routing requires them.
+  - Worktree already had unrelated changes before this step: staged `docs/2-2/worklog/08-v0_route_migration_execution_worklog.md`, untracked `AGENTS.md`, and untracked `docs/11-1/`.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/todo_execution.py:7`
+  - `src/investory/agent_core/contracts/todo_execution.py:25`
+  - `src/investory/agent_core/contracts/todo_execution.py:46`
+  - `src/investory/agent_core/contracts/todo_execution.py:56`
+  - `src/investory/agent_core/contracts/todo_execution.py:62`
+  - `src/investory/agent_core/task_models/investment_document_review.py:8`
+  - `src/investory/agent_core/task_models/investment_document_review.py:27`
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:30`
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:35`
+  - `src/investory/agent_core/tasks.py:23`
+  - `src/investory/agent_core/tasks.py:49`
+  - `src/investory/agent_core/tasks.py:56`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:70`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:223`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:248`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:258`
+  - `src/investory/gateway/routing.py:34`
