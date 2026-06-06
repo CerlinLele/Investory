@@ -48,6 +48,52 @@ class FakeExecutor:
         )
 
 
+class DocumentTypePlanExecutor:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict]] = []
+
+    def run(self, spec, payload: dict) -> TaskResult:
+        self.calls.append((spec.name, payload))
+        task_suffix = payload[DOCUMENT_TYPE_FIELD].value
+        extract_task_id = f"extract_{task_suffix}"
+        analyze_task_id = f"analyze_{task_suffix}"
+        return TaskResult(
+            ok=True,
+            task_name=spec.name,
+            result={
+                "tasks": [
+                    {
+                        "id": extract_task_id,
+                        "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                        "title": "Extract document facts",
+                        "description": "Extract document-grounded facts for review.",
+                        "payload": {
+                            EXTRACT_FOCUS_FIELD: payload[EXTRACT_FOCUS_FIELD],
+                        },
+                        "depends_on": [],
+                        "completion_criteria": [
+                            "Extracted facts include source-grounded details."
+                        ],
+                    },
+                    {
+                        "id": analyze_task_id,
+                        "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                        "title": "Analyze extracted facts",
+                        "description": "Analyze risks and gaps from extracted facts.",
+                        "payload": {
+                            ANALYZE_FOCUS_FIELD: payload[ANALYZE_FOCUS_FIELD],
+                        },
+                        "depends_on": [extract_task_id],
+                        "completion_criteria": [
+                            "Findings cite the upstream extraction task."
+                        ],
+                    },
+                ],
+                "summary": "Extract document facts before analyzing risks and gaps.",
+            },
+        )
+
+
 class FakeDocumentReviewRouter:
     def __init__(self, decision: InvestmentDocumentReviewRouteDecision) -> None:
         self.decision = decision
@@ -284,6 +330,61 @@ def test_generate_review_todo_plan_node_builds_plan_without_executing_tasks() ->
                 REVIEW_GOAL_FIELD: review_payload[REVIEW_GOAL_FIELD],
             },
         )
+    ]
+
+
+def test_generate_review_todo_plan_accepts_supported_document_type_frameworks() -> None:
+    executor = DocumentTypePlanExecutor()
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    document_types = (
+        InvestmentDocumentType.ETF_FACTSHEET,
+        InvestmentDocumentType.FUND_PROSPECTUS,
+    )
+
+    for document_type in document_types:
+        input_payload = {
+            DOCUMENT_TEXT_FIELD: f"{document_type.value} review excerpt.",
+            REVIEW_GOAL_FIELD: "Review major risks and information gaps.",
+        }
+        framework_update = flow.build_review_framework(
+            InvestmentDocumentReviewState(
+                input_payload=input_payload,
+                document_type=document_type,
+            )
+        )
+        update = flow.generate_review_todo_plan(
+            InvestmentDocumentReviewState(
+                input_payload=input_payload,
+                document_type=document_type,
+                review_payload=framework_update["review_payload"],
+            )
+        )
+
+        assert "output" not in update
+        todo_plan = update["todo_plan"]
+        assert len(todo_plan.tasks) == 2
+        assert todo_plan.tasks[0].depends_on == []
+        assert todo_plan.tasks[1].depends_on == [todo_plan.tasks[0].id]
+
+        framework = get_review_framework(document_type)
+        assert framework is not None
+        latest_payload = executor.calls[-1][1]
+        assert latest_payload[DOCUMENT_TYPE_FIELD] == document_type
+        assert latest_payload[EXTRACT_FOCUS_FIELD] == framework.extract_focus
+        assert latest_payload[ANALYZE_FOCUS_FIELD] == framework.analyze_focus
+
+    assert [call[0] for call in executor.calls] == [
+        INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
+        INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
     ]
 
 

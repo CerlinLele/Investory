@@ -426,3 +426,31 @@
   - `tests/test_investment_document_review_flow.py:314`
   - `tests/test_investment_document_review_flow.py:368`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (30 passed)
+
+## 2026-06-07T02:13:52.4809860+10:00 Phase 2 Step 6
+
+- Step: Phase 2 Step 6 - run plan generation for one or two document types before expanding coverage.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_rules.py`
+  - `rg -n "DocumentTypePlanExecutor|accepts_supported_document_type_frameworks|extract_document facts|FUND_PROSPECTUS" tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added a deterministic plan-task fake executor that returns a valid extract/analyze dependency plan based on the requested document type.
+  - Added a positive flow-node test that runs `build_review_framework()` and `generate_review_todo_plan()` for:
+    - `InvestmentDocumentType.ETF_FACTSHEET`
+    - `InvestmentDocumentType.FUND_PROSPECTUS`
+  - Verified each generated plan enters the success path with `todo_plan`, not `output`.
+  - Verified extract tasks remain dependency-free and analyze tasks depend on the generated extract task.
+  - Verified the plan task receives the document-type-specific `extract_focus` and `analyze_focus` from the review framework.
+- Evidence anchors:
+  - `tests/test_investment_document_review_flow.py:51`
+  - `tests/test_investment_document_review_flow.py:336`
+  - `tests/test_investment_document_review_flow.py:350`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (31 passed)
