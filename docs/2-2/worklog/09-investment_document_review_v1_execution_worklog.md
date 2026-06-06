@@ -454,3 +454,46 @@
   - `tests/test_investment_document_review_flow.py:336`
   - `tests/test_investment_document_review_flow.py:350`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (31 passed)
+
+## 2026-06-07T04:04:38.2538424+10:00 Phase 3 Step 1
+
+- Step: Phase 3 Step 1 - treat `TodoExecutionRunner` as the single execution entrypoint for review To-Do execution instead of assembling ad hoc execution logic in the flow.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "TodoExecutionRunner|execute_review_todo_plan|_execute_review_todo_task|todo_results|GENERATE_REVIEW_TODO_PLAN|SYNTHESIZE_REVIEW_RESULT|run_single_pass_review" src\investory\agent_core tests`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `rg -n "todo_results:|TodoExecutionRunner|EXECUTE_REVIEW_TODO_PLAN|def execute_review_todo_plan|def _build_todo_execution_runner|def _execute_review_todo_task|todo_task_payload_not_supported" src\investory\agent_core\contracts\investment_document_review_state.py src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `rg -n "test_execute_review_todo_plan_uses_todo_execution_runner|test_execute_review_todo_plan_requires_todo_plan|test_execute_review_todo_plan_dispatches_extract_tasks_through_executor|test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_without_dependency_results|RunnerBackedReviewFlow|RecordingTodoRunner" tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `todo_results` state storage so review To-Do execution can return ordered `TodoTaskResult` entries through flow state.
+  - Added `EXECUTE_REVIEW_TODO_PLAN` to `InvestmentDocumentReviewNode`.
+  - Added `execute_review_todo_plan()` as the review To-Do execution node and delegated execution to `TodoExecutionRunner`.
+  - Added `_build_todo_execution_runner()` so the flow constructs a runner around a single task-dispatch callback rather than embedding dependency scheduling logic in the flow itself.
+  - Added `_execute_review_todo_task()` and `_build_review_todo_task_execution()` to map review To-Do tasks into internal TaskSpecs and payloads.
+  - Extract tasks now dispatch through the existing task executor and return structured `TodoTaskResult` success/failure records.
+  - Analyze tasks are intentionally still blocked at this phase with a structured failure until dependency-results payload support is added in the next step.
+  - The compiled graph still keeps the existing single-pass runtime path; this step only established the runner-backed execution entrypoint and focused node-level coverage.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:51`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:39`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:92`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:301`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:312`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:320`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:328`
+  - `tests/test_investment_document_review_flow.py:109`
+  - `tests/test_investment_document_review_flow.py:125`
+  - `tests/test_investment_document_review_flow.py:508`
+  - `tests/test_investment_document_review_flow.py:565`
+  - `tests/test_investment_document_review_flow.py:583`
+  - `tests/test_investment_document_review_flow.py:665`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (14 passed)
