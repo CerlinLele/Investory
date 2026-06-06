@@ -31,6 +31,11 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     looks_like_investment_advice,
     requires_realtime_data,
 )
+from investory.agent_core.task_models.investment_document_review_todo_tasks import (
+    InvestmentDocumentReviewAnalyzeInput,
+    InvestmentDocumentReviewExtractInput,
+    InvestmentDocumentReviewSynthesizeInput,
+)
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.agent_core.runtime.todo_core.plan_validator import (
     TodoPlanValidationException,
@@ -369,36 +374,16 @@ class InvestmentDocumentReviewFlow:
         if state.document_type is None:
             raise RuntimeError("Document review flow has no classified document type.")
 
-        common_payload = {
-            "task_id": task.id,
-            "task_title": task.title,
-            "task_description": task.description,
-            "completion_criteria": task.completion_criteria,
-            DOCUMENT_TYPE_FIELD: state.document_type,
-            REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
-        }
-
         if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT:
             return (
                 INVESTMENT_DOCUMENT_EXTRACT_TASK,
-                {
-                    **common_payload,
-                    DOCUMENT_TEXT_FIELD: state.input_payload.get(DOCUMENT_TEXT_FIELD),
-                    EXTRACT_FOCUS_FIELD: task.payload.get(EXTRACT_FOCUS_FIELD, []),
-                },
+                self._build_review_todo_extract_payload(state=state, task=task),
             )
 
         if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE:
             return (
                 INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
-                {
-                    DOCUMENT_TYPE_FIELD: state.document_type,
-                    ROUTE_REASON_FIELD: state.route_reason or "",
-                    ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
-                    REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
-                    "todo_plan": state.todo_plan.model_dump() if state.todo_plan else None,
-                    "todo_results": [result.model_dump() for result in state.todo_results],
-                },
+                self._build_review_todo_synthesize_payload(state=state),
             )
 
         if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE:
@@ -407,6 +392,67 @@ class InvestmentDocumentReviewFlow:
             )
 
         raise RuntimeError(f"Unsupported investment document To-Do task kind: {task.kind.value}")
+
+    def _build_review_todo_common_payload(
+        self,
+        *,
+        state: InvestmentDocumentReviewState,
+        task,
+    ) -> dict[str, Any]:
+        return {
+            "task_id": task.id,
+            "task_title": task.title,
+            "task_description": task.description,
+            "completion_criteria": task.completion_criteria,
+            DOCUMENT_TYPE_FIELD: state.document_type,
+            REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
+        }
+
+    def _build_review_todo_extract_payload(
+        self,
+        *,
+        state: InvestmentDocumentReviewState,
+        task,
+    ) -> dict[str, Any]:
+        return InvestmentDocumentReviewExtractInput.model_validate(
+            {
+                **self._build_review_todo_common_payload(state=state, task=task),
+                DOCUMENT_TEXT_FIELD: state.input_payload.get(DOCUMENT_TEXT_FIELD),
+                EXTRACT_FOCUS_FIELD: task.payload.get(EXTRACT_FOCUS_FIELD, []),
+            }
+        ).model_dump()
+
+    def _build_review_todo_analyze_payload(
+        self,
+        *,
+        state: InvestmentDocumentReviewState,
+        task,
+        dependency_results: list[TodoTaskResult],
+    ) -> dict[str, Any]:
+        return InvestmentDocumentReviewAnalyzeInput.model_validate(
+            {
+                **self._build_review_todo_common_payload(state=state, task=task),
+                DOCUMENT_TEXT_FIELD: state.input_payload.get(DOCUMENT_TEXT_FIELD),
+                ANALYZE_FOCUS_FIELD: task.payload.get(ANALYZE_FOCUS_FIELD, []),
+                "dependency_results": [result.model_dump() for result in dependency_results],
+            }
+        ).model_dump()
+
+    def _build_review_todo_synthesize_payload(
+        self,
+        *,
+        state: InvestmentDocumentReviewState,
+    ) -> dict[str, Any]:
+        return InvestmentDocumentReviewSynthesizeInput.model_validate(
+            {
+                DOCUMENT_TYPE_FIELD: state.document_type,
+                ROUTE_REASON_FIELD: state.route_reason or "",
+                ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
+                REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
+                "todo_plan": state.todo_plan.model_dump() if state.todo_plan else None,
+                "todo_results": [result.model_dump() for result in state.todo_results],
+            }
+        ).model_dump()
 
     def build_review_todo_plan_payload(
         self,

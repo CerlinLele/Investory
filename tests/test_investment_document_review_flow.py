@@ -763,6 +763,72 @@ def test_execute_review_todo_plan_dispatches_synthesize_tasks_through_executor()
     ]
 
 
+def test_build_review_todo_analyze_payload_includes_dependency_results() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    analyze_task = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "analyze_fee_disclosure",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze fee disclosure",
+                    "description": "Assess fee disclosure from extracted facts.",
+                    "payload": {"analyze_focus": ["fee disclosure"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                }
+            ],
+            "summary": "Analyze fee disclosure.",
+        }
+    ).tasks[0]
+    dependency_results = [
+        TodoTaskResult(
+            id="extract_fees",
+            status=TodoTaskStatus.SUCCEEDED,
+            result={
+                "extracted_facts": ["Management fee is 0.10%."],
+                "source_citations": ["Fee table"],
+                "information_gaps": [],
+                "boundary_notes": [],
+                "summary": "Fee facts extracted.",
+            },
+        )
+    ]
+
+    payload = flow._build_review_todo_analyze_payload(
+        state=InvestmentDocumentReviewState(
+            input_payload={
+                DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+                REVIEW_GOAL_FIELD: "Assess whether the fee disclosure is sufficient.",
+            },
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+        ),
+        task=analyze_task,
+        dependency_results=dependency_results,
+    )
+
+    assert payload == {
+        "task_id": "analyze_fee_disclosure",
+        "task_title": "Analyze fee disclosure",
+        "task_description": "Assess fee disclosure from extracted facts.",
+        "completion_criteria": ["Findings cite upstream facts."],
+        DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+        REVIEW_GOAL_FIELD: "Assess whether the fee disclosure is sufficient.",
+        DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+        ANALYZE_FOCUS_FIELD: ["fee disclosure"],
+        "dependency_results": [result.model_dump() for result in dependency_results],
+    }
+
+
 def test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_without_dependency_results() -> None:
     executor = FakeExecutor()
     flow = InvestmentDocumentReviewFlow(

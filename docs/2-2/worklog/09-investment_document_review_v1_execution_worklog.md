@@ -532,3 +532,40 @@
   - `tests/test_investment_document_review_flow.py:583`
   - `tests/test_investment_document_review_flow.py:666`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (15 passed)
+
+## 2026-06-07T04:20:58.5163296+10:00 Phase 3 Step 3
+
+- Step: Phase 3 Step 3 - prepare concrete payload structures for extract / analyze / synthesize review To-Do tasks.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\task_models\investment_document_review_todo_tasks.py`
+  - `Get-Date -Format o`
+  - `rg -n "_build_review_todo_extract_payload|_build_review_todo_analyze_payload|_build_review_todo_synthesize_payload|includes_dependency_results" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added dedicated payload builder helpers for review To-Do execution:
+    - `_build_review_todo_extract_payload()`
+    - `_build_review_todo_analyze_payload()`
+    - `_build_review_todo_synthesize_payload()`
+  - Switched extract and synthesize dispatch to use validated task-model payload builders instead of ad hoc dictionaries.
+  - Reused `InvestmentDocumentReviewExtractInput`, `InvestmentDocumentReviewAnalyzeInput`, and `InvestmentDocumentReviewSynthesizeInput` to validate payload structure before executor dispatch.
+  - Prepared the analyze payload shape, including explicit `dependency_results`, without yet wiring analyze tasks into runtime execution; dependency-result sourcing remains the next step.
+  - Added focused test coverage proving the analyze payload builder includes the expected dependency result records.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:380`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:386`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:411`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:425`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:441`
+  - `tests/test_investment_document_review_flow.py:766`
+  - `tests/test_investment_document_review_flow.py:807`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (16 passed)
