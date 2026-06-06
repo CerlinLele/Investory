@@ -601,3 +601,24 @@
   - `tests/test_investment_document_review_flow.py:834`
   - `tests/test_investment_document_review_flow.py:887`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (17 passed)
+
+## 2026-06-07T04:54:16.4432985+10:00 Phase 3 Step 5
+
+- Step: Phase 3 Step 5 - keep review To-Do execution scoped to a single request and do not introduce resume semantics yet.
+- Commands/actions:
+  - `rg -n -C 4 "resume|resume_state|previous_results|todo_results|TodoExecutionRunner\(|execute_review_todo_plan|_build_todo_execution_runner" src\investory\agent_core\runtime\todo_core\runner.py src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py tests\test_todo_execution_contracts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Confirmed the current flow still calls `TodoExecutionRunner.run()` with only `state.todo_plan`, without any `resume_state` or cross-request recovery input.
+  - Added boundary coverage proving prior `state.todo_results` with the same task id are treated only as in-request context seeds and are not used to skip execution.
+  - Verified a stale upstream extract result is overwritten by the fresh extract result from the current request before the downstream analyze payload is built.
+  - Kept resume support explicitly out of scope for this phase; no new resume contract or runner API was introduced.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:313`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:321`
+  - `tests/test_investment_document_review_flow.py:511`
+  - `tests/test_investment_document_review_flow.py:1031`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (18 passed)

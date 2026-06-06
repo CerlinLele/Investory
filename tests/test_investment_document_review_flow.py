@@ -1024,6 +1024,154 @@ def test_execute_review_todo_plan_dispatches_analyze_tasks_with_dependency_resul
     ]
 
 
+def test_execute_review_todo_plan_does_not_treat_prior_results_as_resume_state() -> None:
+    class NoResumeExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            if spec.name == INVESTMENT_DOCUMENT_EXTRACT_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "extracted_facts": ["Updated management fee is 0.10%."],
+                        "source_citations": ["Updated fee table"],
+                        "information_gaps": [],
+                        "boundary_notes": [],
+                        "summary": "Fresh fee facts extracted.",
+                    },
+                )
+
+            if spec.name == INVESTMENT_DOCUMENT_ANALYZE_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "risk_findings": ["Updated fee disclosure is still concise."],
+                        "information_gaps": [],
+                        "boundary_notes": ["This review does not provide investment advice."],
+                        "summary": "The refreshed fee disclosure remains brief.",
+                    },
+                )
+
+            raise AssertionError(f"Unexpected task dispatched: {spec.name}")
+
+    executor = NoResumeExecutor()
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    todo_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                },
+                {
+                    "id": "analyze_fee_disclosure",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze fee disclosure",
+                    "description": "Assess fee disclosure from extracted facts.",
+                    "payload": {"analyze_focus": ["fee disclosure"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                },
+            ],
+            "summary": "Extract and analyze fee disclosure.",
+        }
+    )
+    prior_extract_result = TodoTaskResult(
+        id="extract_fees",
+        status=TodoTaskStatus.SUCCEEDED,
+        result={
+            "extracted_facts": ["Stale management fee is 0.25%."],
+            "source_citations": ["Old fee table"],
+            "information_gaps": ["Fee table may be outdated."],
+            "boundary_notes": [],
+            "summary": "Old fee facts extracted.",
+        },
+    )
+
+    update = flow.execute_review_todo_plan(
+        InvestmentDocumentReviewState(
+            input_payload={
+                DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+                REVIEW_GOAL_FIELD: "Assess whether the fee disclosure is sufficient.",
+            },
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            todo_plan=todo_plan,
+            todo_results=[prior_extract_result],
+        )
+    )
+
+    fresh_extract_result = TodoTaskResult(
+        id="extract_fees",
+        status=TodoTaskStatus.SUCCEEDED,
+        result={
+            "extracted_facts": ["Updated management fee is 0.10%."],
+            "source_citations": ["Updated fee table"],
+            "information_gaps": [],
+            "boundary_notes": [],
+            "summary": "Fresh fee facts extracted.",
+        },
+    )
+    analyze_result = TodoTaskResult(
+        id="analyze_fee_disclosure",
+        status=TodoTaskStatus.SUCCEEDED,
+        result={
+            "risk_findings": ["Updated fee disclosure is still concise."],
+            "information_gaps": [],
+            "boundary_notes": ["This review does not provide investment advice."],
+            "summary": "The refreshed fee disclosure remains brief.",
+        },
+    )
+
+    assert update["todo_results"] == [fresh_extract_result, analyze_result]
+    assert executor.calls == [
+        (
+            INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
+            {
+                "task_id": "extract_fees",
+                "task_title": "Extract fees",
+                "task_description": "Extract fee facts from the document.",
+                "completion_criteria": ["Fees are listed with source citations."],
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                REVIEW_GOAL_FIELD: "Assess whether the fee disclosure is sufficient.",
+                DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+                EXTRACT_FOCUS_FIELD: ["fees"],
+            },
+        ),
+        (
+            INVESTMENT_DOCUMENT_ANALYZE_TASK.name,
+            {
+                "task_id": "analyze_fee_disclosure",
+                "task_title": "Analyze fee disclosure",
+                "task_description": "Assess fee disclosure from extracted facts.",
+                "completion_criteria": ["Findings cite upstream facts."],
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                REVIEW_GOAL_FIELD: "Assess whether the fee disclosure is sufficient.",
+                DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+                ANALYZE_FOCUS_FIELD: ["fee disclosure"],
+                "dependency_results": [fresh_extract_result.model_dump()],
+            },
+        ),
+    ]
+
+
 def test_document_review_flow_preserves_downstream_executor_error_result() -> None:
     error_result = TaskResult(
         ok=False,
