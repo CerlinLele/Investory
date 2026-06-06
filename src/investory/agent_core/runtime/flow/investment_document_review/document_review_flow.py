@@ -17,6 +17,7 @@ from investory.agent_core.contracts.investment_document_review_state import (
 from investory.agent_core.contracts.result_types import TaskResult, normalize_task_error
 from investory.agent_core.contracts.todo_execution import (
     TodoExecutionPlan,
+    TodoTaskKind,
     TodoTaskResult,
     TodoTaskStatus,
 )
@@ -37,8 +38,11 @@ from investory.agent_core.runtime.todo_core.plan_validator import (
 )
 from investory.agent_core.runtime.todo_core.runner import TodoExecutionRunner
 from investory.agent_core.tasks import (
+    INVESTMENT_DOCUMENT_ANALYZE_TASK,
+    INVESTMENT_DOCUMENT_EXTRACT_TASK,
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
+    INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
 )
 
 if TYPE_CHECKING:
@@ -301,26 +305,108 @@ class InvestmentDocumentReviewFlow:
         if state.todo_plan is None:
             raise RuntimeError("Document review flow has no To-Do plan to execute.")
 
-        runner = self._build_todo_execution_runner()
+        runner = self._build_todo_execution_runner(state)
         todo_results = asyncio.run(runner.run(state.todo_plan))
         return {"todo_results": todo_results}
 
-    def _build_todo_execution_runner(self) -> TodoExecutionRunner:
-        return TodoExecutionRunner(self._execute_review_todo_task)
+    def _build_todo_execution_runner(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> TodoExecutionRunner:
+        return TodoExecutionRunner(
+            lambda task: self._execute_review_todo_task(state=state, task=task)
+        )
 
-    async def _execute_review_todo_task(self, task) -> TodoTaskResult:
+    async def _execute_review_todo_task(self, *, state, task) -> TodoTaskResult:
+        try:
+            spec, payload = self._build_review_todo_task_execution(state=state, task=task)
+        except RuntimeError as exc:
+            return TodoTaskResult(
+                id=task.id,
+                status=TodoTaskStatus.FAILED,
+                error={
+                    "error_type": "todo_task_payload_not_supported",
+                    "message": str(exc),
+                    "details": {"task_kind": task.kind.value},
+                },
+            )
+
+        result = self.executor.run(spec, payload)
+        if result.ok:
+            return TodoTaskResult(
+                id=task.id,
+                status=TodoTaskStatus.SUCCEEDED,
+                result=result.result,
+            )
+
         return TodoTaskResult(
             id=task.id,
             status=TodoTaskStatus.FAILED,
             error={
-                "error_type": "todo_task_executor_not_implemented",
+                "error_type": "todo_task_execution_failed",
                 "message": (
-                    "TodoExecutionRunner is the single To-Do execution entry, but "
-                    "task dispatch is not implemented in step 3.1."
+                    result.error.user_safe_message
+                    if result.error is not None
+                    else "The To-Do task failed to run."
                 ),
-                "details": {"task_kind": task.kind.value},
+                "details": {
+                    "task_name": spec.name,
+                    "task_kind": task.kind.value,
+                    "stage": result.error.stage if result.error is not None else None,
+                    "debug_message": (
+                        result.error.debug_message if result.error is not None else None
+                    ),
+                },
             },
         )
+
+    def _build_review_todo_task_execution(
+        self,
+        *,
+        state: InvestmentDocumentReviewState,
+        task,
+    ) -> tuple[Any, dict[str, Any]]:
+        if state.document_type is None:
+            raise RuntimeError("Document review flow has no classified document type.")
+
+        common_payload = {
+            "task_id": task.id,
+            "task_title": task.title,
+            "task_description": task.description,
+            "completion_criteria": task.completion_criteria,
+            DOCUMENT_TYPE_FIELD: state.document_type,
+            REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
+        }
+
+        if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT:
+            return (
+                INVESTMENT_DOCUMENT_EXTRACT_TASK,
+                {
+                    **common_payload,
+                    DOCUMENT_TEXT_FIELD: state.input_payload.get(DOCUMENT_TEXT_FIELD),
+                    EXTRACT_FOCUS_FIELD: task.payload.get(EXTRACT_FOCUS_FIELD, []),
+                },
+            )
+
+        if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE:
+            return (
+                INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
+                {
+                    DOCUMENT_TYPE_FIELD: state.document_type,
+                    ROUTE_REASON_FIELD: state.route_reason or "",
+                    ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
+                    REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
+                    "todo_plan": state.todo_plan.model_dump() if state.todo_plan else None,
+                    "todo_results": [result.model_dump() for result in state.todo_results],
+                },
+            )
+
+        if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE:
+            raise RuntimeError(
+                "Analyze To-Do tasks need dependency_results support before runtime dispatch."
+            )
+
+        raise RuntimeError(f"Unsupported investment document To-Do task kind: {task.kind.value}")
 
     def build_review_todo_plan_payload(
         self,
