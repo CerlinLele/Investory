@@ -622,3 +622,27 @@
   - `tests/test_investment_document_review_flow.py:511`
   - `tests/test_investment_document_review_flow.py:1031`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (18 passed)
+
+## 2026-06-07T04:58:56.4054331+10:00 Phase 3 Step 6
+
+- Step: Phase 3 Step 6 - add failure-task and dependency-task boundary coverage so skip and retry behavior stays stable.
+- Commands/actions:
+  - `rg -n -C 3 "retry|skipped|skip|TodoExecutionRunner|failure_policy|attempt|result.id" tests src\investory\agent_core\runtime\todo_core\runner.py src\investory\agent_core\contracts\todo_execution.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py`
+- Files touched:
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added direct `TodoExecutionRunner` unit coverage instead of relying only on flow-level integration tests.
+  - Verified `RETRY_THEN_FAIL` retries a failed task up to the configured attempt budget and returns success when a later attempt succeeds.
+  - Verified a task that still fails after retry exhaustion causes its dependent task to be returned as `skipped` with `dependency_failed`, and that the dependent executor is never called.
+  - Kept the scope inside Phase 3: no resume contract, persistence, or flow-graph expansion was introduced.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/runner.py:47`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:65`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:126`
+  - `tests/test_todo_execution_runner.py:13`
+  - `tests/test_todo_execution_runner.py:64`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (2 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py` (20 passed)
