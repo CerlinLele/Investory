@@ -4,7 +4,10 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from investory.agent_core.contracts.result_types import TaskResult
-from investory.agent_core.contracts.todo_execution import TodoExecutionPlan
+from investory.agent_core.contracts.todo_execution import (
+    TodoExecutionPlan,
+    TodoTaskResult,
+)
 
 
 DOCUMENT_TEXT_FIELD = "document_text"
@@ -45,6 +48,7 @@ class InvestmentDocumentReviewState(BaseModel):
     review_framework: DocumentReviewFramework | None = None
     review_payload: dict[str, Any] | None = None
     todo_plan: TodoExecutionPlan | None = None
+    todo_results: list[TodoTaskResult] = Field(default_factory=list)
     output: TaskResult | None = None
 
 

@@ -1,3 +1,4 @@
+import asyncio
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -14,7 +15,11 @@ from investory.agent_core.contracts.investment_document_review_state import (
     InvestmentDocumentType,
 )
 from investory.agent_core.contracts.result_types import TaskResult, normalize_task_error
-from investory.agent_core.contracts.todo_execution import TodoExecutionPlan
+from investory.agent_core.contracts.todo_execution import (
+    TodoExecutionPlan,
+    TodoTaskResult,
+    TodoTaskStatus,
+)
 from investory.agent_core.runtime.flow.investment_document_review.document_review_router import (
     InvestmentDocumentReviewLLMRouter,
     InvestmentDocumentReviewRouter,
@@ -30,6 +35,7 @@ from investory.agent_core.runtime.todo_core.plan_validator import (
     TodoPlanValidationException,
     ensure_valid_todo_plan,
 )
+from investory.agent_core.runtime.todo_core.runner import TodoExecutionRunner
 from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
@@ -79,6 +85,7 @@ class InvestmentDocumentReviewNode(str, Enum):
     CLASSIFY_DOCUMENT_TYPE = "classify_document_type"
     BUILD_REVIEW_FRAMEWORK = "build_review_framework"
     GENERATE_REVIEW_TODO_PLAN = "generate_review_todo_plan"
+    EXECUTE_REVIEW_TODO_PLAN = "execute_review_todo_plan"
     RUN_SINGLE_PASS_REVIEW = "run_single_pass_review"
     BUILD_FINAL_RESULT = "build_final_result"
     BUILD_MISSING_INPUT_RESULT = "build_missing_input_result"
@@ -176,14 +183,8 @@ class InvestmentDocumentReviewFlow:
             InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value,
         )
         graph.add_edge(InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value, END)
-        graph.add_edge(
-            InvestmentDocumentReviewNode.BUILD_MISSING_INPUT_RESULT.value,
-            END,
-        )
-        graph.add_edge(
-            InvestmentDocumentReviewNode.BUILD_REFUSAL_RESULT.value,
-            END,
-        )
+        graph.add_edge(InvestmentDocumentReviewNode.BUILD_MISSING_INPUT_RESULT.value, END)
+        graph.add_edge(InvestmentDocumentReviewNode.BUILD_REFUSAL_RESULT.value, END)
 
         return graph.compile()
 
@@ -292,6 +293,34 @@ class InvestmentDocumentReviewFlow:
             }
 
         return {"todo_plan": todo_plan}
+
+    def execute_review_todo_plan(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> dict[str, Any]:
+        if state.todo_plan is None:
+            raise RuntimeError("Document review flow has no To-Do plan to execute.")
+
+        runner = self._build_todo_execution_runner()
+        todo_results = asyncio.run(runner.run(state.todo_plan))
+        return {"todo_results": todo_results}
+
+    def _build_todo_execution_runner(self) -> TodoExecutionRunner:
+        return TodoExecutionRunner(self._execute_review_todo_task)
+
+    async def _execute_review_todo_task(self, task) -> TodoTaskResult:
+        return TodoTaskResult(
+            id=task.id,
+            status=TodoTaskStatus.FAILED,
+            error={
+                "error_type": "todo_task_executor_not_implemented",
+                "message": (
+                    "TodoExecutionRunner is the single To-Do execution entry, but "
+                    "task dispatch is not implemented in step 3.1."
+                ),
+                "details": {"task_kind": task.kind.value},
+            },
+        )
 
     def build_review_todo_plan_payload(
         self,
