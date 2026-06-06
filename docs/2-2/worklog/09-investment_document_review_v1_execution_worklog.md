@@ -497,3 +497,38 @@
   - `tests/test_investment_document_review_flow.py:583`
   - `tests/test_investment_document_review_flow.py:665`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (14 passed)
+
+## 2026-06-07T04:14:19.1262797+10:00 Phase 3 Step 2
+
+- Step: Phase 3 Step 2 - design the `task.kind` to concrete `TaskSpec` dispatch rules for review To-Do execution.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `rg -n "INVESTMENT_DOCUMENT_EXTRACT_TASK|INVESTMENT_DOCUMENT_ANALYZE_TASK|INVESTMENT_DOCUMENT_SYNTHESIZE_TASK|_build_review_todo_task_execution|TodoTaskKind.INVESTMENT_DOCUMENT" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py src\investory\agent_core\tasks.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\task_models\investment_document_review_todo_tasks.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Date -Format o`
+  - `rg -n "dispatches_synthesize_tasks_through_executor|INVESTMENT_DOCUMENT_SYNTHESIZE_TASK|synthesize_review" tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Confirmed `_build_review_todo_task_execution()` is the dispatch boundary from review `task.kind` values to internal TaskSpecs.
+  - Confirmed extract tasks dispatch to `INVESTMENT_DOCUMENT_EXTRACT_TASK`.
+  - Confirmed synthesize tasks dispatch to `INVESTMENT_DOCUMENT_SYNTHESIZE_TASK`.
+  - Kept analyze tasks explicitly gated for the next step, where dependency-results payload support will be added before dispatching to `INVESTMENT_DOCUMENT_ANALYZE_TASK`.
+  - Added focused coverage proving synthesize To-Do tasks dispatch through the executor with the expected synthesize payload built from route metadata, `todo_plan`, and prior `todo_results`.
+- Evidence anchors:
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:363`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:381`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:391`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:404`
+  - `src/investory/agent_core\tasks.py:79`
+  - `src/investory/agent_core\tasks.py:86`
+  - `src/investory/agent_core\tasks.py:93`
+  - `tests/test_investment_document_review_flow.py:583`
+  - `tests/test_investment_document_review_flow.py:666`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (15 passed)

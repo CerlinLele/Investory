@@ -33,6 +33,7 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
 from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
+    INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
 )
 
 
@@ -657,6 +658,106 @@ def test_execute_review_todo_plan_dispatches_extract_tasks_through_executor() ->
                 REVIEW_GOAL_FIELD: "Review fee disclosure",
                 DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
                 EXTRACT_FOCUS_FIELD: ["fees"],
+            },
+        )
+    ]
+
+
+def test_execute_review_todo_plan_dispatches_synthesize_tasks_through_executor() -> None:
+    executor = FakeExecutor(
+        result=TaskResult(
+            ok=True,
+            task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+            result={
+                "document_type": InvestmentDocumentType.ETF_FACTSHEET.value,
+                "extracted_facts": ["Management fee is 0.10%."],
+                "risk_findings": ["Fee disclosure is concise but limited."],
+                "information_gaps": ["No portfolio turnover disclosure found."],
+                "boundary_notes": ["This review does not provide investment advice."],
+                "summary": "The factsheet discloses a 0.10% management fee.",
+                "learning_next_steps": [],
+            },
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    todo_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "synthesize_review",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE,
+                    "title": "Synthesize review",
+                    "description": "Combine completed task results into the final review.",
+                    "payload": {},
+                    "depends_on": [],
+                    "completion_criteria": ["Final review summarizes facts, risks, and gaps."],
+                }
+            ],
+            "summary": "Synthesize the completed review tasks.",
+        }
+    )
+    prior_results = [
+        TodoTaskResult(
+            id="extract_fees",
+            status=TodoTaskStatus.SUCCEEDED,
+            result={
+                "extracted_facts": ["Management fee is 0.10%."],
+                "source_citations": ["Fee table"],
+                "information_gaps": [],
+                "boundary_notes": [],
+                "summary": "Fee facts extracted.",
+            },
+        )
+    ]
+
+    update = flow.execute_review_todo_plan(
+        InvestmentDocumentReviewState(
+            input_payload={
+                DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+                REVIEW_GOAL_FIELD: "Summarize the fee disclosure.",
+            },
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            route_reason="unused",
+            route_confidence=0.91,
+            todo_plan=todo_plan,
+            todo_results=prior_results,
+        )
+    )
+
+    assert update["todo_results"] == [
+        TodoTaskResult(
+            id="synthesize_review",
+            status=TodoTaskStatus.SUCCEEDED,
+            result={
+                "document_type": InvestmentDocumentType.ETF_FACTSHEET.value,
+                "extracted_facts": ["Management fee is 0.10%."],
+                "risk_findings": ["Fee disclosure is concise but limited."],
+                "information_gaps": ["No portfolio turnover disclosure found."],
+                "boundary_notes": ["This review does not provide investment advice."],
+                "summary": "The factsheet discloses a 0.10% management fee.",
+                "learning_next_steps": [],
+            },
+        )
+    ]
+    assert executor.calls == [
+        (
+            INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+            {
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                ROUTE_REASON_FIELD: "unused",
+                ROUTE_CONFIDENCE_FIELD: 0.91,
+                REVIEW_GOAL_FIELD: "Summarize the fee disclosure.",
+                "todo_plan": todo_plan.model_dump(),
+                "todo_results": [result.model_dump() for result in prior_results],
             },
         )
     ]
