@@ -220,3 +220,37 @@
   - `tests/test_investment_document_review_todo_prompts.py:85`
   - `tests/test_investment_document_review_todo_prompts.py:121`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py` (26 passed)
+
+## 2026-06-07T00:44:14.9407716+10:00 Step 6
+
+- Step: Phase 1 Step 6 - validate the new models with a minimal Pydantic sample.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content tests\test_investment_document_review_todo_task_models.py`
+  - `Get-Content tests\test_investment_document_review_todo_prompts.py`
+  - `rg -n "minimal_investment_document_review_v1|InvestmentDocumentReviewPlanInput|InvestmentDocumentReviewSynthesizeInput|final_result|depends_on" tests\test_investment_document_review_v1_minimal_validation.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `tests/test_investment_document_review_v1_minimal_validation.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added a minimal Pydantic validation sample that walks the Phase 1 model chain:
+    - plan input validation
+    - `TodoExecutionPlan` plan result validation
+    - extract input/result validation
+    - analyze input/result validation with upstream `TodoTaskResult`
+    - synthesize input validation with ordered task results
+    - final `InvestmentDocumentReviewResult` validation through the synthesize alias
+  - Verified the sample includes an analyze task depending on `extract_fees`.
+  - Verified the analyze input carries the upstream extract task result.
+  - Verified the synthesize input carries both ordered task results.
+- Evidence anchors:
+  - `tests/test_investment_document_review_v1_minimal_validation.py:24`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:25`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:52`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:119`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:129`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:141`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:144`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (27 passed)
