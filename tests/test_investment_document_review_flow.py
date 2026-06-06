@@ -12,6 +12,8 @@ from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.contracts.todo_execution import (
     TodoExecutionPlan,
     TodoTaskKind,
+    TodoTaskResult,
+    TodoTaskStatus,
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_flow import (
     ACTION_FIELD,
@@ -102,6 +104,40 @@ class FakeDocumentReviewRouter:
     def route(self, payload: dict) -> InvestmentDocumentReviewRouteDecision:
         self.calls.append(payload)
         return self.decision
+
+
+class RecordingTodoRunner:
+    def __init__(self) -> None:
+        self.calls: list[TodoExecutionPlan] = []
+
+    async def run(self, plan: TodoExecutionPlan) -> list[TodoTaskResult]:
+        self.calls.append(plan)
+        return [
+            TodoTaskResult(
+                id=task.id,
+                status=TodoTaskStatus.SUCCEEDED,
+                result={"handled_by": "recording_runner", "task_kind": task.kind.value},
+            )
+            for task in plan.tasks
+        ]
+
+
+class RunnerBackedReviewFlow(InvestmentDocumentReviewFlow):
+    def __init__(self, runner: RecordingTodoRunner) -> None:
+        self.todo_runner = runner
+        super().__init__(
+            executor=FakeExecutor(),
+            llm_router=FakeDocumentReviewRouter(
+                InvestmentDocumentReviewRouteDecision(
+                    document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                    confidence=0.91,
+                    reason="unused",
+                )
+            ),
+        )
+
+    def _build_todo_execution_runner(self):
+        return self.todo_runner
 
 
 def test_document_review_flow_returns_missing_input_for_missing_document_text() -> None:
@@ -467,6 +503,81 @@ def test_generate_review_todo_plan_returns_error_for_invalid_plan() -> None:
     assert output.error.stage == "output_validation"
     assert output.error.debug_message is not None
     assert "unknown_dependency" in output.error.debug_message
+
+
+def test_execute_review_todo_plan_uses_todo_execution_runner() -> None:
+    todo_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                },
+                {
+                    "id": "analyze_fee_disclosure",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze fee disclosure",
+                    "description": "Assess fee disclosure from extracted facts.",
+                    "payload": {"analyze_focus": ["fee disclosure"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                },
+            ],
+            "summary": "Extract fee facts before assessing disclosure quality.",
+        }
+    )
+    runner = RecordingTodoRunner()
+    flow = RunnerBackedReviewFlow(runner)
+
+    update = flow.execute_review_todo_plan(
+        InvestmentDocumentReviewState(
+            input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
+            todo_plan=todo_plan,
+        )
+    )
+
+    assert runner.calls == [todo_plan]
+    assert update["todo_results"] == [
+        TodoTaskResult(
+            id="extract_fees",
+            status=TodoTaskStatus.SUCCEEDED,
+            result={
+                "handled_by": "recording_runner",
+                "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT.value,
+            },
+        ),
+        TodoTaskResult(
+            id="analyze_fee_disclosure",
+            status=TodoTaskStatus.SUCCEEDED,
+            result={
+                "handled_by": "recording_runner",
+                "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE.value,
+            },
+        ),
+    ]
+
+
+def test_execute_review_todo_plan_requires_todo_plan() -> None:
+    runner = RecordingTodoRunner()
+    flow = RunnerBackedReviewFlow(runner)
+
+    try:
+        flow.execute_review_todo_plan(
+            InvestmentDocumentReviewState(
+                input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."}
+            )
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "Document review flow has no To-Do plan to execute."
+    else:
+        raise AssertionError("Expected missing To-Do plan to raise RuntimeError.")
+
+    assert runner.calls == []
 
 
 def test_document_review_flow_preserves_downstream_executor_error_result() -> None:
