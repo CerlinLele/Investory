@@ -329,3 +329,36 @@
   - `tests/test_investment_document_review_flow.py:282`
   - `tests/test_investment_document_review_flow.py:290`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (31 passed)
+
+## 2026-06-07T01:36:46.8789688+10:00 Phase 2 Step 3
+
+- Step: Phase 2 Step 3 - strengthen plan prompt constraints for extract/analyze responsibility boundaries.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content src\investory\agent_core\prompts\tasks\investment_document_review_plan.md`
+  - `Get-Content tests\test_investment_document_review_todo_prompts.py`
+  - `rg -n "Extract tasks must|Analyze tasks must|must not invent raw facts|upstream fact areas|depends_on=\[\]" src\investory\agent_core\prompts\tasks\investment_document_review_plan.md tests\test_investment_document_review_todo_prompts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py`
+- Files touched:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md`
+  - `tests/test_investment_document_review_todo_prompts.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Strengthened extract-task constraints so plan generation must keep extract tasks limited to document-grounded facts, citations, and missing source details.
+  - Made extract-task exclusions explicit: no risk, quality, suitability, performance, consistency, or disclosure-adequacy judgments.
+  - Kept extract tasks dependency-free with `depends_on=[]`.
+  - Strengthened analyze-task constraints so analysis must depend on extract tasks, judge only from upstream extracted facts, and avoid inventing raw facts independently.
+  - Clarified allowed analyze responsibilities: risks, disclosure quality, information gaps, inconsistencies, and source limitations.
+  - Required analyze task payloads to identify relevant `analyze_focus` and upstream fact areas.
+  - Updated prompt rendering tests to assert the key prompt guardrails are present.
+- Evidence anchors:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:11`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:12`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:13`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:15`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:16`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:18`
+  - `tests/test_investment_document_review_todo_prompts.py:62`
+  - `tests/test_investment_document_review_todo_prompts.py:63`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py` (20 passed)

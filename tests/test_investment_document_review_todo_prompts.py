@@ -59,6 +59,8 @@ def test_investment_document_review_plan_prompt_builds_messages() -> None:
     assert len(messages) == 2
     assert "structured To-Do plan" in messages[1].content
     assert "investment_document_extract" in messages[1].content
+    assert "Extract tasks must use `depends_on=[]`" in messages[1].content
+    assert "must not invent raw facts" in messages[1].content
     assert "Review fees" in messages[1].content
 
 

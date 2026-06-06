@@ -8,9 +8,14 @@ Requirements:
 - Create stable, short task ids such as `extract_fees`, `extract_holdings`, or `analyze_fee_disclosure`.
 - Prefer 4 to 8 total tasks for long documents; keep shorter documents smaller.
 - Use `investment_document_extract` for factual extraction tasks.
-- Extract tasks must only extract document-grounded facts and must use `depends_on=[]`.
+- Extract tasks must only extract document-grounded facts, source citations, and missing source details.
+- Extract tasks must not judge risk, quality, suitability, performance, consistency, or disclosure adequacy.
+- Extract tasks must use `depends_on=[]`.
 - Use `investment_document_analyze` for analysis tasks.
-- Analyze tasks must depend on at least one extract task and must judge only from upstream extracted facts.
+- Analyze tasks must depend on at least one extract task.
+- Analyze tasks must judge only from upstream extracted facts and must not invent raw facts from the document independently.
+- Analyze tasks may assess risks, disclosure quality, information gaps, inconsistencies, or source limitations.
+- Analyze task payloads must identify the relevant `analyze_focus` and the upstream fact areas they need.
 - Every task must have a clear title, description, payload, and non-empty `completion_criteria`.
 - The plan summary should explain the review strategy without making an investment recommendation.
 
