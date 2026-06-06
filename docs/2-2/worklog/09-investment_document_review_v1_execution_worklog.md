@@ -362,3 +362,38 @@
   - `tests/test_investment_document_review_todo_prompts.py:62`
   - `tests/test_investment_document_review_todo_prompts.py:63`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py` (20 passed)
+
+## 2026-06-07T01:42:47.8120520+10:00 Phase 2 Step 4
+
+- Step: Phase 2 Step 4 - add `depends_on`, `completion_criteria`, and task id rules into the plan output requirements.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content src\investory\agent_core\prompts\tasks\investment_document_review_plan.md`
+  - `Get-Content tests\test_investment_document_review_todo_prompts.py`
+  - `rg -n "lowercase snake_case|unique|must reference an existing task id exactly|specific and checkable|one to three|must not contain cycles|dependencies must flow" src\investory\agent_core\prompts\tasks\investment_document_review_plan.md tests\test_investment_document_review_todo_prompts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py`
+- Files touched:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md`
+  - `tests/test_investment_document_review_todo_prompts.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Required stable short task ids in lowercase snake_case.
+  - Required task ids to be unique and stable across retries for the same document/focus.
+  - Required every `depends_on` entry to reference an existing task id exactly.
+  - Prohibited unknown dependency ids and self-dependencies.
+  - Required specific, checkable `completion_criteria` rather than generic wording.
+  - Limited completion criteria to one to three items per task.
+  - Required acyclic dependencies flowing from extract tasks to analyze tasks.
+  - Updated prompt rendering tests to assert the task id, dependency, and completion criteria guardrails are present.
+- Evidence anchors:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:8`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:9`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:20`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:22`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:23`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:24`
+  - `tests/test_investment_document_review_todo_prompts.py:64`
+  - `tests/test_investment_document_review_todo_prompts.py:65`
+  - `tests/test_investment_document_review_todo_prompts.py:66`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py` (20 passed)

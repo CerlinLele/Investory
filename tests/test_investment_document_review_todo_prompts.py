@@ -61,6 +61,9 @@ def test_investment_document_review_plan_prompt_builds_messages() -> None:
     assert "investment_document_extract" in messages[1].content
     assert "Extract tasks must use `depends_on=[]`" in messages[1].content
     assert "must not invent raw facts" in messages[1].content
+    assert "lowercase snake_case" in messages[1].content
+    assert "must reference an existing task id exactly" in messages[1].content
+    assert "specific and checkable" in messages[1].content
     assert "Review fees" in messages[1].content
 
 
