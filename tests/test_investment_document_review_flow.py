@@ -31,6 +31,8 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     get_review_framework,
 )
 from investory.agent_core.tasks import (
+    INVESTMENT_DOCUMENT_ANALYZE_TASK,
+    INVESTMENT_DOCUMENT_EXTRACT_TASK,
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
     INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
@@ -829,7 +831,7 @@ def test_build_review_todo_analyze_payload_includes_dependency_results() -> None
     }
 
 
-def test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_without_dependency_results() -> None:
+def test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_without_upstream_dependencies() -> None:
     executor = FakeExecutor()
     flow = InvestmentDocumentReviewFlow(
         executor=executor,
@@ -873,7 +875,7 @@ def test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_withou
             error={
                 "error_type": "todo_task_payload_not_supported",
                 "message": (
-                    "Analyze To-Do tasks need dependency_results support before runtime dispatch."
+                    "Analyze To-Do tasks must depend on at least one upstream task result."
                 ),
                 "details": {
                     "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE.value
@@ -882,6 +884,144 @@ def test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_withou
         )
     ]
     assert executor.calls == []
+
+
+def test_execute_review_todo_plan_dispatches_analyze_tasks_with_dependency_results() -> None:
+    class AnalyzeDispatchExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            if spec.name == INVESTMENT_DOCUMENT_EXTRACT_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "extracted_facts": ["Management fee is 0.10%."],
+                        "source_citations": ["Fee table"],
+                        "information_gaps": [],
+                        "boundary_notes": [],
+                        "summary": "Fee facts extracted.",
+                    },
+                )
+
+            if spec.name == INVESTMENT_DOCUMENT_ANALYZE_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "risk_findings": ["Fee disclosure is concise but limited."],
+                        "information_gaps": ["No portfolio turnover disclosure found."],
+                        "boundary_notes": [
+                            "This review does not provide investment advice."
+                        ],
+                        "summary": "The fee disclosure is present but brief.",
+                    },
+                )
+
+            raise AssertionError(f"Unexpected task dispatched: {spec.name}")
+
+    executor = AnalyzeDispatchExecutor()
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    todo_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                },
+                {
+                    "id": "analyze_fee_disclosure",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze fee disclosure",
+                    "description": "Assess fee disclosure from extracted facts.",
+                    "payload": {"analyze_focus": ["fee disclosure"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                },
+            ],
+            "summary": "Extract and analyze fee disclosure.",
+        }
+    )
+
+    update = flow.execute_review_todo_plan(
+        InvestmentDocumentReviewState(
+            input_payload={
+                DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+                REVIEW_GOAL_FIELD: "Assess whether the fee disclosure is sufficient.",
+            },
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            todo_plan=todo_plan,
+        )
+    )
+
+    extract_result = TodoTaskResult(
+        id="extract_fees",
+        status=TodoTaskStatus.SUCCEEDED,
+        result={
+            "extracted_facts": ["Management fee is 0.10%."],
+            "source_citations": ["Fee table"],
+            "information_gaps": [],
+            "boundary_notes": [],
+            "summary": "Fee facts extracted.",
+        },
+    )
+    analyze_result = TodoTaskResult(
+        id="analyze_fee_disclosure",
+        status=TodoTaskStatus.SUCCEEDED,
+        result={
+            "risk_findings": ["Fee disclosure is concise but limited."],
+            "information_gaps": ["No portfolio turnover disclosure found."],
+            "boundary_notes": ["This review does not provide investment advice."],
+            "summary": "The fee disclosure is present but brief.",
+        },
+    )
+
+    assert update["todo_results"] == [extract_result, analyze_result]
+    assert executor.calls == [
+        (
+            INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
+            {
+                "task_id": "extract_fees",
+                "task_title": "Extract fees",
+                "task_description": "Extract fee facts from the document.",
+                "completion_criteria": ["Fees are listed with source citations."],
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                REVIEW_GOAL_FIELD: "Assess whether the fee disclosure is sufficient.",
+                DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+                EXTRACT_FOCUS_FIELD: ["fees"],
+            },
+        ),
+        (
+            INVESTMENT_DOCUMENT_ANALYZE_TASK.name,
+            {
+                "task_id": "analyze_fee_disclosure",
+                "task_title": "Analyze fee disclosure",
+                "task_description": "Assess fee disclosure from extracted facts.",
+                "completion_criteria": ["Findings cite upstream facts."],
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                REVIEW_GOAL_FIELD: "Assess whether the fee disclosure is sufficient.",
+                DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+                ANALYZE_FOCUS_FIELD: ["fee disclosure"],
+                "dependency_results": [extract_result.model_dump()],
+            },
+        ),
+    ]
 
 
 def test_document_review_flow_preserves_downstream_executor_error_result() -> None:

@@ -318,13 +318,34 @@ class InvestmentDocumentReviewFlow:
         self,
         state: InvestmentDocumentReviewState,
     ) -> TodoExecutionRunner:
+        executed_results_by_id = {result.id: result for result in state.todo_results}
+
+        async def execute(task) -> TodoTaskResult:
+            result = await self._execute_review_todo_task(
+                state=state,
+                task=task,
+                executed_results_by_id=executed_results_by_id,
+            )
+            executed_results_by_id[result.id] = result
+            return result
+
         return TodoExecutionRunner(
-            lambda task: self._execute_review_todo_task(state=state, task=task)
+            execute
         )
 
-    async def _execute_review_todo_task(self, *, state, task) -> TodoTaskResult:
+    async def _execute_review_todo_task(
+        self,
+        *,
+        state,
+        task,
+        executed_results_by_id: dict[str, TodoTaskResult],
+    ) -> TodoTaskResult:
         try:
-            spec, payload = self._build_review_todo_task_execution(state=state, task=task)
+            spec, payload = self._build_review_todo_task_execution(
+                state=state,
+                task=task,
+                executed_results_by_id=executed_results_by_id,
+            )
         except RuntimeError as exc:
             return TodoTaskResult(
                 id=task.id,
@@ -370,6 +391,7 @@ class InvestmentDocumentReviewFlow:
         *,
         state: InvestmentDocumentReviewState,
         task,
+        executed_results_by_id: dict[str, TodoTaskResult],
     ) -> tuple[Any, dict[str, Any]]:
         if state.document_type is None:
             raise RuntimeError("Document review flow has no classified document type.")
@@ -383,12 +405,23 @@ class InvestmentDocumentReviewFlow:
         if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE:
             return (
                 INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
-                self._build_review_todo_synthesize_payload(state=state),
+                self._build_review_todo_synthesize_payload(
+                    state=state,
+                    executed_results_by_id=executed_results_by_id,
+                ),
             )
 
         if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE:
-            raise RuntimeError(
-                "Analyze To-Do tasks need dependency_results support before runtime dispatch."
+            return (
+                INVESTMENT_DOCUMENT_ANALYZE_TASK,
+                self._build_review_todo_analyze_payload(
+                    state=state,
+                    task=task,
+                    dependency_results=self._build_review_todo_dependency_results(
+                        task=task,
+                        executed_results_by_id=executed_results_by_id,
+                    ),
+                ),
             )
 
         raise RuntimeError(f"Unsupported investment document To-Do task kind: {task.kind.value}")
@@ -438,10 +471,50 @@ class InvestmentDocumentReviewFlow:
             }
         ).model_dump()
 
+    def _build_review_todo_dependency_results(
+        self,
+        *,
+        task,
+        executed_results_by_id: dict[str, TodoTaskResult],
+    ) -> list[TodoTaskResult]:
+        if not task.depends_on:
+            raise RuntimeError(
+                "Analyze To-Do tasks must depend on at least one upstream task result."
+            )
+
+        dependency_results: list[TodoTaskResult] = []
+        missing_dependency_ids: list[str] = []
+        failed_dependency_ids: list[str] = []
+
+        for dependency_task_id in task.depends_on:
+            dependency_result = executed_results_by_id.get(dependency_task_id)
+            if dependency_result is None:
+                missing_dependency_ids.append(dependency_task_id)
+                continue
+            if dependency_result.status != TodoTaskStatus.SUCCEEDED:
+                failed_dependency_ids.append(dependency_task_id)
+                continue
+            dependency_results.append(dependency_result)
+
+        if missing_dependency_ids:
+            raise RuntimeError(
+                "Analyze To-Do task is missing required dependency results: "
+                + ", ".join(missing_dependency_ids)
+            )
+
+        if failed_dependency_ids:
+            raise RuntimeError(
+                "Analyze To-Do task has non-succeeded dependency results: "
+                + ", ".join(failed_dependency_ids)
+            )
+
+        return dependency_results
+
     def _build_review_todo_synthesize_payload(
         self,
         *,
         state: InvestmentDocumentReviewState,
+        executed_results_by_id: dict[str, TodoTaskResult],
     ) -> dict[str, Any]:
         return InvestmentDocumentReviewSynthesizeInput.model_validate(
             {
@@ -450,7 +523,9 @@ class InvestmentDocumentReviewFlow:
                 ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
                 REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
                 "todo_plan": state.todo_plan.model_dump() if state.todo_plan else None,
-                "todo_results": [result.model_dump() for result in state.todo_results],
+                "todo_results": [
+                    result.model_dump() for result in executed_results_by_id.values()
+                ],
             }
         ).model_dump()
 

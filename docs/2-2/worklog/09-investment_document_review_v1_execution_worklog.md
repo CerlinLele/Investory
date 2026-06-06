@@ -569,3 +569,35 @@
   - `tests/test_investment_document_review_flow.py:766`
   - `tests/test_investment_document_review_flow.py:807`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (16 passed)
+
+## 2026-06-07T04:42:13.3051920+10:00 Phase 3 Step 4
+
+- Step: Phase 3 Step 4 - source upstream dependency results at runtime and pass them into analyze review To-Do tasks.
+- Commands/actions:
+  - `git diff -- src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `rg -n -C 30 "test_build_review_todo_analyze_payload_includes_dependency_results|test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_without_dependency_results" tests\test_investment_document_review_flow.py`
+  - `rg -n -A 35 -B 0 "update = flow.execute_review_todo_plan\(" tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Updated the review To-Do runner callback so completed task results accumulate by `task.id` during execution instead of relying only on the initial `state.todo_results`.
+  - Enabled runtime dispatch for `TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE` by building validated analyze payloads from succeeded upstream task results.
+  - Added `_build_review_todo_dependency_results()` to enforce three runtime guards for analyze tasks:
+    - at least one declared dependency,
+    - every dependency result must exist,
+    - every dependency result must have `SUCCEEDED` status.
+  - Updated synthesize payload construction to use the live executed-result map, so later tasks can see outputs produced earlier in the same runner pass.
+  - Replaced the old analyze-placeholder failure test with the new no-dependencies guard expectation.
+  - Added positive runtime coverage proving an extract task result is forwarded into the analyze task payload as `dependency_results`.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:321`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:397`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:474`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:509`
+  - `tests/test_investment_document_review_flow.py:834`
+  - `tests/test_investment_document_review_flow.py:887`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (17 passed)
