@@ -237,17 +237,17 @@
     </header>
 
     <section class="legend" aria-label="Legend">
-      <div class="legend-item"><span class="swatch" style="background: var(--input); border-color: var(--input-line);"></span>输入与状态</div>
-      <div class="legend-item"><span class="swatch" style="background: var(--flow); border-color: var(--flow-line);"></span>Flow 处理</div>
-      <div class="legend-item"><span class="swatch" style="background: var(--summary); border-color: var(--summary-line);"></span>汇总契约</div>
-      <div class="legend-item"><span class="swatch" style="background: var(--guard); border-color: var(--guard-line);"></span>边界控制</div>
-      <div class="legend-item"><span class="swatch" style="background: var(--final); border-color: var(--final-line);"></span>最终输出</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--input); border-color: var(--input-line);"></span>State: 当前已有数据</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--flow); border-color: var(--flow-line);"></span>Action: flow 执行动作</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--guard); border-color: var(--guard-line);"></span>Decision: 过滤/边界</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--summary); border-color: var(--summary-line);"></span>State: 聚合后的摘要</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--final); border-color: var(--final-line);"></span>Output: 对外结果</div>
     </section>
 
     <section class="canvas" aria-label="Synthesis flowchart">
-      <svg viewBox="0 0 1320 980" role="img" aria-labelledby="title desc" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 1320 1120" role="img" aria-labelledby="title desc" xmlns="http://www.w3.org/2000/svg">
         <title id="title">Investment document review synthesis flowchart</title>
-        <desc id="desc">A flowchart explaining how completed To-Do task results are filtered, summarized, synthesized, and wrapped into the final review response.</desc>
+        <desc id="desc">A state and action flowchart explaining how completed To-Do task results become the final investment document review response.</desc>
 
         <defs>
           <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
@@ -258,130 +258,126 @@
           </marker>
         </defs>
 
-        <line class="divider" x1="70" y1="118" x2="1250" y2="118" />
-        <line class="divider" x1="70" y1="318" x2="1250" y2="318" />
-        <line class="divider" x1="70" y1="578" x2="1250" y2="578" />
-        <line class="divider" x1="70" y1="790" x2="1250" y2="790" />
+        <line class="divider" x1="80" y1="112" x2="1240" y2="112" />
+        <line class="divider" x1="80" y1="1000" x2="1240" y2="1000" />
+        <line class="divider" x1="430" y1="112" x2="430" y2="1000" />
+        <line class="divider" x1="860" y1="112" x2="860" y2="1000" />
 
-        <text class="lane-label" x="76" y="82">1. 输入与恢复状态</text>
-        <text class="lane-label" x="76" y="282">2. 执行结果过滤</text>
-        <text class="lane-label" x="76" y="542">3. 确定性聚合</text>
-        <text class="lane-label" x="76" y="754">4. 模型汇总与公开响应</text>
+        <text class="lane-label" x="112" y="82">State before action</text>
+        <text class="lane-label" x="526" y="82">Action in flow</text>
+        <text class="lane-label" x="966" y="82">State after action</text>
 
-        <rect class="box input" x="110" y="145" width="190" height="104" />
-        <text class="title" x="130" y="176">todo_plan</text>
-        <text class="body" x="130" y="203">任务顺序</text>
-        <text class="body" x="130" y="224">depends_on</text>
-        <text class="body" x="130" y="245">completion criteria</text>
+        <rect class="box input" x="100" y="145" width="286" height="122" />
+        <text class="title" x="122" y="176">Initial review state</text>
+        <text class="body" x="122" y="204">todo_plan: 任务顺序和依赖</text>
+        <text class="body" x="122" y="226">route metadata: 文档类型上下文</text>
+        <text class="body" x="122" y="248">resume_state: 可能已有结果</text>
 
-        <rect class="box input" x="348" y="145" width="210" height="104" />
-        <text class="title" x="368" y="176">route metadata</text>
-        <text class="body" x="368" y="203">document_type</text>
-        <text class="body" x="368" y="224">route_reason</text>
-        <text class="body" x="368" y="245">route_confidence</text>
+        <rect class="box flow" x="494" y="145" width="284" height="122" />
+        <text class="title" x="516" y="176">load + seed resume results</text>
+        <text class="body" x="516" y="204">加载 resume_state</text>
+        <text class="body" x="516" y="226">把 results_by_id 注入 runner state</text>
+        <text class="body" x="516" y="248">让恢复结果参与后续汇总</text>
 
-        <rect class="box input" x="606" y="145" width="210" height="104" />
-        <text class="title" x="626" y="176">resume_state</text>
-        <text class="body" x="626" y="203">results_by_id</text>
-        <text class="body" x="626" y="224">attempts_by_id</text>
-        <text class="body" x="626" y="245">updated_at</text>
+        <rect class="box input" x="934" y="145" width="286" height="122" />
+        <text class="title" x="956" y="176">Runner execution state</text>
+        <text class="body" x="956" y="204">executed_results_by_id 已有恢复结果</text>
+        <text class="body" x="956" y="226">attempts_by_id 保留尝试次数</text>
+        <text class="body" x="956" y="248">todo_plan 仍控制执行顺序</text>
 
-        <rect class="box flow" x="864" y="145" width="260" height="104" />
-        <text class="title" x="884" y="176">execute_review_todo_plan</text>
-        <text class="body" x="884" y="203">加载 resume_state</text>
-        <text class="body" x="884" y="224">构建 runner state</text>
-        <text class="body" x="884" y="245">执行剩余 To-Do 任务</text>
+        <path class="arrow" d="M386 206 H494" />
+        <path class="arrow" d="M778 206 H934" />
 
-        <path class="arrow" d="M300 197 H348" />
-        <path class="arrow" d="M558 197 H606" />
-        <path class="arrow" d="M816 197 H864" />
+        <rect class="box input" x="100" y="325" width="286" height="122" />
+        <text class="title" x="122" y="356">Runner execution state</text>
+        <text class="body" x="122" y="384">已成功任务: 直接复用</text>
+        <text class="body" x="122" y="406">未完成任务: 等待执行</text>
+        <text class="body" x="122" y="428">依赖关系来自 todo_plan</text>
 
-        <rect class="box flow" x="150" y="360" width="250" height="110" />
-        <text class="title" x="170" y="391">seed executed_results_by_id</text>
-        <text class="body" x="170" y="418">state.todo_results</text>
-        <text class="body" x="170" y="439">+ resume_state.results_by_id</text>
-        <text class="body" x="170" y="460">让 synthesize 看见恢复结果</text>
+        <rect class="box flow" x="494" y="325" width="284" height="122" />
+        <text class="title" x="516" y="356">runner.run(plan)</text>
+        <text class="body" x="516" y="384">跳过已成功任务</text>
+        <text class="body" x="516" y="406">只调用剩余 To-Do task</text>
+        <text class="body" x="516" y="428">返回按 plan 排序的 task results</text>
 
-        <rect class="box flow" x="474" y="360" width="240" height="110" />
-        <text class="title" x="494" y="391">runner.run(...)</text>
-        <text class="body" x="494" y="418">跳过已成功任务</text>
-        <text class="body" x="494" y="439">执行未完成任务</text>
-        <text class="body" x="494" y="460">按 plan 顺序返回结果</text>
+        <rect class="box input" x="934" y="325" width="286" height="122" />
+        <text class="title" x="956" y="356">todo_results</text>
+        <text class="body" x="956" y="384">包含恢复结果 + 新执行结果</text>
+        <text class="body" x="956" y="406">每项都有 task_id / status / output</text>
+        <text class="body" x="956" y="428">这里仍可能有非完成态</text>
 
-        <rect class="box guard" x="788" y="360" width="250" height="110" />
-        <text class="title" x="808" y="391">_build_completed_todo_results</text>
-        <text class="body" x="808" y="418">只保留完成态</text>
-        <text class="body" x="808" y="439">SUCCEEDED / FAILED / SKIPPED</text>
-        <text class="body" x="808" y="460">排除 PENDING / RUNNING</text>
+        <path class="arrow" d="M1077 267 V296 H243 V325" />
+        <path class="arrow" d="M386 386 H494" />
+        <path class="arrow" d="M778 386 H934" />
 
-        <path class="arrow" d="M994 249 C994 300 275 304 275 360" />
-        <path class="arrow" d="M400 415 H474" />
-        <path class="arrow" d="M714 415 H788" />
+        <rect class="box input" x="100" y="505" width="286" height="122" />
+        <text class="title" x="122" y="536">todo_results</text>
+        <text class="body" x="122" y="564">SUCCEEDED / FAILED / SKIPPED</text>
+        <text class="body" x="122" y="586">PENDING / RUNNING</text>
+        <text class="body" x="122" y="608">原始任务级结果集合</text>
 
-        <rect class="box summary" x="110" y="620" width="260" height="118" />
-        <text class="title" x="130" y="650">facts / findings</text>
-        <text class="body" x="130" y="678">从成功任务 result 提取</text>
-        <text class="body" x="130" y="699">extracted_facts</text>
-        <text class="body" x="130" y="720">risk_findings</text>
+        <rect class="box guard" x="494" y="505" width="284" height="122" />
+        <text class="title" x="516" y="536">filter completed results</text>
+        <text class="body" x="516" y="564">保留终态结果</text>
+        <text class="body" x="516" y="586">排除 PENDING / RUNNING</text>
+        <text class="body" x="516" y="608">避免半成品进入最终汇总</text>
 
-        <rect class="box summary" x="418" y="620" width="260" height="118" />
-        <text class="title" x="438" y="650">gaps / boundary notes</text>
-        <text class="body" x="438" y="678">成功任务原始 gap/note</text>
-        <text class="body" x="438" y="699">FAILED -> information_gaps</text>
-        <text class="body" x="438" y="720">SKIPPED -> boundary_notes</text>
+        <rect class="box input" x="934" y="505" width="286" height="122" />
+        <text class="title" x="956" y="536">completed_todo_results</text>
+        <text class="body" x="956" y="564">SUCCEEDED: 可贡献 facts/findings</text>
+        <text class="body" x="956" y="586">FAILED: 转成 information gaps</text>
+        <text class="body" x="956" y="608">SKIPPED: 转成 boundary notes</text>
 
-        <rect class="box summary" x="726" y="620" width="260" height="118" />
-        <text class="title" x="746" y="650">task_summaries</text>
-        <text class="body" x="746" y="678">task_id / title / kind</text>
-        <text class="body" x="746" y="699">status</text>
-        <text class="body" x="746" y="720">summary or error message</text>
+        <path class="arrow" d="M1077 447 V476 H243 V505" />
+        <path class="arrow" d="M386 566 H494" />
+        <path class="arrow" d="M778 566 H934" />
 
-        <rect class="box summary" x="1034" y="620" width="210" height="118" />
-        <text class="title" x="1054" y="650">review_summary</text>
-        <text class="body" x="1054" y="678">稳定聚合输入</text>
-        <text class="body" x="1054" y="699">降低噪音</text>
-        <text class="body" x="1054" y="720">保留不完整性</text>
+        <rect class="box input" x="100" y="685" width="286" height="122" />
+        <text class="title" x="122" y="716">completed_todo_results</text>
+        <text class="body" x="122" y="744">完成态任务结果</text>
+        <text class="body" x="122" y="766">todo_plan: 计划摘要</text>
+        <text class="body" x="122" y="788">route metadata: 分类上下文</text>
 
-        <path class="arrow" d="M913 470 C913 548 240 548 240 620" />
-        <path class="arrow" d="M913 470 C913 548 548 548 548 620" />
-        <path class="arrow" d="M913 470 C913 548 856 548 856 620" />
-        <path class="arrow" d="M370 679 H418" />
-        <path class="arrow" d="M678 679 H726" />
-        <path class="arrow" d="M986 679 H1034" />
+        <rect class="box flow" x="494" y="685" width="284" height="122" />
+        <text class="title" x="516" y="716">build synthesize payload</text>
+        <text class="body" x="516" y="744">构建 review_summary</text>
+        <text class="body" x="516" y="766">保留 todo_results 作为追溯源</text>
+        <text class="body" x="516" y="788">带上 route metadata + review_goal</text>
 
-        <rect class="box flow" x="130" y="832" width="252" height="104" />
-        <text class="title" x="150" y="862">synthesize payload</text>
-        <text class="body" x="150" y="889">todo_plan + todo_results</text>
-        <text class="body" x="150" y="910">review_summary</text>
-        <text class="body" x="150" y="931">route metadata + review_goal</text>
+        <rect class="box summary" x="934" y="685" width="286" height="122" />
+        <text class="title" x="956" y="716">synthesize payload</text>
+        <text class="body" x="956" y="744">todo_plan + completed_todo_results</text>
+        <text class="body" x="956" y="766">review_summary: 稳定摘要</text>
+        <text class="body" x="956" y="788">route metadata: 只作上下文</text>
 
-        <rect class="box final" x="460" y="832" width="230" height="104" />
-        <text class="title" x="480" y="862">investment_document_synthesize</text>
-        <text class="body" x="480" y="889">输出复用</text>
-        <text class="body" x="480" y="910">InvestmentDocumentReviewResult</text>
+        <path class="arrow" d="M1077 627 V656 H243 V685" />
+        <path class="arrow" d="M386 746 H494" />
+        <path class="arrow" d="M778 746 H934" />
 
-        <rect class="box final" x="768" y="832" width="230" height="104" />
-        <text class="title" x="788" y="862">build_final_result</text>
-        <text class="body" x="788" y="889">task_name = investment_document_review</text>
-        <text class="body" x="788" y="910">action = complete</text>
-        <text class="body" x="788" y="931">包装 review + route metadata</text>
+        <rect class="box summary" x="100" y="865" width="286" height="122" />
+        <text class="title" x="122" y="896">synthesize payload</text>
+        <text class="body" x="122" y="924">模型看到的是这个 payload</text>
+        <text class="body" x="122" y="946">summary 负责低噪音归纳</text>
+        <text class="body" x="122" y="968">results 负责可追踪细节</text>
 
-        <rect class="box final" x="1076" y="832" width="190" height="104" />
-        <text class="title" x="1096" y="862">API response shape</text>
-        <text class="body" x="1096" y="889">公开结构稳定</text>
-        <text class="body" x="1096" y="910">可追踪</text>
-        <text class="body" x="1096" y="931">承认缺口</text>
+        <rect class="box final" x="494" y="865" width="284" height="122" />
+        <text class="title" x="516" y="896">investment_document_synthesize</text>
+        <text class="body" x="516" y="924">生成 review body</text>
+        <text class="body" x="516" y="946">不把 route metadata 当证据</text>
+        <text class="body" x="516" y="968">输出 InvestmentDocumentReviewResult</text>
 
-        <path class="arrow" d="M1139 738 C1139 782 256 782 256 832" />
-        <path class="arrow" d="M382 884 H460" />
-        <path class="arrow" d="M690 884 H768" />
-        <path class="arrow" d="M998 884 H1076" />
+        <rect class="box final" x="934" y="865" width="286" height="122" />
+        <text class="title" x="956" y="896">build_final_result</text>
+        <text class="body" x="956" y="924">包装 task_name / action</text>
+        <text class="body" x="956" y="946">外层保留 document_type 等字段</text>
+        <text class="body" x="956" y="968">返回稳定 API response</text>
 
-        <path class="soft-arrow" d="M453 249 C453 782 256 782 256 832" />
-        <text class="small" x="300" y="806">route metadata 持续进入最终汇总</text>
+        <path class="arrow" d="M1077 807 V836 H243 V865" />
+        <path class="arrow" d="M386 926 H494" />
+        <path class="arrow" d="M778 926 H934" />
 
-        <path class="soft-arrow" d="M711 249 C711 324 275 324 275 360" />
-        <text class="small" x="430" y="334">resume 已完成结果先进入执行 state</text>
+        <text class="small" x="104" y="1038">读法：每一行都是一次 state 变化。左边是动作前 state，中间是 flow 做的动作，右边是动作后的 state。</text>
+        <text class="small" x="104" y="1062">route metadata 只解释文档分类上下文；最终投资风险结论必须来自完成态 To-Do 结果。</text>
       </svg>
     </section>
 
