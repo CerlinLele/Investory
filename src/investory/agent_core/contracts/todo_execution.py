@@ -1,7 +1,8 @@
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Todo task kind identifiers
 FINANCE_QA_TASK_KIND = "finance_qa"
@@ -70,3 +71,14 @@ class TodoTaskResult(BaseModel):
     status: TodoTaskStatus
     result: dict[str, Any] | None = None
     error: dict[str, Any] | None = None
+
+
+class TodoExecutionResumeState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str
+    session_id: str | None = None
+    plan: TodoExecutionPlan
+    results_by_id: dict[str, TodoTaskResult] = Field(default_factory=dict)
+    attempts_by_id: dict[str, int] = Field(default_factory=dict)
+    updated_at: datetime

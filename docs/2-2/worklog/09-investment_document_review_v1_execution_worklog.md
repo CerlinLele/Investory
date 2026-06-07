@@ -646,3 +646,30 @@
   - `tests/test_todo_execution_runner.py:64`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (2 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py` (20 passed)
+
+## 2026-06-07T16:34:27.9156127+10:00 Phase 4 Step 1
+
+- Step: Phase 4 Step 1 - define the resume data boundary so persistence stores only recovery information, not runtime objects.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 4 "阶段 4|Step:|resume_state|TodoExecutionResumeState|results_by_id|attempts_by_id" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md src\investory\agent_core\contracts\todo_execution.py tests`
+  - `Get-Content src\investory\agent_core\contracts\todo_execution.py`
+  - `rg -n "class TodoExecutionResumeState|test_todo_execution_resume_state_persists_only_recovery_boundary|test_todo_execution_resume_state_rejects_runtime_objects" src\investory\agent_core\contracts\todo_execution.py tests\test_todo_execution_resume.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/todo_execution.py`
+  - `tests/test_todo_execution_resume.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `TodoExecutionResumeState` as the persisted resume boundary.
+  - Limited the boundary to recovery data: `run_id`, optional `session_id`, `plan`, `results_by_id`, `attempts_by_id`, and `updated_at`.
+  - Configured the resume state to reject extra fields, so runtime objects such as an executor cannot be persisted into the contract.
+  - Added contract tests for accepted recovery data and rejected runtime-only data.
+  - Did not change `TodoExecutionRunner.run()` or introduce resume execution behavior in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/todo_execution.py:76`
+  - `tests/test_todo_execution_resume.py:36`
+  - `tests/test_todo_execution_resume.py:66`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py` (2 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py` (5 passed)
