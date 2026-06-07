@@ -704,3 +704,31 @@
   - `tests/test_todo_execution_resume.py:139`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py` (6 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py` (9 passed)
+
+## 2026-06-07T16:59:26.7183336+10:00 Phase 4 Step 3
+
+- Step: Phase 4 Step 3 - add a `resume_state` parameter to `TodoExecutionRunner.run()`.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `Get-Content tests\test_todo_execution_runner.py`
+  - `rg -n "async def run|resume_state: TodoExecutionResumeState|_ensure_resume_state_matches_plan|accepts_matching_resume_state|rejects_resume_state_for_different_plan" src\investory\agent_core\runtime\todo_core\runner.py tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/todo_core/runner.py`
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Extended `TodoExecutionRunner.run()` to accept keyword-only `resume_state: TodoExecutionResumeState | None = None`.
+  - Added a guard that rejects a resume state whose embedded `plan` does not match the plan being run.
+  - Added runner tests for accepting a matching resume state and rejecting a mismatched resume state.
+  - Preserved existing behavior for all current callers that invoke `run(plan)`.
+  - Did not implement completed-task skipping or attempts restoration in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/runner.py:55`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:217`
+  - `tests/test_todo_execution_runner.py:134`
+  - `tests/test_todo_execution_runner.py:182`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (4 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (29 passed)

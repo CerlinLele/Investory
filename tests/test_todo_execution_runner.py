@@ -1,7 +1,9 @@
 import asyncio
+from datetime import datetime, timezone
 
 from investory.agent_core.contracts.todo_execution import (
     TodoExecutionPlan,
+    TodoExecutionResumeState,
     TodoFailurePolicy,
     TodoTaskKind,
     TodoTaskResult,
@@ -127,3 +129,105 @@ def test_todo_execution_runner_skips_downstream_task_after_retry_exhaustion() ->
         ),
     ]
     assert attempts_by_id == {"extract_fees": 3}
+
+
+def test_todo_execution_runner_accepts_matching_resume_state_parameter() -> None:
+    calls: list[str] = []
+
+    async def executor(task) -> TodoTaskResult:
+        calls.append(task.id)
+        return TodoTaskResult(
+            id=task.id,
+            status=TodoTaskStatus.SUCCEEDED,
+            result={"summary": "Fee facts extracted."},
+        )
+
+    plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                }
+            ],
+            "summary": "Extract fee facts.",
+            "failure_policy": TodoFailurePolicy.RETRY_THEN_FAIL,
+        }
+    )
+    resume_state = TodoExecutionResumeState(
+        run_id="review-run-1",
+        plan=plan,
+        updated_at=datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+    )
+
+    results = asyncio.run(
+        TodoExecutionRunner(executor).run(plan, resume_state=resume_state)
+    )
+
+    assert results == [
+        TodoTaskResult(
+            id="extract_fees",
+            status=TodoTaskStatus.SUCCEEDED,
+            result={"summary": "Fee facts extracted."},
+        )
+    ]
+    assert calls == ["extract_fees"]
+
+
+def test_todo_execution_runner_rejects_resume_state_for_different_plan() -> None:
+    async def executor(task) -> TodoTaskResult:
+        return TodoTaskResult(
+            id=task.id,
+            status=TodoTaskStatus.SUCCEEDED,
+            result={"summary": "Fee facts extracted."},
+        )
+
+    plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                }
+            ],
+            "summary": "Extract fee facts.",
+        }
+    )
+    other_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_holdings",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract holdings",
+                    "description": "Extract holdings facts from the document.",
+                    "payload": {"extract_focus": ["holdings"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Holdings are listed with source citations."],
+                }
+            ],
+            "summary": "Extract holdings facts.",
+        }
+    )
+    resume_state = TodoExecutionResumeState(
+        run_id="review-run-1",
+        plan=other_plan,
+        updated_at=datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+    )
+
+    try:
+        asyncio.run(TodoExecutionRunner(executor).run(plan, resume_state=resume_state))
+    except ValueError as exc:
+        assert str(exc) == "Todo runner resume_state.plan must match the plan being run."
+    else:
+        raise AssertionError("Expected mismatched resume_state plan to fail.")

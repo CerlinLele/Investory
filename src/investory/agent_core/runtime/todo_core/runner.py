@@ -4,6 +4,7 @@ from typing import Any
 
 from investory.agent_core.contracts.todo_execution import (
     TodoExecutionPlan,
+    TodoExecutionResumeState,
     TodoFailurePolicy,
     TodoTaskResult,
     TodoTaskSpec,
@@ -51,8 +52,16 @@ class TodoExecutionRunner:
         self._concurrency = concurrency
         self._max_retries = max_retries
 
-    async def run(self, plan: TodoExecutionPlan) -> list[TodoTaskResult]:
+    async def run(
+        self,
+        plan: TodoExecutionPlan,
+        *,
+        resume_state: TodoExecutionResumeState | None = None,
+    ) -> list[TodoTaskResult]:
         ensure_valid_todo_plan(plan)
+        if resume_state is not None:
+            _ensure_resume_state_matches_plan(plan=plan, resume_state=resume_state)
+
         layers = build_dependency_layers(plan)
 
         result_by_id: dict[str, TodoTaskResult] = {}
@@ -203,6 +212,15 @@ def _find_dependency_failure(
         if dependency_result.status != TodoTaskStatus.SUCCEEDED:
             return dependency_task_id
     return None
+
+
+def _ensure_resume_state_matches_plan(
+    *,
+    plan: TodoExecutionPlan,
+    resume_state: TodoExecutionResumeState,
+) -> None:
+    if resume_state.plan != plan:
+        raise ValueError("Todo runner resume_state.plan must match the plan being run.")
 
 
 def _build_failed_result(
