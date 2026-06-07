@@ -253,6 +253,25 @@ OPENAI_API_KEY=...
 }
 ```
 
+## 真实测试文档来源
+
+`document_text` 是普通字符串字段，直接接受文字内容，不是文件上传。拿到 PDF 后用任意工具（Adobe、pdfplumber、pdfminer）提取文字层粘贴进来即可。ETF factsheet 通常 1-3 页，提取后约 500-1500 字，对 single-pass review 来说信息密度足够。
+
+### ETF Factsheet（直接对应 `etf_factsheet` 类型）
+
+- [iShares（BlackRock）](https://www.ishares.com/us/products/etf-investments) — 每只产品页都有 PDF factsheet，含费率、指数追踪、持仓分布、风险披露
+- [Vanguard](https://investor.vanguard.com/investment-products/etfs) — 提供 fund fact sheet PDF
+- [SPDR（State Street）](https://www.ssga.com/us/en/intermediary/etfs) — 标准化 factsheet
+
+### 基金招募说明书 / Prospectus
+
+- [SEC EDGAR](https://www.sec.gov/cgi-bin/browse-edgar) — 美国所有公开基金的法定披露文件，搜 N-1A（共同基金）或 S-1
+
+### 香港 / 亚洲市场
+
+- [香港证监会基金认可列表](https://apps.sfc.hk/cgi-bin/fund/cgi/html/fundSearch.cgi) — 授权基金招股说明书和年报
+- [富达香港](https://www.fidelity.com.hk/)、[先锋香港](https://www.vanguard.com.hk/) — 中英文 factsheet
+
 ## Assumptions
 
 - 默认本地服务地址是 `http://127.0.0.1:8000`。
