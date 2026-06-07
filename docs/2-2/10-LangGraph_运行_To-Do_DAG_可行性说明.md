@@ -133,6 +133,72 @@ Investory runner 当前支持：
 
 如果把 To-Do 子任务全部迁移到 LangGraph 层，需要重新实现或重新映射这些 runner 语义，尤其是 `fail_fast`、`best_effort`、依赖失败后的 `skipped`、以及最终按 plan 顺序聚合结果。
 
+## 为什么动态 fan-out 抽象层不同
+
+LangGraph 的 `Send` 是图层分发语法，当前 `TodoExecutionRunner` 是业务任务调度器。
+
+`Send` 关心的是：
+
+```text
+当前 state 里有 N 个 payload
+把这 N 个 payload 分别发给同一个 graph node
+每个 node 跑完后把结果 merge 回 state
+```
+
+它的抽象对象是 graph node 调用。它不天然知道这些 payload 是 To-Do task，也不天然理解 `depends_on`、`completion_criteria`、`failure_policy`、task id 是否匹配、依赖失败后下游要不要 `skipped`、最后结果要不要按原始 plan 顺序返回。
+
+当前 `TodoExecutionRunner` 关心的是：
+
+```text
+这里有一个 TodoExecutionPlan
+先校验 task id / dependency / cycle
+再按 depends_on 分层
+每层最多并发 N 个 task
+根据 failure_policy 决定 retry / fail_fast / best_effort
+依赖失败时生成 skipped result
+最后按原始 plan 顺序返回 TodoTaskResult
+```
+
+它的抽象对象是带依赖和失败策略的 To-Do plan。
+
+所以动态 fan-out 两边都能做，但层级不同：
+
+```text
+LangGraph Send:
+fan-out graph node calls
+
+TodoExecutionRunner:
+fan-out business tasks inside a validated dependency plan
+```
+
+例如，下面这种无依赖任务很适合直接用 `Send` 表达：
+
+```text
+extract_fees
+extract_holdings
+extract_risk_disclosure
+```
+
+但如果任务变成有依赖的 DAG：
+
+```text
+extract_fees
+extract_holdings
+analyze_fee_risk depends_on extract_fees
+analyze_concentration_risk depends_on extract_holdings
+synthesize depends_on analyze_fee_risk, analyze_concentration_risk
+```
+
+`Send` 只解决“把多个 task 发出去”，不解决“什么时候该发哪个 task、上游失败下游怎么处理、失败策略是什么”。这些就是当前 runner 已经处理的调度语义。
+
+一句话总结：
+
+```text
+Send 是分发工具。
+TodoExecutionRunner 是调度规则。
+分发是调度的一部分，但不是整个调度。
+```
+
 ## 当前代码状态
 
 当前 `document_review_flow.py` 已经有这些方法：
