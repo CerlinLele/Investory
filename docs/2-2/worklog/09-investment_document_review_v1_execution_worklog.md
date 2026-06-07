@@ -831,3 +831,30 @@
   - `tests/test_investment_document_review_flow.py:618`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (19 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (34 passed)
+
+## 2026-06-07T18:40:42.0992424+10:00 Phase 4 Step 7
+
+- Step: Phase 4 Step 7 - validate resume behavior with partial success, partial failure, and dependency failure scenarios.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 5 "Phase 4 Step 7|部分成功|依赖失败|running task treated as retry candidate|partial success resume|failed dependency resume" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content tests\test_todo_execution_runner.py`
+  - `Get-Content tests\test_todo_execution_resume.py`
+  - `rg -n "test_todo_execution_runner_keeps_plan_order_for_partial_success_resume|test_todo_execution_runner_treats_running_resume_task_as_retry_candidate|test_todo_execution_runner_skips_dependency_after_exhausted_resume_failure|test_todo_execution_runner_retries_only_remaining_resume_attempts" tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added partial-success resume coverage proving resumed completed tasks can coexist with newly executed tasks while final results still follow the original plan order.
+  - Added running-task resume coverage proving `status=running` is treated as a retry candidate and gets re-executed instead of being treated as completed.
+  - Reused the existing remaining-attempts and exhausted-dependency resume scenarios as the partial-failure and dependency-failure validations for this step.
+  - Kept the implementation unchanged in this step; only scenario coverage and worklog evidence were added.
+- Evidence anchors:
+  - `tests/test_todo_execution_runner.py:295`
+  - `tests/test_todo_execution_runner.py:383`
+  - `tests/test_todo_execution_runner.py:451`
+  - `tests/test_todo_execution_runner.py:510`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (10 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (36 passed)
