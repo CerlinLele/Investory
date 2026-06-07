@@ -1018,8 +1018,17 @@ def test_build_review_todo_synthesize_payload_uses_only_completed_todo_results()
         "skipped_task_ids": ["analyze_holdings"],
         "extracted_facts": ["Management fee is 0.10%."],
         "risk_findings": [],
-        "information_gaps": ["No source date found."],
-        "boundary_notes": ["Facts are limited to the supplied excerpt."],
+        "information_gaps": [
+            "No source date found.",
+            (
+                "Analyze fee disclosure (analyze_fee_disclosure) did not complete: "
+                "Fee disclosure analysis failed."
+            ),
+        ],
+        "boundary_notes": [
+            "Facts are limited to the supplied excerpt.",
+            "Analyze holdings (analyze_holdings) did not complete: Holdings analysis was skipped.",
+        ],
         "task_summaries": [
             {
                 "task_id": "extract_fees",

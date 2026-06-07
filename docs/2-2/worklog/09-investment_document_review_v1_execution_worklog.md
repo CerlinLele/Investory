@@ -955,3 +955,32 @@
   - `tests/test_investment_document_review_flow.py:1049`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (21 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (38 passed)
+
+## 2026-06-07T22:54:10.8466874+10:00 Phase 5 Step 4
+
+- Step: Phase 5 Step 4 - make summary expose failed or skipped tasks as explicit `information_gaps` or `boundary_notes`.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "Phase 5 Step 3|Phase 5 Step 4|failed|skipped|information_gaps|boundary_notes|_build_review_todo_summary|review_summary" docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `rg -n "_todo_incomplete_review_note|information_gaps.append|boundary_notes.append|test_build_review_todo_synthesize_payload_uses_only_completed_todo_results|Phase 5 Step 3" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added deterministic conversion for failed task results into `review_summary.information_gaps`, using the task title/id and structured error message when available.
+  - Added deterministic conversion for skipped task results into `review_summary.boundary_notes`, using the task title/id and structured error message when available.
+  - Added `_todo_incomplete_review_note()` so incomplete task messages share one stable format and fallback safely when an error message is absent.
+  - Updated the existing synthesize payload test to prove failed/skipped tasks are not only tracked by status ids and per-task summaries, but also surfaced as final-review incompleteness signals.
+  - Re-ran the focused flow suite and the related To-Do/resume regression suite from the repository `.venv`; both passed.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:183`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:192`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:247`
+  - `tests/test_investment_document_review_flow.py:1012`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (21 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (38 passed)

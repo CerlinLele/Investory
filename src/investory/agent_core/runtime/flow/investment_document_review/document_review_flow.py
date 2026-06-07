@@ -180,9 +180,21 @@ def _build_review_todo_summary(
         elif result.status == TodoTaskStatus.FAILED:
             failed_task_ids.append(result.id)
             summary = _todo_result_error_message(result)
+            information_gaps.append(
+                _todo_incomplete_review_note(
+                    result=result,
+                    task_title=task.title if task is not None else None,
+                )
+            )
         else:
             skipped_task_ids.append(result.id)
             summary = _todo_result_error_message(result)
+            boundary_notes.append(
+                _todo_incomplete_review_note(
+                    result=result,
+                    task_title=task.title if task is not None else None,
+                )
+            )
 
         task_summaries.append(
             InvestmentDocumentReviewTodoTaskSummary(
@@ -230,6 +242,18 @@ def _todo_result_error_message(result: TodoTaskResult) -> str | None:
     if isinstance(message, str):
         return message
     return None
+
+
+def _todo_incomplete_review_note(
+    *,
+    result: TodoTaskResult,
+    task_title: str | None,
+) -> str:
+    task_label = task_title or result.id
+    reason = _todo_result_error_message(result)
+    if reason:
+        return f"{task_label} ({result.id}) did not complete: {reason}"
+    return f"{task_label} ({result.id}) did not complete with status {result.status.value}."
 
 
 class InvestmentDocumentReviewFlow:
