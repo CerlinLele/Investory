@@ -673,3 +673,34 @@
   - `tests/test_todo_execution_resume.py:66`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py` (2 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py` (5 passed)
+
+## 2026-06-07T16:38:17.9710461+10:00 Phase 4 Step 2
+
+- Step: Phase 4 Step 2 - fix the `results_by_id` and `attempts_by_id` resume structures with explicit validation rules.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content src\investory\agent_core\contracts\todo_execution.py`
+  - `Get-Content tests\test_todo_execution_resume.py`
+  - `rg -n "validate_resume_maps|unknown_result_ids|unknown_attempt_ids|negative_attempt_ids|rejects_unknown_result|requires_result_key|rejects_unknown_attempt|rejects_negative" src\investory\agent_core\contracts\todo_execution.py tests\test_todo_execution_resume.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/todo_execution.py`
+  - `tests/test_todo_execution_resume.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `TodoExecutionResumeState.validate_resume_maps()` to validate resume map structure against the embedded plan.
+  - Enforced that `results_by_id` keys must be known task ids from the plan.
+  - Enforced that each `results_by_id` key must match its `TodoTaskResult.id`.
+  - Enforced that `attempts_by_id` keys must be known task ids from the plan.
+  - Enforced that `attempts_by_id` values must be zero or greater.
+  - Added focused tests for unknown result ids, mismatched result ids, unknown attempt ids, and negative attempt counts.
+  - Did not change `TodoExecutionRunner.run()` or introduce resume execution behavior in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/todo_execution.py:87`
+  - `tests/test_todo_execution_resume.py:82`
+  - `tests/test_todo_execution_resume.py:103`
+  - `tests/test_todo_execution_resume.py:124`
+  - `tests/test_todo_execution_resume.py:139`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py` (6 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py` (9 passed)

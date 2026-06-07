@@ -77,3 +77,75 @@ def test_todo_execution_resume_state_rejects_runtime_objects() -> None:
         )
 
     assert "executor" in str(exc_info.value)
+
+
+def test_todo_execution_resume_state_rejects_unknown_result_task_ids() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        TodoExecutionResumeState.model_validate(
+            {
+                "run_id": "review-run-1",
+                "plan": _sample_plan().model_dump(),
+                "results_by_id": {
+                    "missing_task": TodoTaskResult(
+                        id="missing_task",
+                        status=TodoTaskStatus.SUCCEEDED,
+                        result={"summary": "Unexpected result."},
+                    ).model_dump()
+                },
+                "attempts_by_id": {},
+                "updated_at": datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+            }
+        )
+
+    assert "unknown task ids: missing_task" in str(exc_info.value)
+
+
+def test_todo_execution_resume_state_requires_result_key_to_match_result_id() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        TodoExecutionResumeState.model_validate(
+            {
+                "run_id": "review-run-1",
+                "plan": _sample_plan().model_dump(),
+                "results_by_id": {
+                    "extract_fees": TodoTaskResult(
+                        id="different_task",
+                        status=TodoTaskStatus.SUCCEEDED,
+                        result={"summary": "Mismatched result."},
+                    ).model_dump()
+                },
+                "attempts_by_id": {},
+                "updated_at": datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+            }
+        )
+
+    assert "keys must match TodoTaskResult.id: extract_fees" in str(exc_info.value)
+
+
+def test_todo_execution_resume_state_rejects_unknown_attempt_task_ids() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        TodoExecutionResumeState.model_validate(
+            {
+                "run_id": "review-run-1",
+                "plan": _sample_plan().model_dump(),
+                "results_by_id": {},
+                "attempts_by_id": {"missing_task": 1},
+                "updated_at": datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+            }
+        )
+
+    assert "unknown task ids: missing_task" in str(exc_info.value)
+
+
+def test_todo_execution_resume_state_rejects_negative_attempt_counts() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        TodoExecutionResumeState.model_validate(
+            {
+                "run_id": "review-run-1",
+                "plan": _sample_plan().model_dump(),
+                "results_by_id": {},
+                "attempts_by_id": {"extract_fees": -1},
+                "updated_at": datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+            }
+        )
+
+    assert "values must be zero or greater: extract_fees" in str(exc_info.value)

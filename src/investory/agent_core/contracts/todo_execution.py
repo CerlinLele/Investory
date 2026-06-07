@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Todo task kind identifiers
 FINANCE_QA_TASK_KIND = "finance_qa"
@@ -82,3 +82,45 @@ class TodoExecutionResumeState(BaseModel):
     results_by_id: dict[str, TodoTaskResult] = Field(default_factory=dict)
     attempts_by_id: dict[str, int] = Field(default_factory=dict)
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def validate_resume_maps(self):
+        plan_task_ids = {task.id for task in self.plan.tasks}
+
+        unknown_result_ids = sorted(set(self.results_by_id) - plan_task_ids)
+        if unknown_result_ids:
+            raise ValueError(
+                "Resume results_by_id contains unknown task ids: "
+                + ", ".join(unknown_result_ids)
+            )
+
+        mismatched_result_ids = sorted(
+            task_id
+            for task_id, result in self.results_by_id.items()
+            if result.id != task_id
+        )
+        if mismatched_result_ids:
+            raise ValueError(
+                "Resume results_by_id keys must match TodoTaskResult.id: "
+                + ", ".join(mismatched_result_ids)
+            )
+
+        unknown_attempt_ids = sorted(set(self.attempts_by_id) - plan_task_ids)
+        if unknown_attempt_ids:
+            raise ValueError(
+                "Resume attempts_by_id contains unknown task ids: "
+                + ", ".join(unknown_attempt_ids)
+            )
+
+        negative_attempt_ids = sorted(
+            task_id
+            for task_id, attempts in self.attempts_by_id.items()
+            if attempts < 0
+        )
+        if negative_attempt_ids:
+            raise ValueError(
+                "Resume attempts_by_id values must be zero or greater: "
+                + ", ".join(negative_attempt_ids)
+            )
+
+        return self
