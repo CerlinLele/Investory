@@ -8,7 +8,13 @@ from investory.agent_core.contracts.investment_document_review_state import (
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.runtime.flow.investment_document_review.document_review_flow import (
     ACTION_FIELD,
+    DOCUMENT_TYPE_FIELD,
     INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
+    MESSAGE_FIELD,
+    MISSING_FIELDS_FIELD,
+    REVIEW_FIELD,
+    ROUTE_CONFIDENCE_FIELD,
+    ROUTE_REASON_FIELD,
     InvestmentDocumentReviewFlow,
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
@@ -16,6 +22,7 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
 )
 from investory.gateway.api import (
     INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR,
+    INVESTMENT_DOCUMENT_REVIEW_ROUTE,
     execute_investment_document_review_request,
     router,
 )
@@ -48,8 +55,10 @@ class FakeExecutor:
 class FakeRouter:
     def __init__(self, decision: InvestmentDocumentReviewRouteDecision) -> None:
         self.decision = decision
+        self.calls: list[dict] = []
 
     def route(self, payload: dict) -> InvestmentDocumentReviewRouteDecision:
+        self.calls.append(payload)
         return self.decision
 
 
@@ -87,7 +96,7 @@ def test_investment_document_review_endpoint_returns_missing_input_branch():
     client = _client_with_flow(InvestmentDocumentReviewFlow(executor=executor))
 
     response = client.post(
-        "/investment-document-review",
+        INVESTMENT_DOCUMENT_REVIEW_ROUTE,
         json={
             "payload": {"review_goal": "Check fees"},
             "session_id": "session-1",
@@ -121,17 +130,99 @@ def test_investment_document_review_endpoint_runs_complete_review_through_execut
     )
 
     response = client.post(
-        "/investment-document-review",
+        INVESTMENT_DOCUMENT_REVIEW_ROUTE,
         json={"payload": payload, "session_id": "session-1"},
     )
 
     body = response.json()
     assert response.status_code == 200
+    assert set(body) == {"ok", "task_name", "session_id", "result", "error"}
     assert body["ok"] is True
     assert body["task_name"] == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
     assert body["session_id"] == "session-1"
-    assert body["result"][ACTION_FIELD] == "complete"
+    assert body["error"] is None
+    assert body["result"] == {
+        ACTION_FIELD: "complete",
+        DOCUMENT_TYPE_FIELD: "etf_factsheet",
+        ROUTE_REASON_FIELD: "The excerpt clearly matches an ETF factsheet.",
+        ROUTE_CONFIDENCE_FIELD: 0.91,
+        REVIEW_FIELD: {"handled_by": "investment_document_review_single_pass"},
+    }
     assert len(executor.calls) == 1
+
+
+def test_investment_document_review_endpoint_preserves_refusal_branch():
+    executor = FakeExecutor()
+    router = FakeRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.91,
+            reason="unused because policy gate refuses first.",
+        )
+    )
+    client = _client_with_flow(
+        InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+    )
+
+    response = client.post(
+        INVESTMENT_DOCUMENT_REVIEW_ROUTE,
+        json={
+            "payload": {
+                "document_text": "ETF factsheet with fee table.",
+                "review_goal": "Should I buy this ETF today?",
+            },
+            "session_id": "session-1",
+        },
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert set(body) == {"ok", "task_name", "session_id", "result", "error"}
+    assert body["ok"] is True
+    assert body["task_name"] == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
+    assert body["session_id"] == "session-1"
+    assert body["error"] is None
+    assert body["result"][ACTION_FIELD] == "refuse_and_redirect"
+    assert MESSAGE_FIELD in body["result"]
+    assert router.calls == []
+    assert executor.calls == []
+
+
+def test_investment_document_review_endpoint_preserves_unknown_type_branch():
+    executor = FakeExecutor()
+    router = FakeRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.UNKNOWN,
+            confidence=0.33,
+            reason="The excerpt does not clearly identify a supported document type.",
+        )
+    )
+    client = _client_with_flow(
+        InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+    )
+
+    response = client.post(
+        INVESTMENT_DOCUMENT_REVIEW_ROUTE,
+        json={
+            "payload": {
+                "document_text": "A short unlabeled investment note.",
+            },
+            "session_id": "session-1",
+        },
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert set(body) == {"ok", "task_name", "session_id", "result", "error"}
+    assert body["ok"] is True
+    assert body["task_name"] == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
+    assert body["session_id"] == "session-1"
+    assert body["error"] is None
+    assert body["result"][ACTION_FIELD] == "ask_for_missing_input"
+    assert body["result"][MISSING_FIELDS_FIELD] == ["document_type_hint"]
+    assert MESSAGE_FIELD in body["result"]
+    assert len(router.calls) == 1
+    assert executor.calls == []
 
 
 def test_investment_document_review_endpoint_returns_error_response_for_flow_failure():
@@ -149,7 +240,7 @@ def test_investment_document_review_endpoint_returns_error_response_for_flow_fai
     client = _client_with_flow(flow)
 
     response = client.post(
-        "/investment-document-review",
+        INVESTMENT_DOCUMENT_REVIEW_ROUTE,
         json={
             "payload": {"document_text": "ETF factsheet"},
             "session_id": "session-1",

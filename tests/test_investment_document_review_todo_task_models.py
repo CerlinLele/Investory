@@ -52,6 +52,30 @@ def _sample_result() -> TodoTaskResult:
     )
 
 
+def _sample_review_summary() -> dict:
+    return {
+        "plan_summary": "Review ETF fees before analysis.",
+        "planned_task_count": 1,
+        "completed_task_count": 1,
+        "succeeded_task_ids": ["extract_fees"],
+        "failed_task_ids": [],
+        "skipped_task_ids": [],
+        "extracted_facts": ["The management fee is 0.10%."],
+        "risk_findings": [],
+        "information_gaps": [],
+        "boundary_notes": [],
+        "task_summaries": [
+            {
+                "task_id": "extract_fees",
+                "task_title": "Extract fees",
+                "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                "status": TodoTaskStatus.SUCCEEDED,
+                "summary": None,
+            }
+        ],
+    }
+
+
 def test_plan_input_accepts_existing_review_fields() -> None:
     payload = InvestmentDocumentReviewPlanInput.model_validate(
         {
@@ -137,6 +161,7 @@ def test_synthesize_input_and_result_models_validate_review_output() -> None:
             "review_goal": "Review fee clarity",
             "todo_plan": _sample_plan(),
             "todo_results": [_sample_result()],
+            "review_summary": _sample_review_summary(),
         }
     )
     result = InvestmentDocumentReviewSynthesizeResult.model_validate(

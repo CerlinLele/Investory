@@ -124,6 +124,41 @@ def test_minimal_investment_document_review_v1_models_validate() -> None:
             "review_goal": plan_input.review_goal,
             "todo_plan": plan,
             "todo_results": [extract_task_result, analyze_task_result],
+            "review_summary": {
+                "plan_summary": "Extract fee facts before assessing fee disclosure clarity.",
+                "planned_task_count": 2,
+                "completed_task_count": 2,
+                "succeeded_task_ids": ["extract_fees", "analyze_fee_disclosure"],
+                "failed_task_ids": [],
+                "skipped_task_ids": [],
+                "extracted_facts": ["The management fee is 0.10%."],
+                "risk_findings": [
+                    "Fee disclosure is explicit in the provided text."
+                ],
+                "information_gaps": [],
+                "boundary_notes": [
+                    "No investment recommendation was made.",
+                    "No fee comparison or suitability advice was made.",
+                ],
+                "task_summaries": [
+                    {
+                        "task_id": "extract_fees",
+                        "task_title": "Extract fees",
+                        "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                        "status": TodoTaskStatus.SUCCEEDED,
+                        "summary": "Fee disclosure was extracted.",
+                    },
+                    {
+                        "task_id": "analyze_fee_disclosure",
+                        "task_title": "Analyze fee disclosure",
+                        "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                        "status": TodoTaskStatus.SUCCEEDED,
+                        "summary": (
+                            "Fee disclosure clarity was assessed from extracted facts."
+                        ),
+                    },
+                ],
+            },
         }
     )
     final_result = InvestmentDocumentReviewSynthesizeResult.model_validate(

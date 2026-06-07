@@ -1011,3 +1011,46 @@
   - `tests/test_investment_document_review_flow.py:681`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (22 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (39 passed)
+
+## 2026-06-08T01:08:28+10:00 Phase 6
+
+- Step: Phase 6 - gateway and compatibility testing.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "阶段 6|Phase 6|网关|兼容性|gateway|compat" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `Get-Content tests\test_investment_document_review_gateway_api.py`
+  - `Get-Content src\investory\gateway\api.py`
+  - `Get-Content src\investory\gateway\schemas.py`
+  - `rg -n "UNKNOWN_DOCUMENT_MISSING_FIELDS|missing_fields = decision.missing_fields|preserves_unknown_type_branch|runs_complete_review_through_executor|_sample_review_summary|review_summary" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_v1_minimal_validation.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_v1_minimal_validation.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py`
+  - `.venv\Scripts\python.exe -m pytest tests`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_gateway_api.py`
+  - `tests/test_investment_document_review_todo_task_models.py`
+  - `tests/test_investment_document_review_v1_minimal_validation.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added gateway compatibility coverage for the public `/investment-document-review` endpoint success path, including the stable outer `TaskResponse` keys and the final complete review payload with `action`, `document_type`, route metadata, and `review`.
+  - Added gateway regression coverage for the refusal branch so investment-advice requests still return `refuse_and_redirect` before router or executor calls.
+  - Added gateway regression coverage for unknown document type so the endpoint returns `ask_for_missing_input` with `document_type_hint` and does not execute review tasks.
+  - Updated `classify_document_type()` so an `unknown` router decision with no explicit missing fields falls back to `UNKNOWN_DOCUMENT_MISSING_FIELDS`, keeping the public missing-input response actionable.
+  - Updated legacy synthesize model validation tests to include the Phase 5 `review_summary` field required by `InvestmentDocumentReviewSynthesizeInput`.
+  - Ran the full repository test suite from `.venv`; all tests passed.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:30`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:384`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:386`
+  - `tests/test_investment_document_review_gateway_api.py:115`
+  - `tests/test_investment_document_review_gateway_api.py:191`
+  - `tests/test_investment_document_review_todo_task_models.py:55`
+  - `tests/test_investment_document_review_todo_task_models.py:164`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:127`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py` (6 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py` (44 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_v1_minimal_validation.py` (6 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py` (50 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests` (253 passed, 44 warnings)

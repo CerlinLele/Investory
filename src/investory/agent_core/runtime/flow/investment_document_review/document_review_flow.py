@@ -27,6 +27,7 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     InvestmentDocumentReviewRouter,
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
+    UNKNOWN_DOCUMENT_MISSING_FIELDS,
     detect_missing_fields,
     get_review_framework,
     looks_like_investment_advice,
@@ -380,11 +381,14 @@ class InvestmentDocumentReviewFlow:
         state: InvestmentDocumentReviewState,
     ) -> dict[str, Any]:
         decision = self.llm_router.route(state.input_payload)
+        missing_fields = decision.missing_fields
+        if decision.document_type == InvestmentDocumentType.UNKNOWN and not missing_fields:
+            missing_fields = UNKNOWN_DOCUMENT_MISSING_FIELDS
         return {
             "document_type": decision.document_type,
             "route_reason": decision.reason,
             "route_confidence": decision.confidence,
-            "missing_fields": decision.missing_fields,
+            "missing_fields": missing_fields,
         }
 
     def route_after_classification(
