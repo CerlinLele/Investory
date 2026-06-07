@@ -64,7 +64,7 @@ class TodoExecutionRunner:
 
         layers = build_dependency_layers(plan)
 
-        result_by_id: dict[str, TodoTaskResult] = {}
+        result_by_id = _build_succeeded_resume_results_by_id(resume_state)
         should_stop_after_failure = False
         semaphore = asyncio.Semaphore(self._concurrency)
 
@@ -72,6 +72,9 @@ class TodoExecutionRunner:
             runnable_tasks: list[TodoTaskSpec] = []
 
             for task in layer:
+                if task.id in result_by_id:
+                    continue
+
                 dependency_failure = _find_dependency_failure(task, result_by_id)
                 if dependency_failure is not None:
                     result_by_id[task.id] = _build_skipped_result(
@@ -221,6 +224,19 @@ def _ensure_resume_state_matches_plan(
 ) -> None:
     if resume_state.plan != plan:
         raise ValueError("Todo runner resume_state.plan must match the plan being run.")
+
+
+def _build_succeeded_resume_results_by_id(
+    resume_state: TodoExecutionResumeState | None,
+) -> dict[str, TodoTaskResult]:
+    if resume_state is None:
+        return {}
+
+    return {
+        task_id: result
+        for task_id, result in resume_state.results_by_id.items()
+        if result.status == TodoTaskStatus.SUCCEEDED
+    }
 
 
 def _build_failed_result(

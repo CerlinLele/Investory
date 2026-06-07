@@ -179,6 +179,51 @@ def test_todo_execution_runner_accepts_matching_resume_state_parameter() -> None
     assert calls == ["extract_fees"]
 
 
+def test_todo_execution_runner_skips_succeeded_resume_tasks() -> None:
+    calls: list[str] = []
+
+    async def executor(task) -> TodoTaskResult:
+        calls.append(task.id)
+        raise AssertionError(f"Unexpected task execution: {task.id}")
+
+    plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                }
+            ],
+            "summary": "Extract fee facts.",
+            "failure_policy": TodoFailurePolicy.RETRY_THEN_FAIL,
+        }
+    )
+    resume_result = TodoTaskResult(
+        id="extract_fees",
+        status=TodoTaskStatus.SUCCEEDED,
+        result={"summary": "Fee facts extracted in a previous run."},
+    )
+    resume_state = TodoExecutionResumeState(
+        run_id="review-run-1",
+        plan=plan,
+        results_by_id={"extract_fees": resume_result},
+        attempts_by_id={"extract_fees": 1},
+        updated_at=datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+    )
+
+    results = asyncio.run(
+        TodoExecutionRunner(executor).run(plan, resume_state=resume_state)
+    )
+
+    assert results == [resume_result]
+    assert calls == []
+
+
 def test_todo_execution_runner_rejects_resume_state_for_different_plan() -> None:
     async def executor(task) -> TodoTaskResult:
         return TodoTaskResult(

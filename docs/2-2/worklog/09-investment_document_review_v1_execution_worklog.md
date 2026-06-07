@@ -732,3 +732,33 @@
   - `tests/test_todo_execution_runner.py:182`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (4 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (29 passed)
+
+## 2026-06-07T17:05:42.2373841+10:00 Phase 4 Step 4
+
+- Step: Phase 4 Step 4 - implement completed-task skipping so succeeded tasks do not call the executor again.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `Get-Content tests\test_todo_execution_runner.py`
+  - `git diff -- src\investory\agent_core\runtime\todo_core\runner.py tests\test_todo_execution_runner.py`
+  - `rg -n "result_by_id = _build_succeeded_resume_results_by_id|if task\.id in result_by_id|def _build_succeeded_resume_results_by_id" src\investory\agent_core\runtime\todo_core\runner.py`
+  - `rg -n "test_todo_execution_runner_skips_succeeded_resume_tasks|assert calls == \[\]" tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/todo_core/runner.py`
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Initialized runner execution state from `resume_state.results_by_id` entries whose status is `SUCCEEDED`.
+  - Skipped tasks whose ids are already present in the completed result map, so completed resume tasks are not submitted to the executor again.
+  - Kept failed and skipped resume results out of the completed result map in this step, so only succeeded tasks are treated as already done.
+  - Added focused runner coverage proving a succeeded resume task is returned from the resume state and the executor is not called.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/runner.py:67`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:75`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:229`
+  - `tests/test_todo_execution_runner.py:182`
+  - `tests/test_todo_execution_runner.py:224`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (5 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (30 passed)
