@@ -438,6 +438,7 @@ load persisted resume_state
 ```
 
 - 第一版可以先把持久化接口抽象出来，不强行绑定数据库；后续再决定使用文件、SQLite、Postgres 或 LangGraph checkpointer。
+- 当前 Phase 4 Step 6 的实现只预留 `todo_resume_store` 接口插槽：如果 flow 没有注入 store，`load` 返回 `None` 且不会执行真实 `save`；如果注入 store，则由该 store 的实现决定从哪里读取、保存到哪里。测试中的 `RecordingTodoResumeStore` 只是内存记录调用顺序，用于验证插槽位置，不代表已经落地真实持久化。
 
 验收：
 
