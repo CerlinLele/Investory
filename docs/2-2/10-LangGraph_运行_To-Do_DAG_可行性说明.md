@@ -199,6 +199,59 @@ TodoExecutionRunner 是调度规则。
 分发是调度的一部分，但不是整个调度。
 ```
 
+## 如果让 LangGraph 原生处理带依赖 DAG
+
+如果不用当前 `TodoExecutionRunner`，而希望 LangGraph 原生承担带依赖 To-Do DAG 的调度，本质上有两条路：
+
+```text
+1. 根据 To-Do plan 动态拼一个 LangGraph 子图
+2. 在固定 LangGraph 里用 state + Send 模拟一个调度循环
+```
+
+第一种做法是运行时动态 compile 子图。也就是根据 plan 临时生成类似这样的图：
+
+```text
+extract_fees -> analyze_fee_risk -> synthesize
+extract_holdings -> analyze_concentration_risk -> synthesize
+```
+
+这最接近“把 plan 变成 LangGraph 图”。优点是每个子任务都可以更自然地出现在 LangGraph trace / checkpoint 里；缺点是运行时建图、测试、错误处理、结果聚合和版本稳定性都会变复杂。
+
+第二种做法是主图固定，但在 state 里维护调度状态，例如：
+
+```text
+pending_tasks
+running_tasks
+completed_results
+failed_results
+skipped_results
+ready_tasks
+```
+
+每一轮根据 `depends_on` 找出依赖已满足的 `ready_tasks`，再用 `Send` 发出去。任务执行完后把结果 merge 回 state，然后继续判断下一轮是否还有 ready tasks。
+
+这种做法没有真的动态 compile 新图，但本质上还是在 LangGraph state 里重新写一个 scheduler。它仍然需要自己处理：
+
+- DAG 合法性校验。
+- 并发上限。
+- retry 策略。
+- `fail_fast`。
+- `best_effort`。
+- 依赖失败后的 `skipped`。
+- 最终按原始 plan 顺序聚合结果。
+
+因此，对当前 Investory 来说，更合适的第一版仍然是第三种方式：
+
+```text
+LangGraph 只管主流程：
+generate_plan -> execute_plan -> synthesize
+
+TodoExecutionRunner 管 To-Do DAG：
+validate -> dependency layers -> concurrency -> retry / skip / fail policy -> ordered results
+```
+
+也就是说，如果让 LangGraph 自己“理解并执行动态依赖图”，确实相当于要动态再拼一个 LangGraph，或者在固定 LangGraph 里重写一个调度器。当前项目已经有 `TodoExecutionRunner`，第一版没有必要把这套调度语义搬到 LangGraph 层。
+
 ## 当前代码状态
 
 当前 `document_review_flow.py` 已经有这些方法：
