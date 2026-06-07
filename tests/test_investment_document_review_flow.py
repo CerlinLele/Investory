@@ -1046,6 +1046,54 @@ def test_build_review_todo_synthesize_payload_uses_only_completed_todo_results()
     }
 
 
+def test_build_final_result_preserves_route_metadata_for_synthesized_review() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    synthesized_review = {
+        "document_type": InvestmentDocumentType.ETF_FACTSHEET.value,
+        "extracted_facts": ["Management fee is 0.10%."],
+        "risk_findings": ["Fee disclosure is concise but limited."],
+        "information_gaps": ["No portfolio turnover disclosure found."],
+        "boundary_notes": ["This review does not provide investment advice."],
+        "summary": "The factsheet discloses a 0.10% management fee.",
+        "learning_next_steps": [],
+    }
+
+    update = flow.build_final_result(
+        InvestmentDocumentReviewState(
+            input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            route_reason="The excerpt clearly matches an ETF factsheet.",
+            route_confidence=0.91,
+            output=TaskResult(
+                ok=True,
+                task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+                result=synthesized_review,
+            ),
+        )
+    )
+
+    assert update["output"] == TaskResult(
+        ok=True,
+        task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
+        result={
+            ACTION_FIELD: InvestmentDocumentReviewAction.COMPLETE.value,
+            DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET.value,
+            ROUTE_REASON_FIELD: "The excerpt clearly matches an ETF factsheet.",
+            ROUTE_CONFIDENCE_FIELD: 0.91,
+            REVIEW_FIELD: synthesized_review,
+        },
+    )
+
+
 def test_build_review_todo_analyze_payload_includes_dependency_results() -> None:
     flow = InvestmentDocumentReviewFlow(
         executor=FakeExecutor(),

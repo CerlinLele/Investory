@@ -921,3 +921,37 @@
   - `tests/test_investment_document_review_flow.py:1012`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (20 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (37 passed)
+
+## 2026-06-07T22:38:09.3488286+10:00 Phase 5 Step 3
+
+- Step: Phase 5 Step 3 - confirm how `route_reason`, `route_confidence`, and `document_type` enter the final review result.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "route_reason|route_confidence|document_type|build_final_result|synthesize_review_result|review_result|final result|complete" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py src\investory\agent_core\task_models\investment_document_review.py src\investory\agent_core\task_models\investment_document_review_todo_tasks.py`
+  - `rg -n "build_final_result|test_.*final_result|test_.*synthesize|route_reason|route_confidence" tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Confirmed the v1 synthesize payload already carries `document_type`, `route_reason`, and `route_confidence` through `InvestmentDocumentReviewSynthesizeInput`, so no flow logic change was required in this step.
+  - Confirmed `build_final_result()` already wraps the downstream synthesized review with top-level `document_type`, `route_reason`, and `route_confidence` while keeping the final `review` body unchanged.
+  - Added a focused flow test that exercises the v1 synthesized-review path and proves the final outward result preserves all three route/document metadata fields.
+  - Re-ran the focused flow suite and the related To-Do/resume regression suite from the repository `.venv`; both passed without additional code changes.
+- Evidence anchors:
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:140`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:143`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:144`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:710`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:711`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:712`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:738`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:759`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:760`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:761`
+  - `tests/test_investment_document_review_flow.py:1049`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (21 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (38 passed)
