@@ -87,40 +87,46 @@ class TodoExecutionResumeState(BaseModel):
     def validate_resume_maps(self):
         plan_task_ids = {task.id for task in self.plan.tasks}
 
-        unknown_result_ids = sorted(set(self.results_by_id) - plan_task_ids)
-        if unknown_result_ids:
-            raise ValueError(
-                "Resume results_by_id contains unknown task ids: "
-                + ", ".join(unknown_result_ids)
-            )
+        _raise_if_resume_ids_invalid(
+            invalid_ids=_find_unknown_resume_ids(self.results_by_id, plan_task_ids),
+            message="Resume results_by_id contains unknown task ids",
+        )
 
         mismatched_result_ids = sorted(
             task_id
             for task_id, result in self.results_by_id.items()
             if result.id != task_id
         )
-        if mismatched_result_ids:
-            raise ValueError(
-                "Resume results_by_id keys must match TodoTaskResult.id: "
-                + ", ".join(mismatched_result_ids)
-            )
+        _raise_if_resume_ids_invalid(
+            invalid_ids=mismatched_result_ids,
+            message="Resume results_by_id keys must match TodoTaskResult.id",
+        )
 
-        unknown_attempt_ids = sorted(set(self.attempts_by_id) - plan_task_ids)
-        if unknown_attempt_ids:
-            raise ValueError(
-                "Resume attempts_by_id contains unknown task ids: "
-                + ", ".join(unknown_attempt_ids)
-            )
+        _raise_if_resume_ids_invalid(
+            invalid_ids=_find_unknown_resume_ids(self.attempts_by_id, plan_task_ids),
+            message="Resume attempts_by_id contains unknown task ids",
+        )
 
         negative_attempt_ids = sorted(
             task_id
             for task_id, attempts in self.attempts_by_id.items()
             if attempts < 0
         )
-        if negative_attempt_ids:
-            raise ValueError(
-                "Resume attempts_by_id values must be zero or greater: "
-                + ", ".join(negative_attempt_ids)
-            )
+        _raise_if_resume_ids_invalid(
+            invalid_ids=negative_attempt_ids,
+            message="Resume attempts_by_id values must be zero or greater",
+        )
 
         return self
+
+
+def _find_unknown_resume_ids(
+    ids_by_task_id: dict[str, Any],
+    plan_task_ids: set[str],
+) -> list[str]:
+    return sorted(set(ids_by_task_id) - plan_task_ids)
+
+
+def _raise_if_resume_ids_invalid(*, invalid_ids: list[str], message: str) -> None:
+    if invalid_ids:
+        raise ValueError(message + ": " + ", ".join(invalid_ids))
