@@ -302,6 +302,23 @@ review_synthesis_payload: dict[str, Any] | None = None
 
 ## 6. 分阶段实施计划
 
+> 补充说明：下面各阶段最初是实施计划。结合 `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md` 的实际落地情况，这里补充“当前实现说明”，帮助把“为什么这么设计”与“代码现在做到哪一步”对应起来。
+
+### 当前实现状态概览
+
+截至当前 worklog，阶段 1 到阶段 5 的核心能力已经按计划拆分落地，重点不是一次性推倒现有 flow，而是沿着“合约 -> plan 生成 -> runner 接入 -> resume -> synthesis 聚合”这条链逐段替换 single-pass。
+
+可以把当前实现理解成两层：
+
+- LangGraph flow 负责主流程编排：`policy gate -> route -> build framework -> generate plan -> execute plan -> synthesize`。
+- `TodoExecutionRunner` 负责 plan 内部调度：`validate -> dependency layers -> bounded concurrency -> retry/skip/fail -> ordered results`。
+
+这样做的好处是职责边界清楚：
+
+- flow 层知道什么时候该规划、什么时候该执行、什么时候该汇总。
+- runner 层知道任务之间的依赖、重试、跳过与顺序返回。
+- 两层之间用 `TodoExecutionPlan`、`TodoTaskResult`、`TodoExecutionResumeState` 这些明确合约传递，而不是共享临时运行时对象。
+
 ### 阶段 1：补齐任务类型和模型合约
 
 目标：让投资文档审查可以表达 plan、extract、analyze、synthesize 四类动作。
@@ -328,6 +345,15 @@ Step:
 - 新增模型可通过 Pydantic 校验。
 - `tasks.py` 中新任务可被 `resolve_task_spec()` 找到。
 - 单元测试覆盖新增 task names 和 task kind 枚举。
+
+当前实现说明：
+
+- 这一阶段最终没有新造一套 plan 合约，而是明确复用了已有 `TodoExecutionPlan`、`TodoTaskSpec`、`TodoTaskResult`。这样后续 runner、validator、resume 都能直接接上，不需要再做一层模型翻译。
+- `TodoTaskKind` 已补齐投资文档审查专用常量和枚举值，分别覆盖 `extract`、`analyze`、`synthesize`。这一步很关键，因为后面的 task 分发、测试断言、prompt 绑定都依赖这些稳定常量，不能散落 raw string。
+- task model 层已经拆成两块：一块是 plan 输入；另一块是 extract / analyze / synthesize 的任务输入输出。这里的设计重点是让 analyze 显式接收上游 `TodoTaskResult`，而不是偷读 flow state 或模型原始输出。
+- `tasks.py` 已注册 `investment_document_review_plan`、`investment_document_extract`、`investment_document_analyze`、`investment_document_synthesize` 四个内部 TaskSpec。这样 flow 在运行时可以按 task name 找到对应 prompt 和输出模型。
+- prompt 文件也已经按 TaskSpec 的 `prompt_name` 固定下来。这里不是单纯“多几个 markdown 文件”，而是把“plan 做什么、extract 做什么、analyze 做什么、synthesize 做什么”固定成稳定边界，避免职责在后续迭代中漂移。
+- 这一阶段还补了一个最小 Pydantic 验证样例，串起 `plan -> extract -> analyze -> synthesize -> final result` 整条模型链路。它的价值在于，后面 flow 或 runner 出问题时，可以先排除是不是模型契约本身不自洽。
 
 ### 阶段 2：生成投资文档审查 To-Do Plan
 
@@ -360,6 +386,15 @@ Step:
 - unknown dependency、self dependency、cycle、empty completion criteria 会失败并返回结构化错误。
 - 计划生成不改变现有 missing/refusal 行为。
 
+当前实现说明：
+
+- `generate_review_todo_plan` 已经作为独立 flow 节点落地，而不是嵌进执行器内部。这样做的直接收益是：plan 生成失败和 task 执行失败可以被清楚区分，测试也能分别覆盖。
+- plan 输入已经被显式化，不再依赖某个“隐含 state 恰好有这些字段”。目前输入围绕 `document_text`、`document_type`、`extract_focus`、`analyze_focus`、`review_goal` 组织，这和 single-pass 输入保持了一致性，迁移成本较低。
+- prompt 约束已经明确把 extract / analyze 分开：extract 只抽事实、引用、缺口、边界；analyze 才负责基于上游结果做风险与一致性判断。这一步本质上是在削弱模型“边提取边脑补”的冲动。
+- `depends_on`、`completion_criteria`、稳定 task id 规则都已经写进 plan 输出要求。原因不是为了“格式整齐”，而是为了让 validator 和 runner 真正能消费这些字段，而不是把它们当摆设。
+- 计划生成后会先经过模型反序列化，再调用 `ensure_valid_todo_plan()` 做二次校验。也就是说，LLM 只是提议 plan，最终是否可执行由本地 validator 判定。
+- 当前实现先从一个受控文档类型范围起步，再逐步扩展覆盖面，这比一开始追求“所有类型都能规划”更稳。因为 v1 真正难的不是生成任务列表，而是生成“能被现有执行器稳定消费的任务列表”。
+
 ### 阶段 3：接入 TodoExecutionRunner
 
 目标：用现有 runner 按依赖分层并发执行投资文档子任务。
@@ -388,6 +423,15 @@ Step:
 - analyze 任务等待依赖结果。
 - 依赖失败时下游任务被 skipped。
 - executor 返回 id 不匹配时被 runner 识别为 failed。
+
+当前实现说明：
+
+- 当前 flow 并没有在内部拼一套临时并发逻辑，而是把 review To-Do 执行统一收口到 `TodoExecutionRunner`。这意味着依赖分层、失败策略、顺序返回这些语义都沿用了仓库已有实现。
+- review task 的执行入口已经落到私有执行方法上，由它根据 `task.kind` 分发到 extract / analyze / synthesize 对应 TaskSpec。这里的设计重点是“按 kind 分发”，不是“按 task id 写死分支”，所以后续 plan 增减任务时不需要改 executor 主结构。
+- payload 组装也已经分别做了边界控制：extract 拿文档和 focus；analyze 除自身 payload 外，还会拿到上游依赖任务的 `TodoTaskResult`；synthesize 则接 plan、完成结果和聚合摘要。这样每类任务只读自己该读的数据。
+- analyze 依赖结果是在运行时按 `depends_on` 收集并注入的，而不是在 plan 生成时把上游结果预填进去。原因很简单：plan 生成阶段还没有结果，真正可用的依赖结果只能发生在 executor 运行中。
+- 阶段 3 的实现刻意只做“单次请求内的 To-Do 执行”，没有立刻把 resume 混进来。这是个很实用的拆分：先让 plan 和 DAG 执行稳定，再处理跨请求恢复，否则问题会纠缠在一起。
+- 失败与依赖边界测试也在这阶段补齐了，重点验证的是：同层 extract 可以并发、analyze 会等待依赖、依赖失败会产出 `skipped`、executor 返回非法结果会被 runner 识别为失败。这些都是后面 resume 和 synthesis 能站住的前提。
 
 ### 阶段 4：补充 resume_state / previous_results 断点续跑
 
@@ -454,6 +498,17 @@ load persisted resume_state
   - attempts_by_id preserved
   - completed task executor not called again
 
+当前实现说明：
+
+- `TodoExecutionResumeState` 已作为独立合约落地，保存的是“恢复执行所需信息”，不是运行时对象快照。它至少围绕 plan、`results_by_id`、`attempts_by_id`、时间戳这些恢复必需数据组织。
+- resume 结构不是随便收个 dict 就结束了，而是有显式校验规则。`results_by_id` 必须和 plan 中的 task id 对齐，`attempts_by_id` 也必须是可验证的恢复信息，避免持久化层写进一堆 runner 根本无法消费的脏状态。
+- `TodoExecutionRunner.run()` 现在已支持 `resume_state` 参数，并且会先校验 resume 里的 plan 是否与当前 plan 一致。这一步很重要，因为“错误地复用另一个 plan 的历史结果”会比“完全不恢复”更危险。
+- 已成功的任务会直接从 `resume_state.results_by_id` 重建，不再重新调用 executor；`failed`、`skipped`、`running` 则不会一概当作完成，而是根据剩余重试次数和依赖状态继续处理。
+- 恢复执行时，不是简单“从中断点往后接着跑”，而是基于当前 plan 重新构建依赖层，并把已成功、已耗尽失败、待重试任务一并放回同一个依赖语义里。这能保证下游任务的跳过/继续规则仍然和首次执行一致。
+- `attempts_by_id` 会被真正用于恢复剩余 retry 预算，而不是 resume 后把次数清零重来。否则系统会在断点恢复后悄悄改变失败策略，测试很难发现，线上成本也会失控。
+- flow 层目前只预留了 `todo_resume_store` 插槽，用来加载和保存 resume 状态，但还没有绑定到真实数据库或文件存储。这是有意为之：先把 runner 语义做稳，再决定持久化技术选型，能避免过早耦合。
+- 这阶段的测试已经覆盖部分成功恢复、运行中任务视为可重试、失败依赖导致下游继续 skipped、已成功任务不再调 executor、结果仍按 plan 顺序输出等关键场景。也就是说，resume 现在已经不是“概念支持”，而是有完整语义约束的能力。
+
 ### 阶段 5：最终汇总
 
 目标：把多个子任务结果汇总为现有 `InvestmentDocumentReviewResult`。
@@ -486,6 +541,16 @@ Step:
 - `review.extracted_facts`、`risk_findings`、`information_gaps`、`boundary_notes` 有稳定来源。
 - 失败或 skipped 子任务不会导致最终结果伪装成完整审查；必须进入 `information_gaps` 或 `boundary_notes`。
 - resume 后的最终汇总不得重复计算已完成任务的结果。
+
+当前实现说明：
+
+- synthesis 输入现在只吃“完成态的 `TodoTaskResult`”，不会直接回看模型原始输出。这一步把最终结果和中间执行状态隔开了，减少了“哪个节点偷偷塞了额外字段”这种隐式耦合。
+- flow 层已经增加“完成结果过滤”逻辑，只有终态结果会进入 synthesize；`PENDING`、`RUNNING` 之类中间态不会混进最终汇总。这保证了最终报告反映的是一次明确完成的审查视图，而不是半成品执行快照。
+- 除了 `todo_plan` 和 `todo_results`，实现里还补了结构化的 `review_summary` 聚合契约。它会提前整理计划摘要、完成统计、成功/失败/跳过任务 id，以及从各任务抽取的 facts、findings、gaps、boundary notes。
+- 这个 `review_summary` 的作用不是取代 `todo_results`，而是给 synthesize 一个更稳定、更低噪音的聚合输入；`todo_results` 继续保留为可追踪的任务级证据源。可以理解成：summary 负责归纳，results 负责追溯。
+- 汇总顺序也做了确定性处理：优先按 plan 顺序聚合完成结果，若出现计划外的额外完成结果，再放到后面。这能保证相同 plan 下最终结果尽量稳定，减少测试和调试时的“偶发顺序抖动”。
+- 对 failed / skipped 子任务，汇总逻辑会把“为什么这里不完整”显式转译成 `information_gaps` 或 `boundary_notes`，而不是默默忽略。这样最终 review 不会伪装成一份无缺口的完整审查报告。
+- 在 resume 场景下，synthesis 继续复用恢复后的完成结果与聚合摘要，不重新计算已完成任务。这使得“断点续跑”不只是执行层节省成本，也能在结果层避免重复聚合和重复表述。
 
 ### 阶段 6：网关与兼容性测试
 
@@ -523,6 +588,13 @@ Step:
   - resume preserves attempts
   - task result synthesis
   - gateway response shape
+
+当前实现说明：
+
+- 目前 worklog 已经覆盖了大量 flow、runner、resume、prompt、task model 相关测试，说明 v1 核心链路已经具备较强的局部验证。
+- 但“阶段 6 完全完成”仍然应该谨慎表述。原因是当前记录里重点是增量测试集和关键链路测试，并不等于已经完成一次完整的公开接口兼容性清扫。
+- 换句话说，当前状态更准确的表述是：内部执行能力基本落地并经过针对性验证；网关层面的全量兼容确认，仍应作为单独收口步骤处理。
+- 这也解释了为什么前面几个阶段都强调“保持对外 `InvestmentDocumentReviewResult` 主结构稳定”。因为只有先控制住对外结构不扩散，阶段 6 的兼容性测试才会真正可收敛。
 
 ## 7. 推荐文件变更清单
 
