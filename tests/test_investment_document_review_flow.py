@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from investory.agent_core.contracts.investment_document_review_state import (
     ANALYZE_FOCUS_FIELD,
     DOCUMENT_TEXT_FIELD,
@@ -11,6 +13,7 @@ from investory.agent_core.contracts.investment_document_review_state import (
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.contracts.todo_execution import (
     TodoExecutionPlan,
+    TodoExecutionResumeState,
     TodoTaskKind,
     TodoTaskResult,
     TodoTaskStatus,
@@ -111,10 +114,15 @@ class FakeDocumentReviewRouter:
 
 class RecordingTodoRunner:
     def __init__(self) -> None:
-        self.calls: list[TodoExecutionPlan] = []
+        self.calls: list[tuple[TodoExecutionPlan, TodoExecutionResumeState | None]] = []
 
-    async def run(self, plan: TodoExecutionPlan) -> list[TodoTaskResult]:
-        self.calls.append(plan)
+    async def run(
+        self,
+        plan: TodoExecutionPlan,
+        *,
+        resume_state: TodoExecutionResumeState | None = None,
+    ) -> list[TodoTaskResult]:
+        self.calls.append((plan, resume_state))
         return [
             TodoTaskResult(
                 id=task.id,
@@ -125,8 +133,49 @@ class RecordingTodoRunner:
         ]
 
 
+class RecordingTodoResumeStore:
+    def __init__(
+        self,
+        resume_state: TodoExecutionResumeState | None = None,
+    ) -> None:
+        self.resume_state = resume_state
+        self.load_calls: list[tuple[str, TodoExecutionPlan]] = []
+        self.save_calls: list[
+            tuple[
+                str,
+                TodoExecutionPlan,
+                list[TodoTaskResult],
+                TodoExecutionResumeState | None,
+            ]
+        ] = []
+
+    def load_resume_state(
+        self,
+        *,
+        session_id: str,
+        plan: TodoExecutionPlan,
+    ) -> TodoExecutionResumeState | None:
+        self.load_calls.append((session_id, plan))
+        return self.resume_state
+
+    def save_resume_state(
+        self,
+        *,
+        session_id: str,
+        plan: TodoExecutionPlan,
+        results: list[TodoTaskResult],
+        previous_resume_state: TodoExecutionResumeState | None,
+    ) -> None:
+        self.save_calls.append((session_id, plan, results, previous_resume_state))
+
+
 class RunnerBackedReviewFlow(InvestmentDocumentReviewFlow):
-    def __init__(self, runner: RecordingTodoRunner) -> None:
+    def __init__(
+        self,
+        runner: RecordingTodoRunner,
+        *,
+        todo_resume_store: RecordingTodoResumeStore | None = None,
+    ) -> None:
         self.todo_runner = runner
         super().__init__(
             executor=FakeExecutor(),
@@ -137,6 +186,7 @@ class RunnerBackedReviewFlow(InvestmentDocumentReviewFlow):
                     reason="unused",
                 )
             ),
+            todo_resume_store=todo_resume_store,
         )
 
     def _build_todo_execution_runner(self, state):
@@ -544,7 +594,7 @@ def test_execute_review_todo_plan_uses_todo_execution_runner() -> None:
         )
     )
 
-    assert runner.calls == [todo_plan]
+    assert runner.calls == [(todo_plan, None)]
     assert update["todo_results"] == [
         TodoTaskResult(
             id="extract_fees",
@@ -563,6 +613,70 @@ def test_execute_review_todo_plan_uses_todo_execution_runner() -> None:
             },
         ),
     ]
+
+
+def test_execute_review_todo_plan_loads_and_saves_resume_state_slot() -> None:
+    todo_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                }
+            ],
+            "summary": "Extract fee facts.",
+        }
+    )
+    resume_state = TodoExecutionResumeState(
+        run_id="review-run-1",
+        session_id="session-1",
+        plan=todo_plan,
+        results_by_id={
+            "extract_fees": TodoTaskResult(
+                id="extract_fees",
+                status=TodoTaskStatus.SUCCEEDED,
+                result={"summary": "Fee facts extracted in a previous run."},
+            )
+        },
+        attempts_by_id={"extract_fees": 1},
+        updated_at=datetime(2026, 6, 7, 7, 0, tzinfo=timezone.utc),
+    )
+    resume_store = RecordingTodoResumeStore(resume_state=resume_state)
+    runner = RecordingTodoRunner()
+    flow = RunnerBackedReviewFlow(
+        runner,
+        todo_resume_store=resume_store,
+    )
+
+    update = flow.execute_review_todo_plan(
+        InvestmentDocumentReviewState(
+            session_id="session-1",
+            input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
+            todo_plan=todo_plan,
+        )
+    )
+
+    expected_results = [
+        TodoTaskResult(
+            id="extract_fees",
+            status=TodoTaskStatus.SUCCEEDED,
+            result={
+                "handled_by": "recording_runner",
+                "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT.value,
+            },
+        )
+    ]
+    assert runner.calls == [(todo_plan, resume_state)]
+    assert resume_store.load_calls == [("session-1", todo_plan)]
+    assert resume_store.save_calls == [
+        ("session-1", todo_plan, expected_results, resume_state)
+    ]
+    assert update["todo_results"] == expected_results
 
 
 def test_execute_review_todo_plan_requires_todo_plan() -> None:

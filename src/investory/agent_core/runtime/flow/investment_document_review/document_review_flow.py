@@ -1,6 +1,6 @@
 import asyncio
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
@@ -17,6 +17,7 @@ from investory.agent_core.contracts.investment_document_review_state import (
 from investory.agent_core.contracts.result_types import TaskResult, normalize_task_error
 from investory.agent_core.contracts.todo_execution import (
     TodoExecutionPlan,
+    TodoExecutionResumeState,
     TodoTaskKind,
     TodoTaskResult,
     TodoTaskStatus,
@@ -101,6 +102,24 @@ class InvestmentDocumentReviewNode(str, Enum):
     BUILD_REFUSAL_RESULT = "build_refusal_result"
 
 
+class InvestmentDocumentReviewTodoResumeStore(Protocol):
+    def load_resume_state(
+        self,
+        *,
+        session_id: str,
+        plan: TodoExecutionPlan,
+    ) -> TodoExecutionResumeState | None: ...
+
+    def save_resume_state(
+        self,
+        *,
+        session_id: str,
+        plan: TodoExecutionPlan,
+        results: list[TodoTaskResult],
+        previous_resume_state: TodoExecutionResumeState | None,
+    ) -> None: ...
+
+
 class InvestmentDocumentReviewFlow:
     def __init__(
         self,
@@ -108,10 +127,12 @@ class InvestmentDocumentReviewFlow:
         llm_router: InvestmentDocumentReviewRouter | None = None,
         *,
         supports_realtime_data: bool = False,
+        todo_resume_store: InvestmentDocumentReviewTodoResumeStore | None = None,
     ) -> None:
         self.executor = executor or TaskExecutor()
         self.llm_router = llm_router or InvestmentDocumentReviewLLMRouter()
         self.supports_realtime_data = supports_realtime_data
+        self.todo_resume_store = todo_resume_store
         self.graph = self._build_graph()
 
     def run(
@@ -311,8 +332,57 @@ class InvestmentDocumentReviewFlow:
             raise RuntimeError("Document review flow has no To-Do plan to execute.")
 
         runner = self._build_todo_execution_runner(state)
-        todo_results = asyncio.run(runner.run(state.todo_plan))
+        resume_state = self._load_todo_resume_state(state)
+        todo_results = asyncio.run(
+            runner.run(state.todo_plan, resume_state=resume_state)
+        )
+        self._save_todo_resume_state(
+            state=state,
+            todo_results=todo_results,
+            previous_resume_state=resume_state,
+        )
         return {"todo_results": todo_results}
+
+    def _load_todo_resume_state(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> TodoExecutionResumeState | None:
+        if self.todo_resume_store is None:
+            return None
+
+        if state.session_id is None:
+            return None
+
+        if state.todo_plan is None:
+            raise RuntimeError("Document review flow has no To-Do plan to resume.")
+
+        return self.todo_resume_store.load_resume_state(
+            session_id=state.session_id,
+            plan=state.todo_plan,
+        )
+
+    def _save_todo_resume_state(
+        self,
+        *,
+        state: InvestmentDocumentReviewState,
+        todo_results: list[TodoTaskResult],
+        previous_resume_state: TodoExecutionResumeState | None,
+    ) -> None:
+        if self.todo_resume_store is None:
+            return
+
+        if state.session_id is None:
+            return
+
+        if state.todo_plan is None:
+            raise RuntimeError("Document review flow has no To-Do plan to persist.")
+
+        self.todo_resume_store.save_resume_state(
+            session_id=state.session_id,
+            plan=state.todo_plan,
+            results=todo_results,
+            previous_resume_state=previous_resume_state,
+        )
 
     def _build_todo_execution_runner(
         self,
@@ -612,10 +682,12 @@ def build_investment_document_review_flow(
     executor: TaskExecutor | None = None,
     runner: "RequestRunner | None" = None,
     llm_router: InvestmentDocumentReviewRouter | None = None,
+    todo_resume_store: InvestmentDocumentReviewTodoResumeStore | None = None,
 ) -> InvestmentDocumentReviewFlow:
     resolved_executor = executor or TaskExecutor(runner=runner)
     resolved_router = llm_router or InvestmentDocumentReviewLLMRouter(runner=runner)
     return InvestmentDocumentReviewFlow(
         executor=resolved_executor,
         llm_router=resolved_router,
+        todo_resume_store=todo_resume_store,
     )

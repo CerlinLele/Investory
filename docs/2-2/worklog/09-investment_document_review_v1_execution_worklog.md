@@ -797,3 +797,37 @@
   - `tests/test_todo_execution_runner.py:363`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (8 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (33 passed)
+
+## 2026-06-07T18:21:26.5048708+10:00 Phase 4 Step 6
+
+- Step: Phase 4 Step 6 - leave load / save persistence slots in the flow layer.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 4 "Phase 4 Step 6|阶段 4|Step 6|load persisted resume_state|persist new task results|持久化" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `rg -n "InvestmentDocumentReviewTodoResumeStore|todo_resume_store|_load_todo_resume_state|_save_todo_resume_state|resume_state=resume_state|test_execute_review_todo_plan_loads_and_saves_resume_state_slot|RecordingTodoResumeStore" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `InvestmentDocumentReviewTodoResumeStore` as a small flow-layer protocol for loading and saving To-Do resume state.
+  - Added optional `todo_resume_store` injection to `InvestmentDocumentReviewFlow` and `build_investment_document_review_flow()`.
+  - Updated `execute_review_todo_plan()` to load persisted resume state before calling the runner and save task results after runner completion.
+  - Kept the default behavior unchanged when no resume store or no `session_id` is available.
+  - Added flow coverage proving the resume state is loaded, passed to `TodoExecutionRunner.run(..., resume_state=...)`, and saved with the resulting To-Do results.
+  - Did not bind the slot to any database, file store, or LangGraph checkpointer in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:105`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:130`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:335`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:346`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:364`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:685`
+  - `tests/test_investment_document_review_flow.py:136`
+  - `tests/test_investment_document_review_flow.py:618`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (19 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (34 passed)
