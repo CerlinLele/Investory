@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investment Document Review Resume Flow</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --paper: #ffffff;
+      --ink: #172033;
+      --muted: #5a6478;
+      --line: #2a344a;
+      --flow: #e8f3ff;
+      --flow-line: #2463a6;
+      --store: #fff2df;
+      --store-line: #b86612;
+      --runner: #eaf8ef;
+      --runner-line: #207044;
+      --decision: #f1edff;
+      --decision-line: #6b55b6;
+      --warn: #fff0f0;
+      --warn-line: #bd3f3f;
+      --done: #ecfbf9;
+      --done-line: #168576;
+      --shadow: 0 16px 42px rgba(30, 43, 70, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(135deg, rgba(36, 99, 166, 0.08), transparent 34%),
+        linear-gradient(225deg, rgba(184, 102, 18, 0.08), transparent 32%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    header {
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 940px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(140px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid #d8deea;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.76);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border: 2px solid;
+      border-radius: 4px;
+      flex: 0 0 auto;
+    }
+
+    .canvas {
+      overflow: auto;
+      border: 1px solid #d5dbea;
+      border-radius: 12px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .explain {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 16px;
+      margin: 18px 0;
+    }
+
+    .explain-card {
+      padding: 18px 20px;
+      border: 1px solid #d8deea;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 10px 26px rgba(30, 43, 70, 0.06);
+    }
+
+    .explain-card h2 {
+      margin: 0 0 10px;
+      font-size: 17px;
+      line-height: 1.3;
+    }
+
+    .explain-card p {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    .explain-card p:last-child {
+      margin-bottom: 0;
+    }
+
+    .steps {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    svg {
+      display: block;
+      min-width: 1240px;
+      width: 100%;
+      height: auto;
+    }
+
+    .lane {
+      fill: #f8fafc;
+      stroke: #d7deeb;
+      stroke-width: 1;
+      rx: 14;
+    }
+
+    .lane-title {
+      fill: #48566f;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .node {
+      stroke-width: 2;
+      rx: 10;
+      ry: 10;
+    }
+
+    .flow {
+      fill: var(--flow);
+      stroke: var(--flow-line);
+    }
+
+    .store {
+      fill: var(--store);
+      stroke: var(--store-line);
+    }
+
+    .runner {
+      fill: var(--runner);
+      stroke: var(--runner-line);
+    }
+
+    .decision {
+      fill: var(--decision);
+      stroke: var(--decision-line);
+    }
+
+    .warn {
+      fill: var(--warn);
+      stroke: var(--warn-line);
+    }
+
+    .done {
+      fill: var(--done);
+      stroke: var(--done-line);
+    }
+
+    .label {
+      fill: var(--ink);
+      font-size: 14px;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .small {
+      fill: #334155;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .tiny {
+      fill: #536079;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+
+    .edge-soft {
+      fill: none;
+      stroke: #6b7280;
+      stroke-width: 2;
+      stroke-dasharray: 6 5;
+      marker-end: url(#arrowSoft);
+    }
+
+    .edge-note {
+      fill: #334155;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .note-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .note {
+      padding: 16px;
+      border: 1px solid #d8deea;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 10px 26px rgba(30, 43, 70, 0.06);
+    }
+
+    .note h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: #eef2f7;
+      color: #1f2937;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92em;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        padding: 18px;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+
+      .legend,
+      .explain,
+      .note-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>投资文档审查 To-Do 断点续跑流程图</h1>
+      <p class="subtitle">
+        这张图解释当前 v1 resume 逻辑：flow 层只负责加载与保存恢复状态，runner 层负责校验 plan、重建依赖层、跳过已成功任务、继承 retry 次数，并把最终 task results 交给 synthesis。
+      </p>
+    </header>
+
+    <section class="legend" aria-label="Legend">
+      <div class="legend-item"><span class="swatch" style="background: var(--flow); border-color: var(--flow-line);"></span>Flow 编排层</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--store); border-color: var(--store-line);"></span>Resume Store</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--runner); border-color: var(--runner-line);"></span>TodoExecutionRunner</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--decision); border-color: var(--decision-line);"></span>判断 / 分支</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--warn); border-color: var(--warn-line);"></span>失败 / 跳过</div>
+    </section>
+
+    <section class="explain" aria-label="Resume text explanation">
+      <article class="explain-card">
+        <h2>文字版流程</h2>
+        <p>
+          断点续跑不是记住“上次跑到第几个 task”，而是把上次保存的 <code>results_by_id</code> 和 <code>attempts_by_id</code> 带回同一个 <code>TodoExecutionPlan</code>，重新按依赖层执行。
+        </p>
+        <p>
+          runner 每次看一个 task：如果它已经有 <code>succeeded</code> 结果，就直接复用；如果还没完成，就先检查依赖是否都成功；依赖不满足则生成 <code>skipped</code>；依赖满足后再检查 retry 预算，预算耗尽则生成 <code>failed</code>，还有预算才调用 executor。
+        </p>
+        <p>
+          所有分支最后都会回到同一个结果集合，再由 flow 保存新的 resume 状态，并把完成态结果交给最终汇总。
+        </p>
+      </article>
+      <article class="explain-card">
+        <h2>判断顺序</h2>
+        <ol class="steps">
+          <li>校验 <code>resume_state.plan</code> 是否等于当前 plan。</li>
+          <li>恢复已成功结果和已耗尽失败结果，并复制历史尝试次数。</li>
+          <li>对每个 task 先判断是否已有成功结果。</li>
+          <li>未完成 task 再判断依赖是否全部 <code>succeeded</code>。</li>
+          <li>依赖满足后判断是否还有 retry 预算。</li>
+          <li>把复用、跳过、失败、执行结果统一写回结果集合。</li>
+        </ol>
+      </article>
+    </section>
+
+    <section class="canvas" aria-label="Resume flowchart">
+      <svg viewBox="0 0 1240 1660" role="img" aria-labelledby="title desc">
+        <title id="title">Investment document review resume flowchart</title>
+        <desc id="desc">Flowchart showing load resume state, runner resume decisions, retry preservation, dependency skip, save state, and synthesis.</desc>
+
+        <defs>
+          <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M2,2 L10,6 L2,10 Z" fill="#2a344a" />
+          </marker>
+          <marker id="arrowSoft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M2,2 L10,6 L2,10 Z" fill="#6b7280" />
+          </marker>
+          <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+            <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#1e2b46" flood-opacity="0.12" />
+          </filter>
+        </defs>
+
+        <rect class="lane" x="35" y="70" width="330" height="1540" />
+        <text class="lane-title" x="58" y="101">1. Flow 层：加载 / 保存恢复状态</text>
+
+        <rect class="lane" x="410" y="70" width="420" height="1540" />
+        <text class="lane-title" x="433" y="101">2. Runner 层：恢复执行语义</text>
+
+        <rect class="lane" x="875" y="70" width="330" height="1540" />
+        <text class="lane-title" x="898" y="101">3. 结果层：持久化与汇总</text>
+
+        <rect class="node flow" x="85" y="135" width="235" height="76" filter="url(#softShadow)" />
+        <text class="label" x="202.5" y="163">execute_review_todo_plan</text>
+        <text class="small" x="202.5" y="184" text-anchor="middle">已有 state.todo_plan</text>
+
+        <path class="edge" d="M202.5 211 L202.5 250" />
+
+        <rect class="node decision" x="90" y="250" width="225" height="82" />
+        <text class="label" x="202.5" y="281">有 store 且有 session_id?</text>
+        <text class="small" x="202.5" y="303" text-anchor="middle">否则 resume_state = None</text>
+
+        <path class="edge" d="M315 291 L405 291 L405 164 L935 164" />
+        <text class="edge-note" x="351" y="278">是</text>
+
+        <rect class="node store" x="935" y="130" width="230" height="80" filter="url(#softShadow)" />
+        <text class="label" x="1050" y="160">load_resume_state</text>
+        <text class="small" x="1050" y="182" text-anchor="middle">读取 plan 对应恢复数据</text>
+
+        <path class="edge" d="M935 170 L785 170 L785 291 L745 291" />
+
+        <path class="edge" d="M202.5 332 L202.5 385 L455 385" />
+        <text class="edge-note" x="218" y="360">否</text>
+
+        <rect class="node runner" x="455" y="250" width="290" height="82" filter="url(#softShadow)" />
+        <text class="label" x="600" y="280">runner.run(plan, resume_state)</text>
+        <text class="small" x="600" y="302" text-anchor="middle">统一执行入口</text>
+
+        <path class="edge" d="M600 332 L600 372" />
+
+        <rect class="node decision" x="455" y="372" width="290" height="86" />
+        <text class="label" x="600" y="404">resume_state.plan 匹配当前 plan?</text>
+        <text class="small" x="600" y="426" text-anchor="middle">不匹配直接拒绝恢复</text>
+
+        <path class="edge" d="M745 415 L910 415 L910 312" />
+        <text class="edge-note" x="762" y="402">否</text>
+
+        <rect class="node warn" x="910" y="270" width="235" height="84" />
+        <text class="label" x="1027.5" y="302">raise ValueError</text>
+        <text class="small" x="1027.5" y="324" text-anchor="middle">避免串用其他 plan 的结果</text>
+
+        <path class="edge" d="M600 458 L600 500" />
+        <text class="edge-note" x="614" y="482">是 / 无 resume</text>
+
+        <rect class="node runner" x="455" y="500" width="290" height="92" />
+        <text class="label" x="600" y="530">校验并重建执行上下文</text>
+        <text class="small" x="600" y="552" text-anchor="middle">ensure_valid_todo_plan</text>
+        <text class="small" x="600" y="572" text-anchor="middle">build_dependency_layers</text>
+
+        <path class="edge" d="M600 592 L600 635" />
+
+        <rect class="node runner" x="455" y="635" width="290" height="104" />
+        <text class="label" x="600" y="662">从 resume 重建 result_by_id</text>
+        <text class="small" x="600" y="684" text-anchor="middle">保留 succeeded</text>
+        <text class="small" x="600" y="704" text-anchor="middle">保留已耗尽 failed</text>
+        <text class="small" x="600" y="724" text-anchor="middle">复制 attempts_by_id</text>
+
+        <path class="edge" d="M600 739 L600 780" />
+
+        <rect class="node decision" x="455" y="780" width="290" height="92" />
+        <text class="label" x="600" y="810">逐层遍历 task</text>
+        <text class="small" x="600" y="832" text-anchor="middle">按拓扑层并发执行</text>
+        <text class="small" x="600" y="852" text-anchor="middle">同一层受 concurrency 限制</text>
+
+        <path class="edge" d="M600 872 L600 912" />
+
+        <rect class="node decision" x="455" y="912" width="290" height="82" />
+        <text class="label" x="600" y="942">task 已有 succeeded 结果?</text>
+        <text class="small" x="600" y="964" text-anchor="middle">来自 resume_state.results_by_id</text>
+
+        <path class="edge" d="M745 953 L935 953" />
+        <text class="edge-note" x="765" y="938">是</text>
+
+        <rect class="node done" x="935" y="914" width="230" height="78" />
+        <text class="label" x="1050" y="944">跳过 executor</text>
+        <text class="small" x="1050" y="966" text-anchor="middle">直接复用历史结果</text>
+
+        <path class="edge" d="M600 994 L600 1033" />
+        <text class="edge-note" x="614" y="1018">否</text>
+
+        <rect class="node decision" x="455" y="1033" width="290" height="84" />
+        <text class="label" x="600" y="1064">依赖是否全部 succeeded?</text>
+        <text class="small" x="600" y="1086" text-anchor="middle">上游失败 / 耗尽会阻断下游</text>
+
+        <path class="edge" d="M745 1075 L935 1075" />
+        <text class="edge-note" x="765" y="1061">否</text>
+
+        <rect class="node warn" x="935" y="1036" width="230" height="78" />
+        <text class="label" x="1050" y="1065">生成 skipped result</text>
+        <text class="small" x="1050" y="1087" text-anchor="middle">dependency_failed</text>
+
+        <path class="edge" d="M600 1117 L600 1156" />
+        <text class="edge-note" x="614" y="1140">是</text>
+
+        <rect class="node decision" x="455" y="1156" width="290" height="84" />
+        <text class="label" x="600" y="1187">还有 retry 预算?</text>
+        <text class="small" x="600" y="1209" text-anchor="middle">previous_attempts 来自 attempts_by_id</text>
+
+        <path class="edge" d="M745 1198 L935 1198" />
+        <text class="edge-note" x="765" y="1185">否</text>
+
+        <rect class="node warn" x="935" y="1159" width="230" height="78" />
+        <text class="label" x="1050" y="1188">生成 failed result</text>
+        <text class="small" x="1050" y="1210" text-anchor="middle">retry_attempts_exhausted</text>
+
+        <path class="edge" d="M600 1240 L600 1285 L935 1285" />
+        <text class="edge-note" x="614" y="1265">是</text>
+
+        <rect class="node runner" x="935" y="1246" width="230" height="78" />
+        <text class="label" x="1050" y="1275">执行当前 task</text>
+        <text class="small" x="1050" y="1297" text-anchor="middle">失败则按策略 retry</text>
+
+        <path class="edge" d="M1165 953 L1190 953 L1190 1394 L1165 1394" />
+        <path class="edge" d="M1165 1075 L1190 1075 L1190 1394 L1165 1394" />
+        <path class="edge" d="M1165 1198 L1190 1198 L1190 1394 L1165 1394" />
+        <path class="edge" d="M1165 1285 L1190 1285 L1190 1394 L1165 1394" />
+
+        <rect class="node done" x="935" y="1352" width="230" height="84" filter="url(#softShadow)" />
+        <text class="label" x="1050" y="1382">写入 result_by_id</text>
+        <text class="small" x="1050" y="1404" text-anchor="middle">按 plan 顺序返回 todo_results</text>
+
+        <path class="edge" d="M1050 1436 L1050 1478" />
+
+        <rect class="node store" x="935" y="1478" width="230" height="78" filter="url(#softShadow)" />
+        <text class="label" x="1050" y="1507">save_resume_state</text>
+        <text class="small" x="1050" y="1529" text-anchor="middle">保存本次 todo_results</text>
+
+        <path class="edge" d="M935 1517 L760 1517" />
+
+        <rect class="node done" x="510" y="1478" width="250" height="78" filter="url(#softShadow)" />
+        <text class="label" x="635" y="1507">synthesize_review_result</text>
+        <text class="small" x="635" y="1529" text-anchor="middle">只读取完成态 task results</text>
+
+        <path class="edge" d="M510 1517 L300 1517" />
+
+        <rect class="node done" x="75" y="1478" width="225" height="78" filter="url(#softShadow)" />
+        <text class="label" x="187.5" y="1507">最终审查结果</text>
+        <text class="small" x="187.5" y="1529" text-anchor="middle">facts / risks / gaps / notes</text>
+      </svg>
+    </section>
+
+    <section class="note-grid" aria-label="Resume explanation notes">
+      <article class="note">
+        <h2>核心心智模型</h2>
+        <p>
+          resume 不是“从第 N 步继续跑”，而是把已持久化的 <code>results_by_id</code> 和 <code>attempts_by_id</code> 放回同一个 plan 里，重新按依赖层判断哪些任务已经完成、哪些任务还能跑、哪些下游必须跳过。
+        </p>
+      </article>
+
+      <article class="note">
+        <h2>哪些任务不会重跑</h2>
+        <p>
+          只有 <code>status=succeeded</code> 的历史结果会被当作已完成任务直接复用。已耗尽 retry 的 <code>failed</code> 会保留下来阻断下游；<code>running</code>、可重试的 <code>failed</code> 和多数 <code>skipped</code> 不会被当成完成态。
+        </p>
+      </article>
+
+      <article class="note">
+        <h2>为什么要保存 attempts</h2>
+        <p>
+          <code>attempts_by_id</code> 防止恢复后把 retry 次数清零。比如某个任务已经失败 2 次，恢复后应该只剩余真实预算，而不是重新获得一整轮 retry。
+        </p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
