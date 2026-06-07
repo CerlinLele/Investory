@@ -885,3 +885,39 @@
   - `tests/test_investment_document_review_flow.py:882`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (20 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (37 passed)
+
+## 2026-06-07T19:03:43.2194031+10:00 Phase 5 Step 2
+
+- Step: Phase 5 Step 2 - design how `todo_plan`, `todo_results`, and review summary are aggregated for synthesis.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 6 "Phase 5|阶段 5|Step 2|synthesize|模型原始输出|completed task" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `rg -n -C 12 "class InvestmentDocumentReviewSynthesizeInput|class InvestmentDocumentReviewExtractResult|class InvestmentDocumentReviewAnalyzeResult|class InvestmentDocumentReviewResult" src\investory\agent_core\task_models\investment_document_review_todo_tasks.py src\investory\agent_core\task_models\investment_document_review.py`
+  - `rg -n -C 20 "def _build_review_todo_synthesize_payload|def _build_review_todo_analyze_payload|def _build_review_todo_extract_payload|def _execute_review_todo_task" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `InvestmentDocumentReviewTodoSummary` and `InvestmentDocumentReviewTodoTaskSummary` as the structured aggregation contract for synthesis.
+  - Added deterministic aggregation in the flow layer: plan summary, planned/completed counts, succeeded/failed/skipped task ids, consolidated facts, risk findings, information gaps, boundary notes, and ordered per-task summaries.
+  - Made completed synthesize results follow validated plan order, while still preserving unexpected extra completed results after planned tasks.
+  - Updated synthesize input and prompt so `review_summary` is the aggregation guide and `todo_results` remains the traceable task-level detail source.
+  - Updated flow tests to assert the new `review_summary` shape and its status/result aggregation behavior.
+- Evidence anchors:
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:86`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:103`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:159`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:130`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:153`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:716`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md:6`
+  - `tests/test_investment_document_review_flow.py:877`
+  - `tests/test_investment_document_review_flow.py:903`
+  - `tests/test_investment_document_review_flow.py:1012`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (20 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (37 passed)

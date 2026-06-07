@@ -874,6 +874,27 @@ def test_execute_review_todo_plan_dispatches_synthesize_tasks_through_executor()
                 REVIEW_GOAL_FIELD: "Summarize the fee disclosure.",
                 "todo_plan": todo_plan.model_dump(),
                 "todo_results": [result.model_dump() for result in prior_results],
+                "review_summary": {
+                    "plan_summary": "Synthesize the completed review tasks.",
+                    "planned_task_count": 1,
+                    "completed_task_count": 1,
+                    "succeeded_task_ids": ["extract_fees"],
+                    "failed_task_ids": [],
+                    "skipped_task_ids": [],
+                    "extracted_facts": ["Management fee is 0.10%."],
+                    "risk_findings": [],
+                    "information_gaps": [],
+                    "boundary_notes": [],
+                    "task_summaries": [
+                        {
+                            "task_id": "extract_fees",
+                            "task_title": None,
+                            "task_kind": None,
+                            "status": TodoTaskStatus.SUCCEEDED,
+                            "summary": "Fee facts extracted.",
+                        }
+                    ],
+                },
             },
         )
     ]
@@ -894,6 +915,33 @@ def test_build_review_todo_synthesize_payload_uses_only_completed_todo_results()
         {
             "tasks": [
                 {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                },
+                {
+                    "id": "analyze_fee_disclosure",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze fee disclosure",
+                    "description": "Assess fee disclosure from extracted facts.",
+                    "payload": {"analyze_focus": ["fee disclosure"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                },
+                {
+                    "id": "analyze_holdings",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze holdings",
+                    "description": "Assess holdings from extracted facts.",
+                    "payload": {"analyze_focus": ["holdings"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                },
+                {
                     "id": "synthesize_review",
                     "kind": TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE,
                     "title": "Synthesize review",
@@ -909,7 +957,12 @@ def test_build_review_todo_synthesize_payload_uses_only_completed_todo_results()
     succeeded_result = TodoTaskResult(
         id="extract_fees",
         status=TodoTaskStatus.SUCCEEDED,
-        result={"summary": "Fee facts extracted."},
+        result={
+            "extracted_facts": ["Management fee is 0.10%."],
+            "information_gaps": ["No source date found."],
+            "boundary_notes": ["Facts are limited to the supplied excerpt."],
+            "summary": "Fee facts extracted.",
+        },
     )
     failed_result = TodoTaskResult(
         id="analyze_fee_disclosure",
@@ -956,6 +1009,41 @@ def test_build_review_todo_synthesize_payload_uses_only_completed_todo_results()
         failed_result.model_dump(),
         skipped_result.model_dump(),
     ]
+    assert payload["review_summary"] == {
+        "plan_summary": "Synthesize completed review tasks.",
+        "planned_task_count": 4,
+        "completed_task_count": 3,
+        "succeeded_task_ids": ["extract_fees"],
+        "failed_task_ids": ["analyze_fee_disclosure"],
+        "skipped_task_ids": ["analyze_holdings"],
+        "extracted_facts": ["Management fee is 0.10%."],
+        "risk_findings": [],
+        "information_gaps": ["No source date found."],
+        "boundary_notes": ["Facts are limited to the supplied excerpt."],
+        "task_summaries": [
+            {
+                "task_id": "extract_fees",
+                "task_title": "Extract fees",
+                "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                "status": TodoTaskStatus.SUCCEEDED,
+                "summary": "Fee facts extracted.",
+            },
+            {
+                "task_id": "analyze_fee_disclosure",
+                "task_title": "Analyze fee disclosure",
+                "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                "status": TodoTaskStatus.FAILED,
+                "summary": "Fee disclosure analysis failed.",
+            },
+            {
+                "task_id": "analyze_holdings",
+                "task_title": "Analyze holdings",
+                "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                "status": TodoTaskStatus.SKIPPED,
+                "summary": "Holdings analysis was skipped.",
+            },
+        ],
+    }
 
 
 def test_build_review_todo_analyze_payload_includes_dependency_results() -> None:

@@ -3,7 +3,8 @@ Synthesize investment document To-Do task results into the final review result.
 
 Requirements:
 {common_rules}
-- Use only the provided `document_type`, route metadata, optional `review_goal`, `todo_plan`, and `todo_results`.
+- Use only the provided `document_type`, route metadata, optional `review_goal`, `todo_plan`, `todo_results`, and `review_summary`.
+- Treat `review_summary` as the deterministic aggregation guide; use `todo_results` for traceable task-level details when needed.
 - Preserve the external review structure: extracted facts, risk findings, information gaps, boundary notes, summary, and optional learning next steps.
 - Include only facts and findings supported by successful To-Do task results.
 - If tasks failed or were skipped, reflect the limitation under `information_gaps` or `boundary_notes`; do not present the review as complete.

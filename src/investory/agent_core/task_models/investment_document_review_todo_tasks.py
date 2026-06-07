@@ -5,7 +5,9 @@ from investory.agent_core.contracts.investment_document_review_state import (
 )
 from investory.agent_core.contracts.todo_execution import (
     TodoExecutionPlan,
+    TodoTaskKind,
     TodoTaskResult,
+    TodoTaskStatus,
 )
 from investory.agent_core.task_models.investment_document_review import (
     InvestmentDocumentReviewResult,
@@ -81,6 +83,59 @@ class InvestmentDocumentReviewAnalyzeResult(BaseModel):
     summary: str = Field(description="Brief analysis summary.")
 
 
+class InvestmentDocumentReviewTodoTaskSummary(BaseModel):
+    task_id: str = Field(description="Stable To-Do task id.")
+    task_title: str | None = Field(
+        default=None,
+        description="Human-readable task title from the To-Do plan, when available.",
+    )
+    task_kind: TodoTaskKind | None = Field(
+        default=None,
+        description="Task kind from the To-Do plan, when available.",
+    )
+    status: TodoTaskStatus = Field(description="Completed task result status.")
+    summary: str | None = Field(
+        default=None,
+        description="Brief task-level summary extracted from the task result or error.",
+    )
+
+
+class InvestmentDocumentReviewTodoSummary(BaseModel):
+    plan_summary: str = Field(description="Summary from the validated To-Do plan.")
+    planned_task_count: int = Field(
+        ge=0,
+        description="Number of tasks in the validated To-Do plan.",
+    )
+    completed_task_count: int = Field(
+        ge=0,
+        description="Number of completed task results available for synthesis.",
+    )
+    succeeded_task_ids: list[str] = Field(
+        description="Completed task ids with succeeded status."
+    )
+    failed_task_ids: list[str] = Field(
+        description="Completed task ids with failed status."
+    )
+    skipped_task_ids: list[str] = Field(
+        description="Completed task ids with skipped status."
+    )
+    extracted_facts: list[str] = Field(
+        description="Fact lists consolidated from successful task results."
+    )
+    risk_findings: list[str] = Field(
+        description="Risk finding lists consolidated from successful task results."
+    )
+    information_gaps: list[str] = Field(
+        description="Information gap lists consolidated from successful task results."
+    )
+    boundary_notes: list[str] = Field(
+        description="Boundary note lists consolidated from successful task results."
+    )
+    task_summaries: list[InvestmentDocumentReviewTodoTaskSummary] = Field(
+        description="Ordered per-task completion summaries for synthesis."
+    )
+
+
 class InvestmentDocumentReviewSynthesizeInput(BaseModel):
     document_type: InvestmentDocumentType = Field(
         description="Classified document type used for the final review."
@@ -101,6 +156,9 @@ class InvestmentDocumentReviewSynthesizeInput(BaseModel):
     todo_results: list[TodoTaskResult] = Field(
         description="Ordered results produced by executing the To-Do plan."
     )
+    review_summary: InvestmentDocumentReviewTodoSummary = Field(
+        description="Deterministic aggregation of the plan and completed task results."
+    )
 
 
 InvestmentDocumentReviewSynthesizeResult = InvestmentDocumentReviewResult
@@ -114,4 +172,6 @@ __all__ = [
     "InvestmentDocumentReviewSynthesizeInput",
     "InvestmentDocumentReviewSynthesizeResult",
     "InvestmentDocumentReviewTodoTaskInput",
+    "InvestmentDocumentReviewTodoTaskSummary",
+    "InvestmentDocumentReviewTodoSummary",
 ]
