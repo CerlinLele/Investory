@@ -762,3 +762,38 @@
   - `tests/test_todo_execution_runner.py:224`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (5 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (30 passed)
+
+## 2026-06-07T17:17:44.6705757+10:00 Phase 4 Step 5
+
+- Step: Phase 4 Step 5 - implement dependency rebuild and re-layering during resume.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 4 "Phase 4 Step 5|阶段 4|Step 5|依赖|resume" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `Get-Content tests\test_todo_execution_runner.py`
+  - `rg -n "_build_resume_result_by_id|_build_resume_attempts_by_id|_has_attempts_remaining|_should_stop_after_resume_failure|previous_attempts|test_todo_execution_runner_continues_after_succeeded_resume_dependency|test_todo_execution_runner_retries_only_remaining_resume_attempts|test_todo_execution_runner_skips_dependency_after_exhausted_resume_failure" src\investory\agent_core\runtime\todo_core\runner.py tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/todo_core/runner.py`
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Rebuilt runner resume state from persisted results and attempts before walking dependency layers.
+  - Preserved succeeded resume results so dependent unfinished tasks can continue once dependencies are satisfied.
+  - Preserved exhausted failed resume results so downstream tasks still follow the existing `dependency_failed` skipped semantics.
+  - Used `attempts_by_id` to run only the remaining retry budget instead of resetting retries on resume.
+  - Carried exhausted resumed failures into `FAIL_FAST` stop handling.
+  - Added runner tests for resumed successful dependency continuation, remaining retry attempts, and exhausted failed dependency skip behavior.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/runner.py:71`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:76`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:77`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:108`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:169`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:257`
+  - `tests/test_todo_execution_runner.py:227`
+  - `tests/test_todo_execution_runner.py:295`
+  - `tests/test_todo_execution_runner.py:363`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (8 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (33 passed)

@@ -224,6 +224,213 @@ def test_todo_execution_runner_skips_succeeded_resume_tasks() -> None:
     assert calls == []
 
 
+def test_todo_execution_runner_continues_after_succeeded_resume_dependency() -> None:
+    calls: list[str] = []
+
+    async def executor(task) -> TodoTaskResult:
+        calls.append(task.id)
+        if task.id == "analyze_fee_disclosure":
+            return TodoTaskResult(
+                id=task.id,
+                status=TodoTaskStatus.SUCCEEDED,
+                result={"summary": "Fee disclosure analyzed from resumed facts."},
+            )
+
+        raise AssertionError(f"Unexpected task execution: {task.id}")
+
+    plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                },
+                {
+                    "id": "analyze_fee_disclosure",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze fee disclosure",
+                    "description": "Assess fee disclosure from extracted facts.",
+                    "payload": {"analyze_focus": ["fee disclosure"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                },
+            ],
+            "summary": "Extract and analyze fee disclosure.",
+            "failure_policy": TodoFailurePolicy.RETRY_THEN_FAIL,
+        }
+    )
+    resumed_extract_result = TodoTaskResult(
+        id="extract_fees",
+        status=TodoTaskStatus.SUCCEEDED,
+        result={"summary": "Fee facts extracted in a previous run."},
+    )
+    resume_state = TodoExecutionResumeState(
+        run_id="review-run-1",
+        plan=plan,
+        results_by_id={"extract_fees": resumed_extract_result},
+        attempts_by_id={"extract_fees": 1},
+        updated_at=datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+    )
+
+    results = asyncio.run(
+        TodoExecutionRunner(executor).run(plan, resume_state=resume_state)
+    )
+
+    assert results == [
+        resumed_extract_result,
+        TodoTaskResult(
+            id="analyze_fee_disclosure",
+            status=TodoTaskStatus.SUCCEEDED,
+            result={"summary": "Fee disclosure analyzed from resumed facts."},
+        ),
+    ]
+    assert calls == ["analyze_fee_disclosure"]
+
+
+def test_todo_execution_runner_retries_only_remaining_resume_attempts() -> None:
+    calls: list[str] = []
+
+    async def executor(task) -> TodoTaskResult:
+        calls.append(task.id)
+        return TodoTaskResult(
+            id=task.id,
+            status=TodoTaskStatus.FAILED,
+            error={
+                "error_type": "persistent_failure",
+                "message": "Fee extraction kept failing.",
+            },
+        )
+
+    plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                }
+            ],
+            "summary": "Extract fee facts.",
+            "failure_policy": TodoFailurePolicy.RETRY_THEN_FAIL,
+        }
+    )
+    resume_state = TodoExecutionResumeState(
+        run_id="review-run-1",
+        plan=plan,
+        results_by_id={
+            "extract_fees": TodoTaskResult(
+                id="extract_fees",
+                status=TodoTaskStatus.FAILED,
+                error={
+                    "error_type": "transient_failure",
+                    "message": "Previous attempts failed.",
+                },
+            )
+        },
+        attempts_by_id={"extract_fees": 2},
+        updated_at=datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+    )
+
+    results = asyncio.run(
+        TodoExecutionRunner(executor, max_retries=2).run(
+            plan,
+            resume_state=resume_state,
+        )
+    )
+
+    assert results == [
+        TodoTaskResult(
+            id="extract_fees",
+            status=TodoTaskStatus.FAILED,
+            error={
+                "error_type": "persistent_failure",
+                "message": "Fee extraction kept failing.",
+            },
+        )
+    ]
+    assert calls == ["extract_fees"]
+
+
+def test_todo_execution_runner_skips_dependency_after_exhausted_resume_failure() -> None:
+    calls: list[str] = []
+
+    async def executor(task) -> TodoTaskResult:
+        calls.append(task.id)
+        raise AssertionError(f"Unexpected task execution: {task.id}")
+
+    plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                },
+                {
+                    "id": "analyze_fee_disclosure",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze fee disclosure",
+                    "description": "Assess fee disclosure from extracted facts.",
+                    "payload": {"analyze_focus": ["fee disclosure"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                },
+            ],
+            "summary": "Extract and analyze fee disclosure.",
+            "failure_policy": TodoFailurePolicy.RETRY_THEN_FAIL,
+        }
+    )
+    exhausted_failure = TodoTaskResult(
+        id="extract_fees",
+        status=TodoTaskStatus.FAILED,
+        error={
+            "error_type": "persistent_failure",
+            "message": "Fee extraction kept failing.",
+        },
+    )
+    resume_state = TodoExecutionResumeState(
+        run_id="review-run-1",
+        plan=plan,
+        results_by_id={"extract_fees": exhausted_failure},
+        attempts_by_id={"extract_fees": 3},
+        updated_at=datetime(2026, 6, 7, 4, 0, tzinfo=timezone.utc),
+    )
+
+    results = asyncio.run(
+        TodoExecutionRunner(executor, max_retries=2).run(
+            plan,
+            resume_state=resume_state,
+        )
+    )
+
+    assert results == [
+        exhausted_failure,
+        TodoTaskResult(
+            id="analyze_fee_disclosure",
+            status=TodoTaskStatus.SKIPPED,
+            error={
+                "error_type": "dependency_failed",
+                "message": "Task skipped because one or more dependencies did not succeed.",
+                "details": {"failed_dependency_task_id": "extract_fees"},
+            },
+        ),
+    ]
+    assert calls == []
+
+
 def test_todo_execution_runner_rejects_resume_state_for_different_plan() -> None:
     async def executor(task) -> TodoTaskResult:
         return TodoTaskResult(

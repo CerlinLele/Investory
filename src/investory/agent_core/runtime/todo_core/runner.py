@@ -24,12 +24,16 @@ FAIL_FAST_STOPPED_ERROR_TYPE = "fail_fast_stopped"
 EXECUTOR_EXCEPTION_ERROR_TYPE = "executor_exception"
 INVALID_EXECUTOR_RESULT_ERROR_TYPE = "invalid_executor_result"
 MISSING_RESULT_ERROR_TYPE = "missing_result"
+RETRY_ATTEMPTS_EXHAUSTED_ERROR_TYPE = "retry_attempts_exhausted"
 
 DEPENDENCY_FAILED_MESSAGE = "Task skipped because one or more dependencies did not succeed."
 FAIL_FAST_STOPPED_MESSAGE = "Task skipped because fail_fast stopped further execution."
 EXECUTOR_EXCEPTION_MESSAGE = "Task failed because the executor raised an exception."
 INVALID_EXECUTOR_RESULT_MESSAGE = "Task failed because executor returned an invalid status."
 MISSING_RESULT_MESSAGE = "Task has no execution result due to internal runner inconsistency."
+RETRY_ATTEMPTS_EXHAUSTED_MESSAGE = (
+    "Task was not resumed because its retry attempts were already exhausted."
+)
 
 
 TodoTaskExecutor = Callable[[TodoTaskSpec], Awaitable[TodoTaskResult]]
@@ -64,8 +68,16 @@ class TodoExecutionRunner:
 
         layers = build_dependency_layers(plan)
 
-        result_by_id = _build_succeeded_resume_results_by_id(resume_state)
-        should_stop_after_failure = False
+        result_by_id = _build_resume_result_by_id(
+            resume_state=resume_state,
+            failure_policy=plan.failure_policy,
+            max_retries=self._max_retries,
+        )
+        resume_attempts_by_id = _build_resume_attempts_by_id(resume_state)
+        should_stop_after_failure = _should_stop_after_resume_failure(
+            failure_policy=plan.failure_policy,
+            result_by_id=result_by_id,
+        )
         semaphore = asyncio.Semaphore(self._concurrency)
 
         for layer in layers:
@@ -93,6 +105,19 @@ class TodoExecutionRunner:
                     )
                     continue
 
+                previous_attempts = resume_attempts_by_id.get(task.id, 0)
+                if not _has_attempts_remaining(
+                    failure_policy=plan.failure_policy,
+                    max_retries=self._max_retries,
+                    previous_attempts=previous_attempts,
+                ):
+                    result_by_id[task.id] = _build_failed_result(
+                        task_id=task.id,
+                        error_type=RETRY_ATTEMPTS_EXHAUSTED_ERROR_TYPE,
+                        message=RETRY_ATTEMPTS_EXHAUSTED_MESSAGE,
+                    )
+                    continue
+
                 runnable_tasks.append(task)
 
             if not runnable_tasks:
@@ -104,6 +129,7 @@ class TodoExecutionRunner:
                         task=task,
                         failure_policy=plan.failure_policy,
                         semaphore=semaphore,
+                        previous_attempts=resume_attempts_by_id.get(task.id, 0),
                     )
                     for task in runnable_tasks
                 ]
@@ -134,12 +160,15 @@ class TodoExecutionRunner:
         task: TodoTaskSpec,
         failure_policy: TodoFailurePolicy,
         semaphore: asyncio.Semaphore,
+        previous_attempts: int = 0,
     ) -> TodoTaskResult:
-        total_attempts = 1
-        if failure_policy == TodoFailurePolicy.RETRY_THEN_FAIL:
-            total_attempts += self._max_retries
+        total_attempts = _get_total_attempt_budget(
+            failure_policy=failure_policy,
+            max_retries=self._max_retries,
+        )
+        remaining_attempts = max(total_attempts - previous_attempts, 0)
 
-        for attempt in range(1, total_attempts + 1):
+        for attempt in range(1, remaining_attempts + 1):
             result = await self._execute_once(task=task, semaphore=semaphore)
 
             if result.status == TodoTaskStatus.SUCCEEDED:
@@ -148,7 +177,7 @@ class TodoExecutionRunner:
             if (
                 failure_policy == TodoFailurePolicy.RETRY_THEN_FAIL
                 and result.status == TodoTaskStatus.FAILED
-                and attempt < total_attempts
+                and attempt < remaining_attempts
             ):
                 continue
 
@@ -156,9 +185,8 @@ class TodoExecutionRunner:
 
         return _build_failed_result(
             task_id=task.id,
-            error_type=EXECUTOR_EXCEPTION_ERROR_TYPE,
-            message=EXECUTOR_EXCEPTION_MESSAGE,
-            details={"reason": "retry_loop_exhausted_without_terminal_result"},
+            error_type=RETRY_ATTEMPTS_EXHAUSTED_ERROR_TYPE,
+            message=RETRY_ATTEMPTS_EXHAUSTED_MESSAGE,
         )
 
     async def _execute_once(
@@ -226,17 +254,71 @@ def _ensure_resume_state_matches_plan(
         raise ValueError("Todo runner resume_state.plan must match the plan being run.")
 
 
-def _build_succeeded_resume_results_by_id(
+def _build_resume_result_by_id(
+    *,
     resume_state: TodoExecutionResumeState | None,
+    failure_policy: TodoFailurePolicy,
+    max_retries: int,
 ) -> dict[str, TodoTaskResult]:
     if resume_state is None:
         return {}
 
-    return {
-        task_id: result
-        for task_id, result in resume_state.results_by_id.items()
-        if result.status == TodoTaskStatus.SUCCEEDED
-    }
+    result_by_id: dict[str, TodoTaskResult] = {}
+    for task_id, result in resume_state.results_by_id.items():
+        if result.status == TodoTaskStatus.SUCCEEDED:
+            result_by_id[task_id] = result
+            continue
+
+        previous_attempts = resume_state.attempts_by_id.get(task_id, 0)
+        if result.status == TodoTaskStatus.FAILED and not _has_attempts_remaining(
+            failure_policy=failure_policy,
+            max_retries=max_retries,
+            previous_attempts=previous_attempts,
+        ):
+            result_by_id[task_id] = result
+
+    return result_by_id
+
+
+def _build_resume_attempts_by_id(
+    resume_state: TodoExecutionResumeState | None,
+) -> dict[str, int]:
+    if resume_state is None:
+        return {}
+    return dict(resume_state.attempts_by_id)
+
+
+def _has_attempts_remaining(
+    *,
+    failure_policy: TodoFailurePolicy,
+    max_retries: int,
+    previous_attempts: int,
+) -> bool:
+    return previous_attempts < _get_total_attempt_budget(
+        failure_policy=failure_policy,
+        max_retries=max_retries,
+    )
+
+
+def _get_total_attempt_budget(
+    *,
+    failure_policy: TodoFailurePolicy,
+    max_retries: int,
+) -> int:
+    if failure_policy == TodoFailurePolicy.RETRY_THEN_FAIL:
+        return 1 + max_retries
+    return 1
+
+
+def _should_stop_after_resume_failure(
+    *,
+    failure_policy: TodoFailurePolicy,
+    result_by_id: dict[str, TodoTaskResult],
+) -> bool:
+    return (
+        failure_policy == TodoFailurePolicy.FAIL_FAST
+        and any(result.status == TodoTaskStatus.FAILED for result in result_by_id.values())
+    )
 
 
 def _build_failed_result(
