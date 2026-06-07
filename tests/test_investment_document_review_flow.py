@@ -879,6 +879,85 @@ def test_execute_review_todo_plan_dispatches_synthesize_tasks_through_executor()
     ]
 
 
+def test_build_review_todo_synthesize_payload_uses_only_completed_todo_results() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    todo_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "synthesize_review",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE,
+                    "title": "Synthesize review",
+                    "description": "Combine completed task results into the final review.",
+                    "payload": {},
+                    "depends_on": [],
+                    "completion_criteria": ["Final review summarizes completed work."],
+                }
+            ],
+            "summary": "Synthesize completed review tasks.",
+        }
+    )
+    succeeded_result = TodoTaskResult(
+        id="extract_fees",
+        status=TodoTaskStatus.SUCCEEDED,
+        result={"summary": "Fee facts extracted."},
+    )
+    failed_result = TodoTaskResult(
+        id="analyze_fee_disclosure",
+        status=TodoTaskStatus.FAILED,
+        error={"message": "Fee disclosure analysis failed."},
+    )
+    skipped_result = TodoTaskResult(
+        id="analyze_holdings",
+        status=TodoTaskStatus.SKIPPED,
+        error={"message": "Holdings analysis was skipped."},
+    )
+    running_result = TodoTaskResult(
+        id="extract_risk",
+        status=TodoTaskStatus.RUNNING,
+        result={"summary": "Risk extraction is still running."},
+    )
+    pending_result = TodoTaskResult(
+        id="extract_holdings",
+        status=TodoTaskStatus.PENDING,
+    )
+
+    payload = flow._build_review_todo_synthesize_payload(
+        state=InvestmentDocumentReviewState(
+            input_payload={REVIEW_GOAL_FIELD: "Summarize completed review work."},
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            route_reason="ETF factsheet",
+            route_confidence=0.91,
+            todo_plan=todo_plan,
+        ),
+        executed_results_by_id={
+            result.id: result
+            for result in [
+                succeeded_result,
+                failed_result,
+                skipped_result,
+                running_result,
+                pending_result,
+            ]
+        },
+    )
+
+    assert payload["todo_results"] == [
+        succeeded_result.model_dump(),
+        failed_result.model_dump(),
+        skipped_result.model_dump(),
+    ]
+
+
 def test_build_review_todo_analyze_payload_includes_dependency_results() -> None:
     flow = InvestmentDocumentReviewFlow(
         executor=FakeExecutor(),

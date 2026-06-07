@@ -82,6 +82,11 @@ REFUSAL_MESSAGE = (
 MISSING_ROUTE = "missing"
 REFUSAL_ROUTE = "refusal"
 COMPLETE_ROUTE = "complete"
+COMPLETED_TODO_RESULT_STATUSES = {
+    TodoTaskStatus.SUCCEEDED,
+    TodoTaskStatus.FAILED,
+    TodoTaskStatus.SKIPPED,
+}
 
 
 class InvestmentDocumentReviewAction(str, Enum):
@@ -118,6 +123,16 @@ class InvestmentDocumentReviewTodoResumeStore(Protocol):
         results: list[TodoTaskResult],
         previous_resume_state: TodoExecutionResumeState | None,
     ) -> None: ...
+
+
+def _build_completed_todo_results(
+    results_by_id: dict[str, TodoTaskResult],
+) -> list[TodoTaskResult]:
+    return [
+        result
+        for result in results_by_id.values()
+        if result.status in COMPLETED_TODO_RESULT_STATUSES
+    ]
 
 
 class InvestmentDocumentReviewFlow:
@@ -594,7 +609,10 @@ class InvestmentDocumentReviewFlow:
                 REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
                 "todo_plan": state.todo_plan.model_dump() if state.todo_plan else None,
                 "todo_results": [
-                    result.model_dump() for result in executed_results_by_id.values()
+                    result.model_dump()
+                    for result in _build_completed_todo_results(
+                        executed_results_by_id
+                    )
                 ],
             }
         ).model_dump()

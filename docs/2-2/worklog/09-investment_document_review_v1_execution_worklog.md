@@ -858,3 +858,30 @@
   - `tests/test_todo_execution_runner.py:510`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (10 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (36 passed)
+
+## 2026-06-07T18:56:20.1253919+10:00 Phase 5 Step 1
+
+- Step: Phase 5 Step 1 - clarify that synthesize input comes only from completed task results, not raw model outputs.
+- Commands/actions:
+  - `rg -n -C 30 "_build_review_todo_synthesize_payload|def _build_completed_todo_results|def build_final_result|def build_review_todo_plan_payload" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `rg -n -C 25 "test_execute_review_todo_plan_dispatches_synthesize_tasks_through_executor|TodoTaskStatus|TodoTaskResult" tests\test_investment_document_review_flow.py`
+  - `rg -n "COMPLETED_TODO_RESULT_STATUSES|def _build_completed_todo_results|def _build_review_todo_synthesize_payload|test_build_review_todo_synthesize_payload_uses_only_completed_todo_results" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `COMPLETED_TODO_RESULT_STATUSES` to define which terminal To-Do statuses may feed the synthesize task.
+  - Added `_build_completed_todo_results()` so synthesize receives serialized `TodoTaskResult` objects from completed tasks only.
+  - Updated `_build_review_todo_synthesize_payload()` to exclude `PENDING` and `RUNNING` task results from the synthesize payload.
+  - Added focused flow coverage proving succeeded, failed, and skipped results are included while pending and running results are filtered out.
+  - Kept synthesize insulated from raw model outputs by continuing to pass validated `TodoTaskResult.model_dump()` payloads.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:85`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:128`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:598`
+  - `tests/test_investment_document_review_flow.py:882`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (20 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (37 passed)
