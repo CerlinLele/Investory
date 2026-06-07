@@ -92,6 +92,47 @@ retry_then_fail
 
 这也是为什么当前问题更像“任务调度器能力是否完整”，而不只是“LangGraph 能不能 fan-out”。
 
+## LangGraph 原生能力与当前 runner 语义对照
+
+LangGraph 原生提供的是图执行、状态流转、动态分发、节点重试、中断恢复和 checkpoint 这类底层能力。Investory 当前 `TodoExecutionRunner` 提供的是面向 To-Do plan 的业务级调度语义。
+
+两者不是完全同一层东西：
+
+| 能力 | LangGraph 原生情况 | 当前 TodoExecutionRunner 情况 | 结论 |
+|---|---|---|---|
+| 节点顺序执行 | 支持 | 支持按依赖层执行 | 两者都能表达 |
+| 条件路由 | 支持 `add_conditional_edges` | 不负责主流程路由 | 主流程适合放 LangGraph |
+| 动态 fan-out | 支持 `Send` | 支持同层任务并发执行 | 两者都能做，但抽象层不同 |
+| checkpoint / resume | 支持图状态 checkpoint | 当前 runner 还未完整持久化 resume | 若要子任务级恢复，可后续增强 |
+| retry | 支持节点级 `RetryPolicy` | 支持 `retry_then_fail` failure policy | 两者都有，但语义和配置入口不同 |
+| skip / skipped | 没有统一的业务级 `skip policy` | 有 `TodoTaskStatus.SKIPPED` 结果状态 | 当前 skipped 是 runner 业务语义 |
+| fail_fast | 没有直接同名内建 policy | 有 `TodoFailurePolicy.FAIL_FAST` | 当前 fail_fast 是 runner 业务语义 |
+| best_effort | 没有直接同名内建 policy | 有 `TodoFailurePolicy.BEST_EFFORT` | 当前 best_effort 是 runner 业务语义 |
+| DAG 合法性校验 | 不内建 To-Do plan 校验 | 有 `ensure_valid_todo_plan()` | 继续复用 runner 更合适 |
+| 依赖失败后下游 skipped | 需要自行设计 | 已内建 | 继续复用 runner 更省心 |
+| 按原始 plan 顺序返回结果 | 需要自行聚合 | 已内建 | 当前 runner 更贴合业务返回 |
+
+因此，准确判断是：
+
+```text
+LangGraph 原生支持：
+- 图节点执行
+- 条件路由
+- 动态 Send fan-out
+- checkpoint / resume
+- 节点级 retry
+
+Investory runner 当前支持：
+- To-Do plan 校验
+- depends_on DAG 分层
+- bounded concurrency
+- retry_then_fail / fail_fast / best_effort
+- dependency failed -> skipped
+- ordered task results
+```
+
+如果把 To-Do 子任务全部迁移到 LangGraph 层，需要重新实现或重新映射这些 runner 语义，尤其是 `fail_fast`、`best_effort`、依赖失败后的 `skipped`、以及最终按 plan 顺序聚合结果。
+
 ## 当前代码状态
 
 当前 `document_review_flow.py` 已经有这些方法：
