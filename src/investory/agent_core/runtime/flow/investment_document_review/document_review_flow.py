@@ -467,8 +467,11 @@ class InvestmentDocumentReviewFlow:
         if state.todo_plan is None:
             raise RuntimeError("Document review flow has no To-Do plan to execute.")
 
-        runner = self._build_todo_execution_runner(state)
         resume_state = self._load_todo_resume_state(state)
+        runner = self._build_todo_execution_runner(
+            state,
+            resume_state=resume_state,
+        )
         todo_results = asyncio.run(
             runner.run(state.todo_plan, resume_state=resume_state)
         )
@@ -523,8 +526,12 @@ class InvestmentDocumentReviewFlow:
     def _build_todo_execution_runner(
         self,
         state: InvestmentDocumentReviewState,
+        *,
+        resume_state: TodoExecutionResumeState | None = None,
     ) -> TodoExecutionRunner:
         executed_results_by_id = {result.id: result for result in state.todo_results}
+        if resume_state is not None:
+            executed_results_by_id.update(resume_state.results_by_id)
 
         async def execute(task) -> TodoTaskResult:
             result = await self._execute_review_todo_task(

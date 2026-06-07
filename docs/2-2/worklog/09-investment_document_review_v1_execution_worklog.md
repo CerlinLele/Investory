@@ -984,3 +984,30 @@
   - `tests/test_investment_document_review_flow.py:1012`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (21 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (38 passed)
+
+## 2026-06-07T23:16:00+10:00 Phase 5 Step 5
+
+- Step: Phase 5 Step 5 - validate that resumed completed results are not recomputed during synthesis.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "Phase 5 Step 5|resume|review_summary|completed results|duplicate|recompute|todo_resume_store|load_resume_state|save_resume_state|synthesize" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py tests\test_todo_execution_resume.py tests\test_todo_execution_runner.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Updated `execute_review_todo_plan()` so the To-Do execution runner is built with the loaded `resume_state`, not just the pre-existing `state.todo_results`.
+  - Updated `_build_todo_execution_runner()` to seed its `executed_results_by_id` map from `resume_state.results_by_id` before task execution, so synthesize can see resumed successful results without rerunning them.
+  - Added focused flow coverage proving a resumed succeeded extract result is included exactly once in the synthesize payload and final ordered To-Do results, while the executor is called only for the remaining synthesize task.
+  - Re-ran the focused flow suite and the related To-Do/resume regression suite from the repository `.venv`; both passed.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:470`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:523`
+  - `tests/test_investment_document_review_flow.py:192`
+  - `tests/test_investment_document_review_flow.py:681`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (22 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (39 passed)

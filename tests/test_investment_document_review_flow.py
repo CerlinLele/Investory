@@ -189,7 +189,7 @@ class RunnerBackedReviewFlow(InvestmentDocumentReviewFlow):
             todo_resume_store=todo_resume_store,
         )
 
-    def _build_todo_execution_runner(self, state):
+    def _build_todo_execution_runner(self, state, *, resume_state=None):
         return self.todo_runner
 
 
@@ -677,6 +677,150 @@ def test_execute_review_todo_plan_loads_and_saves_resume_state_slot() -> None:
         ("session-1", todo_plan, expected_results, resume_state)
     ]
     assert update["todo_results"] == expected_results
+
+
+def test_execute_review_todo_plan_includes_resumed_completed_results_in_synthesis_once() -> None:
+    resume_state = TodoExecutionResumeState(
+        run_id="review-run-2",
+        session_id="session-2",
+        plan=TodoExecutionPlan.model_validate(
+            {
+                "tasks": [
+                    {
+                        "id": "extract_fees",
+                        "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                        "title": "Extract fees",
+                        "description": "Extract fee facts from the document.",
+                        "payload": {"extract_focus": ["fees"]},
+                        "depends_on": [],
+                        "completion_criteria": [
+                            "Fees are listed with source citations."
+                        ],
+                    },
+                    {
+                        "id": "synthesize_review",
+                        "kind": TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE,
+                        "title": "Synthesize review",
+                        "description": "Combine completed task results into the final review.",
+                        "payload": {},
+                        "depends_on": ["extract_fees"],
+                        "completion_criteria": [
+                            "Final review summarizes completed work."
+                        ],
+                    },
+                ],
+                "summary": "Resume completed extraction before synthesis.",
+            }
+        ),
+        results_by_id={
+            "extract_fees": TodoTaskResult(
+                id="extract_fees",
+                status=TodoTaskStatus.SUCCEEDED,
+                result={
+                    "extracted_facts": ["Management fee is 0.10%."],
+                    "information_gaps": ["No source date found."],
+                    "boundary_notes": ["Facts are limited to the supplied excerpt."],
+                    "summary": "Fee facts extracted.",
+                },
+            )
+        },
+        attempts_by_id={"extract_fees": 1},
+        updated_at=datetime(2026, 6, 7, 8, 0, tzinfo=timezone.utc),
+    )
+    resume_store = RecordingTodoResumeStore(resume_state=resume_state)
+    executor = FakeExecutor(
+        result=TaskResult(
+            ok=True,
+            task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+            result={
+                "document_type": InvestmentDocumentType.ETF_FACTSHEET.value,
+                "extracted_facts": ["Management fee is 0.10%."],
+                "risk_findings": [],
+                "information_gaps": ["No source date found."],
+                "boundary_notes": ["Facts are limited to the supplied excerpt."],
+                "summary": "The factsheet discloses a 0.10% management fee.",
+                "learning_next_steps": [],
+            },
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+        todo_resume_store=resume_store,
+    )
+    todo_plan = resume_state.plan
+
+    update = flow.execute_review_todo_plan(
+        InvestmentDocumentReviewState(
+            session_id="session-2",
+            input_payload={
+                DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
+                REVIEW_GOAL_FIELD: "Summarize completed review work.",
+            },
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            route_reason="ETF factsheet",
+            route_confidence=0.91,
+            todo_plan=todo_plan,
+        )
+    )
+
+    resumed_extract_result = resume_state.results_by_id["extract_fees"]
+    assert update["todo_results"] == [
+        resumed_extract_result,
+        TodoTaskResult(
+            id="synthesize_review",
+            status=TodoTaskStatus.SUCCEEDED,
+            result={
+                "document_type": InvestmentDocumentType.ETF_FACTSHEET.value,
+                "extracted_facts": ["Management fee is 0.10%."],
+                "risk_findings": [],
+                "information_gaps": ["No source date found."],
+                "boundary_notes": ["Facts are limited to the supplied excerpt."],
+                "summary": "The factsheet discloses a 0.10% management fee.",
+                "learning_next_steps": [],
+            },
+        ),
+    ]
+    assert executor.calls == [
+        (
+            INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+            {
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                ROUTE_REASON_FIELD: "ETF factsheet",
+                ROUTE_CONFIDENCE_FIELD: 0.91,
+                REVIEW_GOAL_FIELD: "Summarize completed review work.",
+                "todo_plan": todo_plan.model_dump(),
+                "todo_results": [resumed_extract_result.model_dump()],
+                "review_summary": {
+                    "plan_summary": "Resume completed extraction before synthesis.",
+                    "planned_task_count": 2,
+                    "completed_task_count": 1,
+                    "succeeded_task_ids": ["extract_fees"],
+                    "failed_task_ids": [],
+                    "skipped_task_ids": [],
+                    "extracted_facts": ["Management fee is 0.10%."],
+                    "risk_findings": [],
+                    "information_gaps": ["No source date found."],
+                    "boundary_notes": ["Facts are limited to the supplied excerpt."],
+                    "task_summaries": [
+                        {
+                            "task_id": "extract_fees",
+                            "task_title": "Extract fees",
+                            "task_kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                            "status": TodoTaskStatus.SUCCEEDED,
+                            "summary": "Fee facts extracted.",
+                        }
+                    ],
+                },
+            },
+        )
+    ]
 
 
 def test_execute_review_todo_plan_requires_todo_plan() -> None:
