@@ -19,7 +19,7 @@ TodoExecutionRunner 负责 plan 内部动态依赖执行：
 validate plan
 -> dependency layers
 -> bounded concurrency
--> retry / skip / fail
+-> retry / fail_fast / best_effort / skipped
 -> ordered results
 ```
 
@@ -50,6 +50,47 @@ LangGraph 本身适合表达这些能力：
 - 最终结果按原始 plan 顺序返回。
 
 这些能力当前已经由项目里的 `TodoExecutionRunner`、`ensure_valid_todo_plan()` 和 dependency layer 工具覆盖。把它们重新搬进 LangGraph，会增加实现和测试复杂度。
+
+## 当前已经具备的执行语义
+
+当前实现里，这几个概念已经存在，但它们不是同一层概念：
+
+- `retry_then_fail`
+- `fail_fast`
+- `best_effort`
+- `skipped`
+
+其中前 3 个是 `TodoExecutionPlan.failure_policy` 的可选值，定义在 `TodoFailurePolicy` 中：
+
+```text
+fail_fast
+best_effort
+retry_then_fail
+```
+
+`skipped` 则不是 failure policy，而是 `TodoTaskStatus` 的一种执行结果状态。
+
+更具体地说：
+
+- `retry_then_fail`：任务失败后重试，默认最多额外重试 2 次；如果仍失败，则返回 `failed`。
+- `fail_fast`：某一层出现 `failed` 后，不再继续后续可执行任务；后续未执行任务会被标记为 `skipped`。
+- `best_effort`：即使某个任务失败，只要其他任务依赖满足，仍继续执行其余任务。
+- `skipped`：任务没有真正执行成功，且被系统主动跳过。
+
+当前 `skipped` 主要有两种来源：
+
+- 依赖任务未成功，下游任务自动 `skipped`。
+- `fail_fast` 已经触发，后续任务自动 `skipped`。
+
+所以更准确的术语应该是：
+
+```text
+当前 runner 已支持：
+- retry_then_fail / fail_fast / best_effort 三种失败策略
+- skipped 结果语义
+```
+
+这也是为什么当前问题更像“任务调度器能力是否完整”，而不只是“LangGraph 能不能 fan-out”。
 
 ## 当前代码状态
 
@@ -113,7 +154,7 @@ evaluate_policy_gate
 - 需要子任务级别的 checkpoint 和 resume。
 - 需要 streaming 展示每个子任务进度。
 - 子任务依赖关系比较简单，主要是大量同构并发任务。
-- 愿意把 retry、skip、fail_fast、best_effort 等策略重新设计到 LangGraph 层。
+- 愿意把 `retry_then_fail`、`skipped`、`fail_fast`、`best_effort` 等现有执行语义重新设计到 LangGraph 层。
 
 当前阶段的核心需求是可靠执行 To-Do 依赖计划，而不是让 LangGraph 可视化每个子任务节点。因此第一版继续使用 `TodoExecutionRunner` 更合适。
 
@@ -124,4 +165,3 @@ LangGraph 能运行这种图；但在 Investory 当前架构里，最合理的�
 ```text
 LangGraph 管主流程，TodoExecutionRunner 管 To-Do DAG。
 ```
-
