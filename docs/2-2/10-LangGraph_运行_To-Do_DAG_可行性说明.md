@@ -252,6 +252,87 @@ validate -> dependency layers -> concurrency -> retry / skip / fail policy -> or
 
 也就是说，如果让 LangGraph 自己“理解并执行动态依赖图”，确实相当于要动态再拼一个 LangGraph，或者在固定 LangGraph 里重写一个调度器。当前项目已经有 `TodoExecutionRunner`，第一版没有必要把这套调度语义搬到 LangGraph 层。
 
+## LangGraph 的监听能力边界
+
+LangGraph 有“监听运行过程”的能力，但它主要是执行观察能力，不是业务级依赖调度器。
+
+LangGraph 原生 streaming 可以监听图运行过程中的信息，例如：
+
+- 节点执行更新。
+- state values / updates。
+- LLM token messages。
+- custom events。
+- checkpoint。
+- task start / finish。
+- debug events。
+
+LangGraph 也有 interrupt / resume 能力。节点可以暂停图执行，等待外部输入后再恢复；配合 checkpointer，可以保存中断时的图状态。
+
+这些能力适合做：
+
+- 外部进度展示。
+- debug trace。
+- 用户审批 / 人工介入。
+- 长任务状态观察。
+- 主流程 checkpoint / resume。
+
+但它们不等同于 TriggerFlow 风格的业务事件监听：
+
+```text
+emit task_completed
+when all dependencies completed -> trigger downstream task
+```
+
+如果要实现这种 To-Do DAG 依赖监听，仍然需要自己维护：
+
+- 哪些 task 已完成。
+- 哪些 task 已失败。
+- 哪些 task 被 skipped。
+- 哪些 task 的 `depends_on` 已满足。
+- 下一轮哪些 task 可以执行。
+- 失败策略如何影响后续任务。
+
+因此，更准确地说：
+
+```text
+LangGraph 有运行事件监听。
+LangGraph 没有直接内建 To-Do DAG 业务监听调度器。
+```
+
+## 是否需要再创建一个 LangGraph
+
+如果目标只是监听主流程运行状态，不需要再创建一个 LangGraph。可以让当前主流程 LangGraph 负责 streaming / checkpoint / trace。
+
+如果目标是让 LangGraph 自己负责子任务依赖调度，则基本需要再做一层图结构。这里有两种方式：
+
+```text
+路线 A：动态创建子图
+根据 todo_plan 临时 compile 一个 LangGraph：
+extract -> analyze -> synthesize
+```
+
+```text
+路线 B：固定主图里写调度循环
+find_ready_tasks
+-> Send(execute_task)
+-> merge_results
+-> find_ready_tasks
+```
+
+路线 B 表面上没有动态创建新图，但本质上还是在 LangGraph state 里重新写一个 DAG scheduler。
+
+所以当前判断是：
+
+```text
+只要可靠执行 To-Do DAG：
+继续用 TodoExecutionRunner。
+
+如果要 LangGraph trace / checkpoint 看到每个子任务：
+再考虑动态子图或固定图调度循环。
+```
+
+当前第一版不需要为了“监听”单独再创建一个 LangGraph。更实用的做法是：LangGraph streaming 监听主流程节点，To-Do 内部进度先由 `TodoExecutionRunner` 记录成 `todo_results`；后续如果需要实时进度展示，再给 runner 增加 progress callback 或事件上报。
+
 ## 当前代码状态
 
 当前 `document_review_flow.py` 已经有这些方法：
