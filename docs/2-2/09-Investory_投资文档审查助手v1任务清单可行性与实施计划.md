@@ -552,6 +552,47 @@ Step:
 - 对 failed / skipped 子任务，汇总逻辑会把“为什么这里不完整”显式转译成 `information_gaps` 或 `boundary_notes`，而不是默默忽略。这样最终 review 不会伪装成一份无缺口的完整审查报告。
 - 在 resume 场景下，synthesis 继续复用恢复后的完成结果与聚合摘要，不重新计算已完成任务。这使得“断点续跑”不只是执行层节省成本，也能在结果层避免重复聚合和重复表述。
 
+#### 阶段 5 最终汇总到底做了什么
+
+阶段 5 的核心不是“再调用一次模型写总结”，而是把前面动态 To-Do 执行出来的多份子任务结果，收敛成 Investory 对外已经稳定的 `InvestmentDocumentReviewResult`。这一层承担的是结果边界控制：哪些结果可以进入最终审查、以什么顺序进入、失败或跳过如何表达、路由元数据如何保留，以及 resume 后如何避免重复计算。
+
+落地后可以把最终汇总理解成四层输入：
+
+1. `todo_plan`：告诉 synthesize 这次审查原本计划覆盖哪些任务、任务之间是什么顺序和依赖。
+2. `todo_results`：保留完成态任务的原始结构化结果，作为可追踪证据源。
+3. `review_summary`：flow 层先做一轮确定性聚合，把 facts、risk findings、information gaps、boundary notes、任务状态和任务摘要整理成低噪音输入。
+4. route metadata：`document_type`、`route_reason`、`route_confidence` 继续进入 synthesize 输入和最终 `TaskResult` 外层，保证“为什么按这个文档类型审查”不会在汇总阶段丢失。
+
+这里刻意把“执行细节”和“最终报告”分开。`todo_results` 负责追溯，`review_summary` 负责给最终模型一个稳定摘要，`InvestmentDocumentReviewResult` 负责保持公开响应结构稳定。这样做可以避免最终结果直接依赖某个子任务模型的临时输出形状，也能避免因为执行顺序或 resume 状态不同而产生不必要的结果抖动。
+
+阶段 5 还补了三个关键安全边界：
+
+- 只允许 `SUCCEEDED`、`FAILED`、`SKIPPED` 这类完成态结果进入 synthesize；`PENDING`、`RUNNING` 不会进入最终汇总。
+- `FAILED` 会显式进入 `information_gaps`，`SKIPPED` 会显式进入 `boundary_notes`，让最终审查承认不完整性。
+- resume 恢复出来的已成功结果会先注入 flow 的执行结果 state，再进入 synthesize；runner 不会重复调用这些已完成任务，summary 也不会重复聚合它们。
+
+对应的代码关系是：
+
+```text
+execute_review_todo_plan
+  -> load resume_state
+  -> _build_todo_execution_runner(state, resume_state=...)
+  -> runner.run(plan, resume_state=...)
+  -> _build_review_todo_synthesize_payload
+  -> _build_completed_todo_results
+  -> _build_review_todo_summary
+  -> investment_document_synthesize
+  -> build_final_result
+```
+
+因此，阶段 5 的结果可以概括为：把 To-Do DAG 的执行产物，变成一个稳定、可追踪、承认缺口、兼容 resume 的最终审查结果。
+
+新增可视化流程图：
+
+```text
+docs/2-2/investment_document_review_synthesis_flowchart.html
+```
+
 ### 阶段 6：网关与兼容性测试
 
 目标：不破坏 `/investment-document-review` 的公开入口。
