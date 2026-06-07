@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investment Document Review Synthesis Flow</title>
+  <style>
+    :root {
+      --bg: #f6f7f4;
+      --paper: #ffffff;
+      --ink: #18212f;
+      --muted: #5f6978;
+      --line: #28364a;
+      --input: #eef5ff;
+      --input-line: #2f6fb3;
+      --flow: #eaf8f2;
+      --flow-line: #22805c;
+      --summary: #fff4df;
+      --summary-line: #b46b17;
+      --guard: #fff0f0;
+      --guard-line: #be4444;
+      --final: #edf1ff;
+      --final-line: #5268bd;
+      --shadow: 0 18px 48px rgba(38, 48, 66, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(135deg, rgba(47, 111, 179, 0.08), transparent 36%),
+        linear-gradient(225deg, rgba(34, 128, 92, 0.08), transparent 34%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    header {
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 980px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(136px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid #d8dddf;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border: 2px solid;
+      border-radius: 4px;
+      flex: 0 0 auto;
+    }
+
+    .canvas {
+      overflow: auto;
+      border: 1px solid #d6dcdf;
+      border-radius: 12px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 18px 0;
+    }
+
+    .note {
+      min-height: 132px;
+      padding: 16px 18px;
+      border: 1px solid #d8dddf;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 10px 28px rgba(38, 48, 66, 0.07);
+    }
+
+    .note h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    svg {
+      display: block;
+      min-width: 1180px;
+      width: 100%;
+      height: auto;
+    }
+
+    .box {
+      stroke-width: 2.2;
+      rx: 8;
+      ry: 8;
+      filter: drop-shadow(0 7px 12px rgba(27, 36, 52, 0.08));
+    }
+
+    .input {
+      fill: var(--input);
+      stroke: var(--input-line);
+    }
+
+    .flow {
+      fill: var(--flow);
+      stroke: var(--flow-line);
+    }
+
+    .summary {
+      fill: var(--summary);
+      stroke: var(--summary-line);
+    }
+
+    .guard {
+      fill: var(--guard);
+      stroke: var(--guard-line);
+    }
+
+    .final {
+      fill: var(--final);
+      stroke: var(--final-line);
+    }
+
+    .title {
+      font-size: 15px;
+      font-weight: 700;
+      fill: var(--ink);
+    }
+
+    .body {
+      font-size: 12.5px;
+      fill: var(--muted);
+    }
+
+    .small {
+      font-size: 11.5px;
+      fill: var(--muted);
+    }
+
+    .lane-label {
+      font-size: 13px;
+      font-weight: 700;
+      fill: var(--line);
+    }
+
+    .arrow {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+
+    .soft-arrow {
+      fill: none;
+      stroke: #6f7a8c;
+      stroke-width: 1.7;
+      stroke-dasharray: 7 6;
+      marker-end: url(#arrow-soft);
+    }
+
+    .divider {
+      stroke: #dce2e5;
+      stroke-width: 1;
+      stroke-dasharray: 6 6;
+    }
+
+    @media (max-width: 820px) {
+      main {
+        padding: 18px;
+      }
+
+      .legend,
+      .notes {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>投资文档审查 v1 最终汇总流程图</h1>
+      <p class="subtitle">
+        阶段 5 负责把 To-Do DAG 执行结果收敛为稳定的 <code>InvestmentDocumentReviewResult</code>：
+        只使用完成态任务结果，构建确定性的 <code>review_summary</code>，保留路由元数据，并在 resume 场景下复用已完成结果。
+      </p>
+    </header>
+
+    <section class="legend" aria-label="Legend">
+      <div class="legend-item"><span class="swatch" style="background: var(--input); border-color: var(--input-line);"></span>输入与状态</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--flow); border-color: var(--flow-line);"></span>Flow 处理</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--summary); border-color: var(--summary-line);"></span>汇总契约</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--guard); border-color: var(--guard-line);"></span>边界控制</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--final); border-color: var(--final-line);"></span>最终输出</div>
+    </section>
+
+    <section class="canvas" aria-label="Synthesis flowchart">
+      <svg viewBox="0 0 1320 980" role="img" aria-labelledby="title desc" xmlns="http://www.w3.org/2000/svg">
+        <title id="title">Investment document review synthesis flowchart</title>
+        <desc id="desc">A flowchart explaining how completed To-Do task results are filtered, summarized, synthesized, and wrapped into the final review response.</desc>
+
+        <defs>
+          <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M2,2 L10,6 L2,10 Z" fill="#28364a" />
+          </marker>
+          <marker id="arrow-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M2,2 L10,6 L2,10 Z" fill="#6f7a8c" />
+          </marker>
+        </defs>
+
+        <line class="divider" x1="70" y1="118" x2="1250" y2="118" />
+        <line class="divider" x1="70" y1="318" x2="1250" y2="318" />
+        <line class="divider" x1="70" y1="578" x2="1250" y2="578" />
+        <line class="divider" x1="70" y1="790" x2="1250" y2="790" />
+
+        <text class="lane-label" x="76" y="82">1. 输入与恢复状态</text>
+        <text class="lane-label" x="76" y="282">2. 执行结果过滤</text>
+        <text class="lane-label" x="76" y="542">3. 确定性聚合</text>
+        <text class="lane-label" x="76" y="754">4. 模型汇总与公开响应</text>
+
+        <rect class="box input" x="110" y="145" width="190" height="104" />
+        <text class="title" x="130" y="176">todo_plan</text>
+        <text class="body" x="130" y="203">任务顺序</text>
+        <text class="body" x="130" y="224">depends_on</text>
+        <text class="body" x="130" y="245">completion criteria</text>
+
+        <rect class="box input" x="348" y="145" width="210" height="104" />
+        <text class="title" x="368" y="176">route metadata</text>
+        <text class="body" x="368" y="203">document_type</text>
+        <text class="body" x="368" y="224">route_reason</text>
+        <text class="body" x="368" y="245">route_confidence</text>
+
+        <rect class="box input" x="606" y="145" width="210" height="104" />
+        <text class="title" x="626" y="176">resume_state</text>
+        <text class="body" x="626" y="203">results_by_id</text>
+        <text class="body" x="626" y="224">attempts_by_id</text>
+        <text class="body" x="626" y="245">updated_at</text>
+
+        <rect class="box flow" x="864" y="145" width="260" height="104" />
+        <text class="title" x="884" y="176">execute_review_todo_plan</text>
+        <text class="body" x="884" y="203">加载 resume_state</text>
+        <text class="body" x="884" y="224">构建 runner state</text>
+        <text class="body" x="884" y="245">执行剩余 To-Do 任务</text>
+
+        <path class="arrow" d="M300 197 H348" />
+        <path class="arrow" d="M558 197 H606" />
+        <path class="arrow" d="M816 197 H864" />
+
+        <rect class="box flow" x="150" y="360" width="250" height="110" />
+        <text class="title" x="170" y="391">seed executed_results_by_id</text>
+        <text class="body" x="170" y="418">state.todo_results</text>
+        <text class="body" x="170" y="439">+ resume_state.results_by_id</text>
+        <text class="body" x="170" y="460">让 synthesize 看见恢复结果</text>
+
+        <rect class="box flow" x="474" y="360" width="240" height="110" />
+        <text class="title" x="494" y="391">runner.run(...)</text>
+        <text class="body" x="494" y="418">跳过已成功任务</text>
+        <text class="body" x="494" y="439">执行未完成任务</text>
+        <text class="body" x="494" y="460">按 plan 顺序返回结果</text>
+
+        <rect class="box guard" x="788" y="360" width="250" height="110" />
+        <text class="title" x="808" y="391">_build_completed_todo_results</text>
+        <text class="body" x="808" y="418">只保留完成态</text>
+        <text class="body" x="808" y="439">SUCCEEDED / FAILED / SKIPPED</text>
+        <text class="body" x="808" y="460">排除 PENDING / RUNNING</text>
+
+        <path class="arrow" d="M994 249 C994 300 275 304 275 360" />
+        <path class="arrow" d="M400 415 H474" />
+        <path class="arrow" d="M714 415 H788" />
+
+        <rect class="box summary" x="110" y="620" width="260" height="118" />
+        <text class="title" x="130" y="650">facts / findings</text>
+        <text class="body" x="130" y="678">从成功任务 result 提取</text>
+        <text class="body" x="130" y="699">extracted_facts</text>
+        <text class="body" x="130" y="720">risk_findings</text>
+
+        <rect class="box summary" x="418" y="620" width="260" height="118" />
+        <text class="title" x="438" y="650">gaps / boundary notes</text>
+        <text class="body" x="438" y="678">成功任务原始 gap/note</text>
+        <text class="body" x="438" y="699">FAILED -> information_gaps</text>
+        <text class="body" x="438" y="720">SKIPPED -> boundary_notes</text>
+
+        <rect class="box summary" x="726" y="620" width="260" height="118" />
+        <text class="title" x="746" y="650">task_summaries</text>
+        <text class="body" x="746" y="678">task_id / title / kind</text>
+        <text class="body" x="746" y="699">status</text>
+        <text class="body" x="746" y="720">summary or error message</text>
+
+        <rect class="box summary" x="1034" y="620" width="210" height="118" />
+        <text class="title" x="1054" y="650">review_summary</text>
+        <text class="body" x="1054" y="678">稳定聚合输入</text>
+        <text class="body" x="1054" y="699">降低噪音</text>
+        <text class="body" x="1054" y="720">保留不完整性</text>
+
+        <path class="arrow" d="M913 470 C913 548 240 548 240 620" />
+        <path class="arrow" d="M913 470 C913 548 548 548 548 620" />
+        <path class="arrow" d="M913 470 C913 548 856 548 856 620" />
+        <path class="arrow" d="M370 679 H418" />
+        <path class="arrow" d="M678 679 H726" />
+        <path class="arrow" d="M986 679 H1034" />
+
+        <rect class="box flow" x="130" y="832" width="252" height="104" />
+        <text class="title" x="150" y="862">synthesize payload</text>
+        <text class="body" x="150" y="889">todo_plan + todo_results</text>
+        <text class="body" x="150" y="910">review_summary</text>
+        <text class="body" x="150" y="931">route metadata + review_goal</text>
+
+        <rect class="box final" x="460" y="832" width="230" height="104" />
+        <text class="title" x="480" y="862">investment_document_synthesize</text>
+        <text class="body" x="480" y="889">输出复用</text>
+        <text class="body" x="480" y="910">InvestmentDocumentReviewResult</text>
+
+        <rect class="box final" x="768" y="832" width="230" height="104" />
+        <text class="title" x="788" y="862">build_final_result</text>
+        <text class="body" x="788" y="889">task_name = investment_document_review</text>
+        <text class="body" x="788" y="910">action = complete</text>
+        <text class="body" x="788" y="931">包装 review + route metadata</text>
+
+        <rect class="box final" x="1076" y="832" width="190" height="104" />
+        <text class="title" x="1096" y="862">API response shape</text>
+        <text class="body" x="1096" y="889">公开结构稳定</text>
+        <text class="body" x="1096" y="910">可追踪</text>
+        <text class="body" x="1096" y="931">承认缺口</text>
+
+        <path class="arrow" d="M1139 738 C1139 782 256 782 256 832" />
+        <path class="arrow" d="M382 884 H460" />
+        <path class="arrow" d="M690 884 H768" />
+        <path class="arrow" d="M998 884 H1076" />
+
+        <path class="soft-arrow" d="M453 249 C453 782 256 782 256 832" />
+        <text class="small" x="300" y="806">route metadata 持续进入最终汇总</text>
+
+        <path class="soft-arrow" d="M711 249 C711 324 275 324 275 360" />
+        <text class="small" x="430" y="334">resume 已完成结果先进入执行 state</text>
+      </svg>
+    </section>
+
+    <section class="notes" aria-label="Key notes">
+      <article class="note">
+        <h2>为什么先过滤完成态</h2>
+        <p>最终审查只应该基于明确结束的任务。运行中或待执行任务属于执行快照，不进入最终报告，避免用户看到半成品结论。</p>
+      </article>
+      <article class="note">
+        <h2>为什么需要 review_summary</h2>
+        <p>它把任务级结果整理成稳定摘要：事实、风险、缺口、边界说明和任务状态。模型负责最终表达，flow 负责确定性归纳。</p>
+      </article>
+      <article class="note">
+        <h2>resume 如何避免重复计算</h2>
+        <p>恢复出来的成功结果先进入 runner 的执行 state，后续 synthesize 直接复用它们；runner 只调用还没完成的任务。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
