@@ -43,17 +43,27 @@ build_prompt_messages()
 优点：不拒绝用户输入。  
 缺点：截断位置难以保证语义完整；用户可能不注意 warning，误以为整篇文档都被审查了。
 
-### 路线 C：接 To-Do DAG 做分段审查（长期方向）
+### 路线 C：接 To-Do DAG 做分段审查
 
-Phase 5 的 `generate_review_todo_plan` + `execute_review_todo_plan` 本质上就是为了处理这个问题——把文档拆成 extract、analyze 多个子任务分别执行，最后 synthesize。
+Phase 5 的 `generate_review_todo_plan` + `execute_review_todo_plan` 把文档审查拆成 extract → analyze → synthesize 多个子任务，让每个 LLM 调用的任务范围更窄，输出更专注，结果可追溯。
 
-当前未接入公开 graph 正是因为这条路还未完成。路线 C 是完整解法，但依赖 Phase 5 To-Do DAG 接入公开 endpoint 这个前置工作。
+**但路线 C 不解决 token 量问题。** 查看 `InvestmentDocumentReviewExtractInput` 和 `InvestmentDocumentReviewAnalyzeInput`，两者都有 `document_text: str = Field(description="Full text of ...")` ——每个子任务拿到的仍是原封不动的全文，token 总量不减少。
+
+| 路线 | 解决了什么 | 没解决什么 |
+|---|---|---|
+| A（硬拒绝） | token 超限 | 用户体验差，不支持长文档 |
+| B（静默截断） | token 超限 | 截断破坏语义，用户误以为全文被审查 |
+| C（To-Do DAG） | 审查逻辑模块化、结果可追溯性 | token 总量，每子任务仍传完整文档 |
+
+### 路线 D：To-Do DAG + 按 focus 检索/切片（长期方向）
+
+真正解决长文档 token 问题需要在分发子任务时做 retrieval：`execute_review_todo_plan` 分配 extract 子任务时，按该任务的 `extract_focus` 从全文里切出相关段落，而不是把全文都传进去。路线 C 的 DAG 结构为这一步提供了自然接入点，但目前没有实现。
 
 ---
 
 ## v1 建议
 
-采用**路线 A**，等 To-Do DAG 接入公开 graph 后升级到路线 C。
+采用**路线 A**，等 To-Do DAG + retrieval 方案成熟后升级到路线 D。
 
 在测试计划和文档里明确标注：`document_text` 建议控制在 **8000 字符以内**，对应约 1-2 页 factsheet 的有效内容密度。超长内容请截取核心段落（费率表、风险披露、关键条款）后提交。
 
