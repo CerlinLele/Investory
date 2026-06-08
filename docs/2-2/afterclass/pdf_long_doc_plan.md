@@ -90,6 +90,8 @@ flowchart LR
 
 限制也必须明确：`select_relevant_chunks()` 不等价于完整 review。它会主动丢弃未命中当前 focus 的 chunks，因此不能用于“每个 review 都必须覆盖全文”的语义。如果产品要求完整覆盖 PDF，Phase B 后续接入应改为保序分批处理所有 chunks（例如逐 chunk 执行/汇总），而不是按关键词筛选片段。
 
+RAG 适合做成**辅助能力**，不适合作为完整审查的唯一主路径。更稳妥的长期方案是 hybrid：先用全文 chunks 做 map-reduce 式全覆盖 extract，确保每个 chunk 都被审查；再用关键词检索或 embedding/RAG 对费用、风险、流动性、披露缺口等专题做补强。这样既保留“完整 review”语义，又能在专题分析时控制上下文长度。短期不建议直接引入向量库，先用 deterministic chunking + keyword matching 验证真实 PDF 行为，等出现明确召回瓶颈后再引入 embedding/RAG。
+
 **2. 接入位置**
 
 `src/investory/agent_core/contracts/investment_document_review_state.py` 新增字段：
