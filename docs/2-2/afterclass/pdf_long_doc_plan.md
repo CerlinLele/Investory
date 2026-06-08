@@ -86,6 +86,10 @@ flowchart LR
 
 按段落/句子切分全文为 `list[str]` chunks，再对每个 chunk 做关键词匹配（简单 `any(kw in chunk)` 过滤），选出与当前任务 focus 最相关的若干 chunks 拼接传入。不引入 embedding 或向量数据库，保持与现有无额外基础设施依赖的风格。
 
+`select_relevant_chunks()` 的定位是**主题子任务的输入预算控制工具**：它会根据 `focus_keywords` 给 chunks 打分，优先返回与当前 extract/analyze focus 命中最多的片段，并在拼接前恢复原文顺序。它适合“按主题拆分审查”的 To-Do 子任务，例如费用任务优先看 fee / expense ratio 相关段落。
+
+限制也必须明确：`select_relevant_chunks()` 不等价于完整 review。它会主动丢弃未命中当前 focus 的 chunks，因此不能用于“每个 review 都必须覆盖全文”的语义。如果产品要求完整覆盖 PDF，Phase B 后续接入应改为保序分批处理所有 chunks（例如逐 chunk 执行/汇总），而不是按关键词筛选片段。
+
 **2. 接入位置**
 
 `src/investory/agent_core/contracts/investment_document_review_state.py` 新增字段：
