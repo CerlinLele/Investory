@@ -42,3 +42,26 @@
   - `src/investory/gateway/pdf_extractor.py:34`
   - `src/investory/gateway/pdf_extractor.py:40`
   - Lint evidence: `ReadLints` on `src/investory/gateway/pdf_extractor.py` (no diagnostics)
+
+## 2026-06-08T00:00:00+10:00 Step A-3
+
+- Step: Step A-3 - add multipart upload request schema for investment document review PDFs.
+- Commands/actions:
+  - Reviewed `src/investory/gateway/schemas.py`.
+  - Inspected the unstaged diff for `src/investory/gateway/schemas.py`.
+  - Ran linter diagnostics for `src/investory/gateway/schemas.py`.
+- Files touched:
+  - `src/investory/gateway/schemas.py`
+  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+- Result:
+  - Added `InvestmentDocumentReviewFileUploadRequest` as a plain dependency-injection class instead of a Pydantic `FlowRequest` subclass.
+  - Added `UploadFile` and `Form` fields for the PDF file, optional review goal, optional document type hint, and optional session id.
+  - Exported `InvestmentDocumentReviewFileUploadRequest` through `__all__` for use by the gateway endpoint.
+  - Kept JSON request schemas unchanged so existing `/investment-document-review` behavior remains separate from multipart upload parsing.
+- Evidence anchors:
+  - `src/investory/gateway/schemas.py:7`
+  - `src/investory/gateway/schemas.py:59`
+  - `src/investory/gateway/schemas.py:66`
+  - `src/investory/gateway/schemas.py:73`
+  - `src/investory/gateway/schemas.py:109`
+  - Lint evidence: `ReadLints` on `src/investory/gateway/schemas.py` (no diagnostics)
