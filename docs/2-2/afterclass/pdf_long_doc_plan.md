@@ -78,21 +78,39 @@ flowchart LR
 
 ### 目标
 
-让 To-Do DAG 各子任务按 `extract_focus` / `analyze_focus` 关键词接收相关段落切片，而不是全文。单次 extract/analyze 任务的 `document_text` 从全文降至相关段落。
+让长 PDF 在 Flow 内部被拆成多个 chunks，并确保**每个 chunk 都被读取和覆盖**。单个 chunk 只做轻量、结构化 evidence extract；完整 review 结论不在 chunk 层直接生成，而是在所有 chunks 的 evidence 聚合后统一 analyze / synthesize。
 
 ### 方案
 
-**1. 纯文本段落切分（不引入向量库）**
+**1. 全文覆盖的分层 map-reduce review**
 
-按段落/句子切分全文为 `list[str]` chunks，再对每个 chunk 做关键词匹配（简单 `any(kw in chunk)` 过滤），选出与当前任务 focus 最相关的若干 chunks 拼接传入。不引入 embedding 或向量数据库，保持与现有无额外基础设施依赖的风格。
+主路径不再按 `extract_focus` / `analyze_focus` 过滤 chunks，也不把 `select_relevant_chunks()` 作为决定哪些内容进入 review 的机制。原因是 investment document review 的产品语义是“完整审查文档”，任何关键词筛选都会有漏审风险。
 
-`select_relevant_chunks()` 的定位是**主题子任务的输入预算控制工具**：它会根据 `focus_keywords` 给 chunks 打分，优先返回与当前 extract/analyze focus 命中最多的片段，并在拼接前恢复原文顺序。它适合“按主题拆分审查”的 To-Do 子任务，例如费用任务优先看 fee / expense ratio 相关段落。
+推荐主流程：
 
-限制也必须明确：`select_relevant_chunks()` 不等价于完整 review。它会主动丢弃未命中当前 focus 的 chunks，因此不能用于“每个 review 都必须覆盖全文”的语义。如果产品要求完整覆盖 PDF，Phase B 后续接入应改为保序分批处理所有 chunks（例如逐 chunk 执行/汇总），而不是按关键词筛选片段。
+1. `split_into_chunks(document_text)` 将全文切成 `list[str]` chunks。
+2. 对每个 chunk 都执行轻量 extract，提取事实、风险信号、费用、限制、异常、披露缺口等结构化 evidence。
+3. 按主题聚合所有 chunks 的 extracted facts，例如 fees、risk、liquidity、performance、issuer、disclosure gaps。
+4. 基于聚合后的全文 evidence 做最终 analyze / synthesize，输出完整 review 结论。
 
-RAG 适合做成**辅助能力**，不适合作为完整审查的唯一主路径。更稳妥的长期方案是 hybrid：先用全文 chunks 做 map-reduce 式全覆盖 extract，确保每个 chunk 都被审查；再用关键词检索或 embedding/RAG 对费用、风险、流动性、披露缺口等专题做补强。这样既保留“完整 review”语义，又能在专题分析时控制上下文长度。短期不建议直接引入向量库，先用 deterministic chunking + keyword matching 验证真实 PDF 行为，等出现明确召回瓶颈后再引入 embedding/RAG。
+这种设计区分了两个层级：
 
-**2. 接入位置**
+- chunk 层：目标是覆盖全文和不漏信息，只做轻量 evidence extraction。
+- final 层：目标是形成完整判断，只在 evidence 聚合后做全面分析。
+
+**2. `select_relevant_chunks()` 的定位**
+
+`select_relevant_chunks()` 不属于完整 review 主路径。它会主动丢弃未命中关键词的 chunks，因此不能用于决定哪些 chunks 被 review。
+
+它只适合作为**专题补查 / targeted retrieval** 辅助能力，例如：
+
+- 最终分析发现费用披露不清，需要回看 fee / expense ratio 相关片段。
+- 用户单独追问某个主题，如 liquidity、redemption、risk disclosure。
+- 在全文 map-reduce 已完成后，对某个专题做二次证据补强。
+
+RAG 也遵循同样边界：适合作为专题补强能力，不适合作为完整审查的唯一主路径。长期更稳妥的方案是 hybrid：全文 chunks 先做 map-reduce 式全覆盖 extract，确保每个 chunk 都被审查；再用关键词检索或 embedding/RAG 对费用、风险、流动性、披露缺口等专题做补强。
+
+**3. 接入位置**
 
 `src/investory/agent_core/contracts/investment_document_review_state.py` 新增字段：
 
@@ -102,23 +120,25 @@ document_chunks: list[str] = Field(default_factory=list)
 
 `build_review_framework` 节点末尾：在已有逻辑后，切分 `state.input_payload["document_text"]` 为 chunks，写入 `state.document_chunks`。
 
-`_build_review_todo_extract_payload`：从 `state.document_chunks` 中按 `extract_focus` 过滤，拼接相关 chunks 代替全文。
+后续 To-Do DAG 应增加或调整为两个阶段：
 
-`_build_review_todo_analyze_payload`：同样按 `analyze_focus` 过滤。
+- per-chunk extract：遍历 `state.document_chunks`，对每个 chunk 构造轻量 extract payload。
+- aggregate + synthesize：聚合所有 chunk evidence，再执行完整 analyze / synthesize。
 
-**3. 兼容性**
+**4. 兼容性**
 
-- `document_chunks` 为空时（chunks 构建失败或 single-pass 路径），fallback 到 `state.input_payload.get("document_text")`，现有行为不变
-- single-pass review 路径（当前公开主路径）完全不受影响
+- `document_chunks` 为空时（chunks 构建失败或文档极短），fallback 到现有 single-pass review 路径，保证旧行为可用。
+- single-pass review 路径（当前公开主路径）在 Phase B 接入前仍可保持不变。
+- `select_relevant_chunks()` 即使保留，也只作为可选专题补查工具，不影响全文覆盖主路径。
 
 ### 数据流
 
 ```mermaid
 flowchart TD
-    BRF[build_review_framework\n切分全文为 document_chunks] --> ETP
-    ETP["_build_review_todo_extract_payload\n按 extract_focus 过滤 chunks\n拼接相关段落"] --> LLM1[Extract LLM 调用]
-    BRF --> ATP
-    ATP["_build_review_todo_analyze_payload\n按 analyze_focus 过滤 chunks\n拼接相关段落"] --> LLM2[Analyze LLM 调用]
+    BRF[build_review_framework\n切分全文为 document_chunks] --> MAP[per-chunk lightweight extract\n每个 chunk 都被读取]
+    MAP --> AGG[evidence aggregation\n按主题合并 extracted facts]
+    AGG --> SYN[final analyze / synthesize\n基于全文 evidence 做完整 review]
+    CHK[select_relevant_chunks\n专题补查辅助] -. optional .-> SYN
 ```
 
 ### 新文件
@@ -133,6 +153,8 @@ def select_relevant_chunks(
     max_chars: int = 4000,
 ) -> str: ...
 ```
+
+`split_into_chunks()` 是主路径能力；`select_relevant_chunks()` 是专题补查辅助能力。
 
 ---
 
@@ -217,17 +239,19 @@ async def run_investment_document_review_file(
 `split_into_chunks(text, chunk_size=500) -> list[str]`
 
 分块策略：
-1. 按 `\n{2,}` 切段落，保留段落完整性优先于固定字符数。
-2. 贪心合并相邻段落到 `chunk_size`（500 字符）再开新 chunk，避免碎片化。
-3. 超过 `chunk_size` 的单个段落（如大表格）在字符层面硬切，不会卡住循环。
+1. 使用 LangChain `RecursiveCharacterTextSplitter` 做递归字符切分。
+2. 分隔符优先级为段落 `\n\n` → 换行 `\n` → 句号空格 `. ` → 空格 → 字符，尽量保留自然边界。
+3. 默认 `CHUNK_SIZE = 500`、`CHUNK_OVERLAP = 50`，让相邻 chunks 保留少量上下文。
+4. 返回前去除空白 chunk，保证后续 per-chunk extract 不处理空输入。
 
 `select_relevant_chunks(chunks, focus_keywords, max_chars=4000) -> str`
 
-选块策略：
+辅助检索策略：
 1. 对每个 chunk 统计命中 `focus_keywords` 的不同关键词数（大小写不敏感）作为得分。
 2. 按得分降序排，贪心累积到 `max_chars`（4000 字符）。
-3. 取完后按原文下标重排再 `"\n\n".join`，保持语义连贯性——乱序拼接会破坏上下文。
+3. 取完后按原文下标重排再 `"\n\n".join`，保持语义连贯性。
 4. 零命中时 fallback：直接取文档开头的若干 chunks，确保不返回空字符串。
+5. 该函数只用于专题补查 / targeted retrieval，不用于完整 review 主路径。
 
 ---
 
@@ -238,6 +262,14 @@ document_chunks: list[str] = Field(default_factory=list)
 ```
 
 默认空列表，保证 single-pass 路径和旧测试在不写入该字段的情况下行为不变。
+
+后续如果实现 per-chunk evidence aggregation，可再新增结构化字段，例如：
+
+```python
+chunk_evidence_items: list[dict[str, Any]] = Field(default_factory=list)
+```
+
+但 B-2 的最小状态变更仍只需要 `document_chunks`。
 
 ---
 
@@ -255,23 +287,38 @@ return {
 
 在这个节点做切分而不是在 extract/analyze 时做，理由是：
 - 切分只依赖 `document_text`，与 document_type 无关，此时已确保 `document_text` 存在。
-- 切分结果存 state，多个子任务共用同一份 chunks，避免重复切分。
+- 切分结果存 state，多个后续节点共用同一份 chunks，避免重复切分。
 - single-pass 路径走完 `build_review_framework` 后直接进 `run_single_pass_review`，`document_chunks` 写入了但不会被读取，兼容性不变。
 
 ---
 
-**Step B-4：在 `_build_review_todo_extract_payload` 和 `_build_review_todo_analyze_payload` 中按 focus 过滤**
+**Step B-4：新增逐 chunk extract 与 evidence 聚合主路径**
+
+主路径不再在 `_build_review_todo_extract_payload` / `_build_review_todo_analyze_payload` 中用 `select_relevant_chunks()` 按 focus 过滤 chunks。
+
+推荐实现方向：
 
 ```python
-# extract
-if state.document_chunks:
-    document_text = select_relevant_chunks(state.document_chunks, extract_focus)
-else:
-    document_text = state.input_payload.get(DOCUMENT_TEXT_FIELD)
-
-# analyze（同理，用 analyze_focus）
+for idx, chunk in enumerate(state.document_chunks):
+    payload = {
+        DOCUMENT_TEXT_FIELD: chunk,
+        "chunk_index": idx,
+        "chunk_count": len(state.document_chunks),
+        "review_goal": state.input_payload.get("review_goal"),
+        "document_type_hint": state.input_payload.get("document_type_hint"),
+    }
+    # run lightweight extract for this chunk
 ```
 
-`focus_keywords` 来自 `task.payload.get(EXTRACT_FOCUS_FIELD, [])` / `ANALYZE_FOCUS_FIELD`，这些关键词是 `build_review_framework` 阶段由 `review_framework` 模板提供的领域关键词（如 `["fee", "expense ratio", "management fee"]`），不是运行时动态生成的。
+每个 chunk 的 extract prompt 应聚焦于结构化 evidence，而不是完整最终结论，例如：
+- key facts
+- fee / cost evidence
+- risk evidence
+- liquidity / redemption constraints
+- performance assumptions
+- disclosure gaps
+- unusual or conflicting statements
 
-fallback 到全文的条件：`document_chunks` 为空（文档极短、chunks 未构建、或 phase B 未部署的情况）。
+所有 chunk evidence 聚合后，再进入 final analyze / synthesize 节点，基于全文覆盖的 evidence 输出完整 review。
+
+fallback 条件：`document_chunks` 为空时走现有全文 single-pass review，避免文档极短或 chunking 未启用时行为中断。
