@@ -93,3 +93,25 @@
   - `src/investory/gateway/api.py:188`
   - `src/investory/gateway/api.py:202`
   - Lint evidence: `ReadLints` on `src/investory/gateway/api.py` (no diagnostics)
+
+## 2026-06-08T00:00:00+10:00 Step B-1
+
+- Step: Step B-1 - add document chunking utilities for long document review internals.
+- Commands/actions:
+  - Reviewed `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py`.
+  - Checked the new chunker file status and linter diagnostics.
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py`
+  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+- Result:
+  - Added `split_into_chunks()` for paragraph-aware text chunking with greedy paragraph merging and hard splitting for oversized paragraphs.
+  - Added `select_relevant_chunks()` for keyword-scored chunk selection with original document order restored before joining.
+  - Added module-level defaults `CHUNK_SIZE = 500` and `SELECT_MAX_CHARS = 4000`.
+  - Kept an empty-input fallback returning an empty string/list and a no-keyword-match fallback returning leading chunks up to the selection limit.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:7`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:11`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:21`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:56`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:76`
+  - Lint evidence: `ReadLints` on `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py` (no diagnostics)
