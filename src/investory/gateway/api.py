@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
@@ -16,8 +16,10 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
 )
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.gateway.routing import UnknownTaskTypeError, resolve_task_spec
+from investory.gateway.pdf_extractor import extract_text_from_pdf
 from investory.gateway.schemas import (
     HealthResponse,
+    InvestmentDocumentReviewFileUploadRequest,
     InvestmentDocumentReviewRequest,
     LearningEntryRequest,
     TaskErrorResponse,
@@ -31,6 +33,7 @@ LEARNING_ENTRY_FLOW_STATE_ATTR = "learning_entry_flow"
 LEARNING_ENTRY_ROUTE = "/learning-entry"
 INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR = "investment_document_review_flow"
 INVESTMENT_DOCUMENT_REVIEW_ROUTE = "/investment-document-review"
+INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE = "/investment-document-review-file"
 
 router = APIRouter()
 
@@ -160,3 +163,45 @@ def run_investment_document_review(
     except UnknownTaskTypeError as exc:
         session_id = resolve_session_id(review_request.session_id)
         return _unknown_task_response(exc, session_id=session_id)
+
+
+@router.post(INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE, response_model=TaskResponse)
+async def run_investment_document_review_file(
+    request: Request,
+    upload: InvestmentDocumentReviewFileUploadRequest = Depends(),
+) -> TaskResponse | JSONResponse:
+    session_id = resolve_session_id(upload.session_id)
+    flow = getattr(request.app.state, INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR, None)
+
+    file_bytes = await upload.file.read()
+    try:
+        document_text = extract_text_from_pdf(file_bytes)
+    except ValueError as exc:
+        response = TaskResponse(
+            ok=False,
+            task_name=None,
+            session_id=session_id,
+            result=None,
+            error=TaskErrorResponse(
+                error_type="pdf_extraction_failed",
+                stage="input_validation",
+                user_safe_message=str(exc),
+                retryable=False,
+            ),
+        )
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content=response.model_dump(),
+        )
+
+    payload: dict = {"document_text": document_text}
+    if upload.review_goal:
+        payload["review_goal"] = upload.review_goal
+    if upload.document_type_hint:
+        payload["document_type_hint"] = upload.document_type_hint
+
+    review_request = InvestmentDocumentReviewRequest(
+        payload=payload,
+        session_id=upload.session_id,
+    )
+    return execute_investment_document_review_request(review_request, flow=flow)

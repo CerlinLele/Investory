@@ -65,3 +65,31 @@
   - `src/investory/gateway/schemas.py:73`
   - `src/investory/gateway/schemas.py:109`
   - Lint evidence: `ReadLints` on `src/investory/gateway/schemas.py` (no diagnostics)
+
+## 2026-06-08T00:00:00+10:00 Step A-4
+
+- Step: Step A-4 - add PDF upload endpoint for investment document review.
+- Commands/actions:
+  - Reviewed `src/investory/gateway/api.py`.
+  - Inspected the unstaged diff for `src/investory/gateway/api.py`.
+  - Ran linter diagnostics for `src/investory/gateway/api.py`.
+- Files touched:
+  - `src/investory/gateway/api.py`
+  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+- Result:
+  - Added `INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE = "/investment-document-review-file"`.
+  - Added `run_investment_document_review_file()` as an async multipart upload endpoint using `InvestmentDocumentReviewFileUploadRequest = Depends()`.
+  - Reads the uploaded file bytes asynchronously, extracts full PDF text with `extract_text_from_pdf()`, and injects it into the existing investment document review payload as `document_text`.
+  - Preserves optional `review_goal`, `document_type_hint`, and `session_id` fields from the multipart request.
+  - Converts PDF extraction failures into a 400 `TaskResponse` with `error_type="pdf_extraction_failed"` and does not enter the review flow on extraction failure.
+  - Reuses `execute_investment_document_review_request()` so the file endpoint shares the same flow behavior as the JSON endpoint after text extraction.
+- Evidence anchors:
+  - `src/investory/gateway/api.py:5`
+  - `src/investory/gateway/api.py:19`
+  - `src/investory/gateway/api.py:22`
+  - `src/investory/gateway/api.py:36`
+  - `src/investory/gateway/api.py:166`
+  - `src/investory/gateway/api.py:177`
+  - `src/investory/gateway/api.py:188`
+  - `src/investory/gateway/api.py:202`
+  - Lint evidence: `ReadLints` on `src/investory/gateway/api.py` (no diagnostics)
