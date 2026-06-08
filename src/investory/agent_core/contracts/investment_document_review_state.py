@@ -47,6 +47,7 @@ class InvestmentDocumentReviewState(BaseModel):
     route_confidence: float | None = None
     review_framework: DocumentReviewFramework | None = None
     review_payload: dict[str, Any] | None = None
+    document_chunks: list[str] = Field(default_factory=list)
     todo_plan: TodoExecutionPlan | None = None
     todo_results: list[TodoTaskResult] = Field(default_factory=list)
     output: TaskResult | None = None

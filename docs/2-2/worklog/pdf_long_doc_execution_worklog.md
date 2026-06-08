@@ -127,3 +127,21 @@
   - Version check evidence: `.venv\Scripts\python.exe -m pip index versions langchain-text-splitters` reported `LATEST: 1.1.2`.
   - Import evidence: `.venv\Scripts\python.exe -c "from langchain_text_splitters import RecursiveCharacterTextSplitter; print(RecursiveCharacterTextSplitter.__name__)"` printed `RecursiveCharacterTextSplitter`.
   - Smoke evidence: `.venv\Scripts\python.exe -c "from investory.agent_core.runtime.flow.investment_document_review.document_chunker import split_into_chunks; chunks = split_into_chunks('A paragraph.\n\n' + 'B ' * 400, chunk_size=120); print(len(chunks)); print(all(chunk.strip() for chunk in chunks))"` printed `12` and `True`.
+
+## 2026-06-08T00:00:00+10:00 Step B-2
+
+- Step: Step B-2 - add document chunks to investment document review state.
+- Commands/actions:
+  - Reviewed `src/investory/agent_core/contracts/investment_document_review_state.py`.
+  - Inspected the unstaged diff for `src/investory/agent_core/contracts/investment_document_review_state.py`.
+  - Ran linter diagnostics for `src/investory/agent_core/contracts/investment_document_review_state.py`.
+- Files touched:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py`
+  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+- Result:
+  - Added `document_chunks: list[str] = Field(default_factory=list)` to `InvestmentDocumentReviewState`.
+  - Kept the default as an empty list so existing single-pass review paths and tests can instantiate state without providing chunk data.
+  - Did not add evidence aggregation state in this step; that remains a later integration concern for per-chunk extraction and synthesis.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:50`
+  - Lint evidence: `ReadLints` on `src/investory/agent_core/contracts/investment_document_review_state.py` (no diagnostics)
