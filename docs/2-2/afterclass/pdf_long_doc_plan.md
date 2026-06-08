@@ -133,3 +133,139 @@ def select_relevant_chunks(
 ## 实施顺序
 
 Phase A 和 Phase B 独立，可按任意顺序或并行推进。建议先做 Phase A，因为它让真实 PDF 测试成为可能，反过来验证 Phase B 的 chunking 效果。
+
+---
+
+## Implementation Steps（已实现）
+
+### Phase A
+
+**Step A-1：添加依赖（`pyproject.toml`）**
+
+```toml
+"pdfplumber==0.11.9"
+"python-multipart==0.0.32"
+```
+
+- `pdfplumber` 封装了 `pdfminer`，提供逐页 `extract_text()` API，对 ETF factsheet 的表格和多栏布局比裸 `pdfminer` 更稳定。
+- `python-multipart` 是 FastAPI 处理 `multipart/form-data` 的必须依赖，不安装时上传请求会 500。
+
+---
+
+**Step A-2：新建 `src/investory/gateway/pdf_extractor.py`**
+
+核心逻辑：
+1. 用 `pdfplumber.open(io.BytesIO(file_bytes))` 打开 PDF，避免写临时文件。
+2. 逐页调用 `page.extract_text()`，跳过空页，各页以双换行拼接。
+3. `re.sub(r"\n{3,}", "\n\n", combined)` 折叠多余空行，减少噪声。
+4. `combined[:max_chars]` 截断到 8000 字符，与 v1 文档约束对齐。
+5. 无法打开或零文本时 `raise ValueError`，由调用方转 400。
+
+`pdfplumber` 用 lazy import（`try: import pdfplumber`），以便在没有安装依赖的测试环境里能以 `RuntimeError` 明确报错，而不是模糊的 `ImportError`。
+
+---
+
+**Step A-3：在 `schemas.py` 新增 `InvestmentDocumentReviewFileUploadRequest`**
+
+```python
+class InvestmentDocumentReviewFileUploadRequest:
+    def __init__(
+        self,
+        file: UploadFile,
+        review_goal: str | None = Form(default=None),
+        document_type_hint: str | None = Form(default=None),
+        session_id: str | None = Form(default=None),
+    ) -> None: ...
+```
+
+不继承 `FlowRequest`（Pydantic BaseModel），因为 FastAPI 对 `UploadFile` + `Form` 字段的解析走 dependency injection，不走 JSON body parsing。继承 BaseModel 会导致 FastAPI 误判请求体格式。
+
+---
+
+**Step A-4：在 `api.py` 新增 `/investment-document-review-file` endpoint**
+
+```
+INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE = "/investment-document-review-file"
+
+@router.post(INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE, response_model=TaskResponse)
+async def run_investment_document_review_file(
+    request: Request,
+    upload: InvestmentDocumentReviewFileUploadRequest = Depends(),
+)
+```
+
+关键设计点：
+- `async def` + `await upload.file.read()`，避免在同步路径里阻塞 I/O。
+- PDF 提取失败（`ValueError`）直接返回 `400 + error_type: pdf_extraction_failed`，不进入 flow。
+- 提取成功后构造 `InvestmentDocumentReviewRequest(payload={"document_text": ..., ...})` 再调用 `execute_investment_document_review_request`，完全复用现有 flow，零重复。
+- `review_goal` 和 `document_type_hint` 只在非空时注入 payload，与 JSON endpoint 的行为一致。
+
+---
+
+### Phase B
+
+**Step B-1：新建 `document_chunker.py`**
+
+两个函数：
+
+`split_into_chunks(text, chunk_size=500) -> list[str]`
+
+分块策略：
+1. 按 `\n{2,}` 切段落，保留段落完整性优先于固定字符数。
+2. 贪心合并相邻段落到 `chunk_size`（500 字符）再开新 chunk，避免碎片化。
+3. 超过 `chunk_size` 的单个段落（如大表格）在字符层面硬切，不会卡住循环。
+
+`select_relevant_chunks(chunks, focus_keywords, max_chars=4000) -> str`
+
+选块策略：
+1. 对每个 chunk 统计命中 `focus_keywords` 的不同关键词数（大小写不敏感）作为得分。
+2. 按得分降序排，贪心累积到 `max_chars`（4000 字符）。
+3. 取完后按原文下标重排再 `"\n\n".join`，保持语义连贯性——乱序拼接会破坏上下文。
+4. 零命中时 fallback：直接取文档开头的若干 chunks，确保不返回空字符串。
+
+---
+
+**Step B-2：在 `InvestmentDocumentReviewState` 新增 `document_chunks`**
+
+```python
+document_chunks: list[str] = Field(default_factory=list)
+```
+
+默认空列表，保证 single-pass 路径和旧测试在不写入该字段的情况下行为不变。
+
+---
+
+**Step B-3：在 `build_review_framework` 末尾写入 `document_chunks`**
+
+```python
+document_text = state.input_payload.get(DOCUMENT_TEXT_FIELD) or ""
+document_chunks = split_into_chunks(document_text) if document_text else []
+return {
+    "review_framework": review_framework,
+    "review_payload": review_payload,
+    "document_chunks": document_chunks,
+}
+```
+
+在这个节点做切分而不是在 extract/analyze 时做，理由是：
+- 切分只依赖 `document_text`，与 document_type 无关，此时已确保 `document_text` 存在。
+- 切分结果存 state，多个子任务共用同一份 chunks，避免重复切分。
+- single-pass 路径走完 `build_review_framework` 后直接进 `run_single_pass_review`，`document_chunks` 写入了但不会被读取，兼容性不变。
+
+---
+
+**Step B-4：在 `_build_review_todo_extract_payload` 和 `_build_review_todo_analyze_payload` 中按 focus 过滤**
+
+```python
+# extract
+if state.document_chunks:
+    document_text = select_relevant_chunks(state.document_chunks, extract_focus)
+else:
+    document_text = state.input_payload.get(DOCUMENT_TEXT_FIELD)
+
+# analyze（同理，用 analyze_focus）
+```
+
+`focus_keywords` 来自 `task.payload.get(EXTRACT_FOCUS_FIELD, [])` / `ANALYZE_FOCUS_FIELD`，这些关键词是 `build_review_framework` 阶段由 `review_framework` 模板提供的领域关键词（如 `["fee", "expense ratio", "management fee"]`），不是运行时动态生成的。
+
+fallback 到全文的条件：`document_chunks` 为空（文档极短、chunks 未构建、或 phase B 未部署的情况）。
