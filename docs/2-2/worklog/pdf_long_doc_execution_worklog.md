@@ -99,19 +99,31 @@
 - Step: Step B-1 - add document chunking utilities for long document review internals.
 - Commands/actions:
   - Reviewed `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py`.
-  - Checked the new chunker file status and linter diagnostics.
+  - Checked `langchain-text-splitters` availability from the repository `.venv`; it was missing before installation.
+  - Checked available package versions and selected `langchain-text-splitters==1.1.2`.
+  - Installed `langchain-text-splitters==1.1.2` into the repository `.venv`.
+  - Verified `RecursiveCharacterTextSplitter` imports successfully from `.venv`.
+  - Ran a minimal chunking smoke check through `split_into_chunks()`.
 - Files touched:
+  - `pyproject.toml`
+  - `requirements.lock.txt`
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py`
   - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
 - Result:
-  - Added `split_into_chunks()` for paragraph-aware text chunking with greedy paragraph merging and hard splitting for oversized paragraphs.
-  - Added `select_relevant_chunks()` for keyword-scored chunk selection with original document order restored before joining.
-  - Added module-level defaults `CHUNK_SIZE = 500` and `SELECT_MAX_CHARS = 4000`.
-  - Kept an empty-input fallback returning an empty string/list and a no-keyword-match fallback returning leading chunks up to the selection limit.
+  - Replaced the hand-written paragraph chunking implementation with LangChain's `RecursiveCharacterTextSplitter`.
+  - Added `langchain-text-splitters==1.1.2` to project dependencies and the lock file.
+  - Added module-level defaults `CHUNK_SIZE = 500`, `CHUNK_OVERLAP = 50`, `SELECT_MAX_CHARS = 4000`, and `CHUNK_SEPARATORS`.
+  - Kept the public `split_into_chunks()` and `select_relevant_chunks()` interfaces unchanged for the flow integration.
+  - Kept keyword-scored chunk selection with original document order restored before joining.
+  - Kept empty-input fallback returning an empty string/list and no-keyword-match fallback returning leading chunks up to the selection limit.
 - Evidence anchors:
-  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:7`
-  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:11`
-  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:21`
-  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:56`
-  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:76`
-  - Lint evidence: `ReadLints` on `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py` (no diagnostics)
+  - `pyproject.toml:15`
+  - `requirements.lock.txt:25`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:5`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:8`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:15`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:25`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py:43`
+  - Version check evidence: `.venv\Scripts\python.exe -m pip index versions langchain-text-splitters` reported `LATEST: 1.1.2`.
+  - Import evidence: `.venv\Scripts\python.exe -c "from langchain_text_splitters import RecursiveCharacterTextSplitter; print(RecursiveCharacterTextSplitter.__name__)"` printed `RecursiveCharacterTextSplitter`.
+  - Smoke evidence: `.venv\Scripts\python.exe -c "from investory.agent_core.runtime.flow.investment_document_review.document_chunker import split_into_chunks; chunks = split_into_chunks('A paragraph.\n\n' + 'B ' * 400, chunk_size=120); print(len(chunks)); print(all(chunk.strip() for chunk in chunks))"` printed `12` and `True`.

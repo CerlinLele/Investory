@@ -2,54 +2,26 @@
 
 from __future__ import annotations
 
-import re
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 CHUNK_SIZE = 500
+CHUNK_OVERLAP = 50
 SELECT_MAX_CHARS = 4000
+CHUNK_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
 
 def split_into_chunks(text: str, chunk_size: int = CHUNK_SIZE) -> list[str]:
-    """Split text into overlapping paragraph-aware chunks.
-
-    Splits first on double newlines (paragraph boundaries), then merges
-    adjacent paragraphs until each chunk reaches `chunk_size` characters.
-    Short paragraphs are merged greedily; paragraphs longer than `chunk_size`
-    are hard-split at the character level.
-    """
+    """Split text with LangChain's recursive character splitter."""
     if not text:
         return []
 
-    # Split on paragraph boundaries, keep non-empty paragraphs.
-    paragraphs = [p.strip() for p in re.split(r"\n{2,}", text) if p.strip()]
-
-    chunks: list[str] = []
-    current_parts: list[str] = []
-    current_len = 0
-
-    for para in paragraphs:
-        # If a single paragraph exceeds chunk_size, hard-split it first.
-        if len(para) > chunk_size:
-            # Flush whatever is pending.
-            if current_parts:
-                chunks.append("\n\n".join(current_parts))
-                current_parts = []
-                current_len = 0
-            for i in range(0, len(para), chunk_size):
-                chunks.append(para[i : i + chunk_size])
-            continue
-
-        if current_len + len(para) > chunk_size and current_parts:
-            chunks.append("\n\n".join(current_parts))
-            current_parts = []
-            current_len = 0
-
-        current_parts.append(para)
-        current_len += len(para)
-
-    if current_parts:
-        chunks.append("\n\n".join(current_parts))
-
-    return chunks
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=min(CHUNK_OVERLAP, max(chunk_size - 1, 0)),
+        separators=CHUNK_SEPARATORS,
+        keep_separator=True,
+    )
+    return [chunk.strip() for chunk in splitter.split_text(text) if chunk.strip()]
 
 
 def select_relevant_chunks(
