@@ -158,7 +158,7 @@ Phase A 和 Phase B 独立，可按任意顺序或并行推进。建议先做 Ph
 1. 用 `pdfplumber.open(io.BytesIO(file_bytes))` 打开 PDF，避免写临时文件。
 2. 逐页调用 `page.extract_text()`，跳过空页，各页以双换行拼接。
 3. `re.sub(r"\n{3,}", "\n\n", combined)` 折叠多余空行，减少噪声。
-4. `combined[:max_chars]` 截断到 8000 字符，与 v1 文档约束对齐。
+4. 不在 gateway 层截断文本，完整返回可提取内容，避免“完整 review”语义下丢失 PDF 后半部分。
 5. 无法打开或零文本时 `raise ValueError`，由调用方转 400。
 
 `pdfplumber` 用 lazy import（`try: import pdfplumber`），以便在没有安装依赖的测试环境里能以 `RuntimeError` 明确报错，而不是模糊的 `ImportError`。
