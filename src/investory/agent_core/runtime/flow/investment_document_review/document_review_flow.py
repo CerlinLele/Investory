@@ -26,6 +26,9 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     InvestmentDocumentReviewLLMRouter,
     InvestmentDocumentReviewRouter,
 )
+from investory.agent_core.runtime.flow.investment_document_review.document_chunker import (
+    split_into_chunks,
+)
 from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
     UNKNOWN_DOCUMENT_MISSING_FIELDS,
     detect_missing_fields,
@@ -423,9 +426,14 @@ class InvestmentDocumentReviewFlow:
             ANALYZE_FOCUS_FIELD: review_framework.analyze_focus,
             REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
         }
+
+        document_text = state.input_payload.get(DOCUMENT_TEXT_FIELD) or ""
+        document_chunks = split_into_chunks(document_text) if document_text else []
+
         return {
             "review_framework": review_framework,
             "review_payload": review_payload,
+            "document_chunks": document_chunks,
         }
 
     def run_single_pass_review(

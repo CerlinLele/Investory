@@ -145,3 +145,25 @@
 - Evidence anchors:
   - `src/investory/agent_core/contracts/investment_document_review_state.py:50`
   - Lint evidence: `ReadLints` on `src/investory/agent_core/contracts/investment_document_review_state.py` (no diagnostics)
+
+## 2026-06-08T00:00:00+10:00 Step B-3
+
+- Step: Step B-3 - build document chunks in `build_review_framework`.
+- Commands/actions:
+  - Reviewed `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`.
+  - Removed the earlier keyword-filtering `select_relevant_chunks()` hookup from extract/analyze payload builders because the updated plan requires full chunk coverage.
+  - Inspected the diff for `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`.
+  - Ran linter diagnostics for `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`.
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+- Result:
+  - Imported `split_into_chunks()` into the investment document review flow.
+  - Added document chunk construction at the end of `build_review_framework` from `state.input_payload[DOCUMENT_TEXT_FIELD]`.
+  - Returned `document_chunks` alongside `review_framework` and `review_payload` so the state can carry precomputed chunks for later per-chunk extract work.
+  - Kept existing extract/analyze To-Do payload builders on their original full-text behavior for this step; per-chunk extraction remains a later Step B-4 concern.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:29`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:429`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:435`
+  - Lint evidence: `ReadLints` on `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py` (no diagnostics)
