@@ -88,6 +88,14 @@ REFUSAL_MESSAGE = (
 MISSING_ROUTE = "missing"
 REFUSAL_ROUTE = "refusal"
 COMPLETE_ROUTE = "complete"
+CHUNK_INDEX_FIELD = "chunk_index"
+CHUNK_COUNT_FIELD = "chunk_count"
+CHUNK_REVIEW_SCOPE_FIELD = "review_scope"
+FULL_DOCUMENT_REVIEW_SCOPE = "full_document"
+CHUNK_REVIEW_SCOPE = "document_chunk"
+CHUNK_EXTRACT_TASK_ID_PREFIX = "extract_chunk"
+AGGREGATE_ANALYZE_TASK_ID = "analyze_aggregated_chunk_evidence"
+SYNTHESIZE_REVIEW_TASK_ID = "synthesize_full_document_review"
 COMPLETED_TODO_RESULT_STATUSES = {
     TodoTaskStatus.SUCCEEDED,
     TodoTaskStatus.FAILED,
@@ -152,6 +160,16 @@ def _build_completed_todo_results(
         if task_id not in planned_task_ids
     )
     return ordered_results
+
+
+def _find_succeeded_todo_result(
+    todo_results: list[TodoTaskResult],
+    task_id: str,
+) -> TodoTaskResult | None:
+    for result in todo_results:
+        if result.id == task_id and result.status == TodoTaskStatus.SUCCEEDED:
+            return result
+    return None
 
 
 def _build_review_todo_summary(
@@ -310,6 +328,14 @@ class InvestmentDocumentReviewFlow:
             self.build_review_framework,
         )
         graph.add_node(
+            InvestmentDocumentReviewNode.GENERATE_REVIEW_TODO_PLAN.value,
+            self.generate_review_todo_plan,
+        )
+        graph.add_node(
+            InvestmentDocumentReviewNode.EXECUTE_REVIEW_TODO_PLAN.value,
+            self.execute_review_todo_plan,
+        )
+        graph.add_node(
             InvestmentDocumentReviewNode.RUN_SINGLE_PASS_REVIEW.value,
             self.run_single_pass_review,
         )
@@ -344,9 +370,21 @@ class InvestmentDocumentReviewFlow:
                 COMPLETE_ROUTE: InvestmentDocumentReviewNode.BUILD_REVIEW_FRAMEWORK.value,
             },
         )
-        graph.add_edge(
+        graph.add_conditional_edges(
             InvestmentDocumentReviewNode.BUILD_REVIEW_FRAMEWORK.value,
-            InvestmentDocumentReviewNode.RUN_SINGLE_PASS_REVIEW.value,
+            self.route_after_review_framework,
+            {
+                CHUNK_REVIEW_SCOPE: InvestmentDocumentReviewNode.GENERATE_REVIEW_TODO_PLAN.value,
+                FULL_DOCUMENT_REVIEW_SCOPE: InvestmentDocumentReviewNode.RUN_SINGLE_PASS_REVIEW.value,
+            },
+        )
+        graph.add_edge(
+            InvestmentDocumentReviewNode.GENERATE_REVIEW_TODO_PLAN.value,
+            InvestmentDocumentReviewNode.EXECUTE_REVIEW_TODO_PLAN.value,
+        )
+        graph.add_edge(
+            InvestmentDocumentReviewNode.EXECUTE_REVIEW_TODO_PLAN.value,
+            InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value,
         )
         graph.add_edge(
             InvestmentDocumentReviewNode.RUN_SINGLE_PASS_REVIEW.value,
@@ -436,6 +474,11 @@ class InvestmentDocumentReviewFlow:
             "document_chunks": document_chunks,
         }
 
+    def route_after_review_framework(self, state: InvestmentDocumentReviewState) -> str:
+        if state.document_chunks:
+            return CHUNK_REVIEW_SCOPE
+        return FULL_DOCUMENT_REVIEW_SCOPE
+
     def run_single_pass_review(
         self,
         state: InvestmentDocumentReviewState,
@@ -450,6 +493,9 @@ class InvestmentDocumentReviewFlow:
         self,
         state: InvestmentDocumentReviewState,
     ) -> dict[str, Any]:
+        if state.document_chunks:
+            return {"todo_plan": self._build_chunk_review_todo_plan(state)}
+
         plan_payload = self.build_review_todo_plan_payload(state)
         result = self.executor.run(
             INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
@@ -472,6 +518,92 @@ class InvestmentDocumentReviewFlow:
 
         return {"todo_plan": todo_plan}
 
+    def _build_chunk_review_todo_plan(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> TodoExecutionPlan:
+        if state.review_payload is None:
+            raise RuntimeError("Document review flow has no review payload for chunk review.")
+
+        chunk_count = len(state.document_chunks)
+        extract_task_ids = [
+            f"{CHUNK_EXTRACT_TASK_ID_PREFIX}_{idx + 1:04d}"
+            for idx in range(chunk_count)
+        ]
+        extract_focus = state.review_payload.get(EXTRACT_FOCUS_FIELD) or []
+        analyze_focus = state.review_payload.get(ANALYZE_FOCUS_FIELD) or []
+        tasks = [
+            {
+                "id": task_id,
+                "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                "title": f"Extract evidence from document chunk {idx + 1} of {chunk_count}",
+                "description": (
+                    "Extract lightweight, document-grounded evidence from this chunk: "
+                    "key facts, fees, risks, constraints, disclosures, gaps, unusual "
+                    "statements, and source citations."
+                ),
+                "payload": {
+                    DOCUMENT_TEXT_FIELD: chunk,
+                    EXTRACT_FOCUS_FIELD: extract_focus,
+                    CHUNK_INDEX_FIELD: idx,
+                    CHUNK_COUNT_FIELD: chunk_count,
+                    CHUNK_REVIEW_SCOPE_FIELD: CHUNK_REVIEW_SCOPE,
+                },
+                "depends_on": [],
+                "completion_criteria": [
+                    "Output contains only facts and evidence visible in this chunk.",
+                    "Important missing or weak evidence is recorded as information gaps.",
+                    "Source citations identify the supporting chunk text or section.",
+                ],
+            }
+            for idx, (task_id, chunk) in enumerate(
+                zip(extract_task_ids, state.document_chunks, strict=True)
+            )
+        ]
+        tasks.extend(
+            [
+                {
+                    "id": AGGREGATE_ANALYZE_TASK_ID,
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze aggregated chunk evidence",
+                    "description": (
+                        "Merge evidence extracted from every document chunk and analyze "
+                        "risks, disclosure quality, inconsistencies, constraints, and gaps."
+                    ),
+                    "payload": {ANALYZE_FOCUS_FIELD: analyze_focus},
+                    "depends_on": extract_task_ids,
+                    "completion_criteria": [
+                        "Findings are based only on successful chunk extraction results.",
+                        "Cross-chunk conflicts, limitations, and disclosure gaps are identified.",
+                    ],
+                },
+                {
+                    "id": SYNTHESIZE_REVIEW_TASK_ID,
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE,
+                    "title": "Synthesize full-document review",
+                    "description": (
+                        "Produce the final investment document review from the aggregated "
+                        "chunk evidence and analysis results."
+                    ),
+                    "payload": {},
+                    "depends_on": [AGGREGATE_ANALYZE_TASK_ID],
+                    "completion_criteria": [
+                        "Final review covers extracted evidence from all document chunks.",
+                        "Facts, risks, gaps, boundary notes, and summary are supported by task results.",
+                    ],
+                },
+            ]
+        )
+        return TodoExecutionPlan.model_validate(
+            {
+                "tasks": tasks,
+                "summary": (
+                    "Extract lightweight evidence from every document chunk, aggregate the "
+                    "evidence by review theme, then synthesize the full document review."
+                ),
+            }
+        )
+
     def execute_review_todo_plan(
         self,
         state: InvestmentDocumentReviewState,
@@ -492,7 +624,27 @@ class InvestmentDocumentReviewFlow:
             todo_results=todo_results,
             previous_resume_state=resume_state,
         )
-        return {"todo_results": todo_results}
+        update: dict[str, Any] = {"todo_results": todo_results}
+        synthesize_result = _find_succeeded_todo_result(
+            todo_results,
+            SYNTHESIZE_REVIEW_TASK_ID,
+        )
+        if synthesize_result is not None:
+            update["output"] = TaskResult(
+                ok=True,
+                task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+                result=synthesize_result.result,
+            )
+        elif state.document_chunks:
+            update["output"] = TaskResult(
+                ok=False,
+                task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+                error=normalize_task_error(
+                    RuntimeError("Chunk-based document review did not produce synthesis."),
+                    stage="output_validation",
+                ),
+            )
+        return update
 
     def _load_todo_resume_state(
         self,
@@ -675,10 +827,19 @@ class InvestmentDocumentReviewFlow:
         return InvestmentDocumentReviewExtractInput.model_validate(
             {
                 **self._build_review_todo_common_payload(state=state, task=task),
-                DOCUMENT_TEXT_FIELD: state.input_payload.get(DOCUMENT_TEXT_FIELD),
+                DOCUMENT_TEXT_FIELD: task.payload.get(
+                    DOCUMENT_TEXT_FIELD,
+                    state.input_payload.get(DOCUMENT_TEXT_FIELD),
+                ),
                 EXTRACT_FOCUS_FIELD: task.payload.get(EXTRACT_FOCUS_FIELD, []),
+                CHUNK_INDEX_FIELD: task.payload.get(CHUNK_INDEX_FIELD),
+                CHUNK_COUNT_FIELD: task.payload.get(CHUNK_COUNT_FIELD),
+                CHUNK_REVIEW_SCOPE_FIELD: task.payload.get(
+                    CHUNK_REVIEW_SCOPE_FIELD,
+                    FULL_DOCUMENT_REVIEW_SCOPE,
+                ),
             }
-        ).model_dump()
+        ).model_dump(exclude_none=True, exclude_defaults=True)
 
     def _build_review_todo_analyze_payload(
         self,

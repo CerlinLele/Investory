@@ -333,19 +333,36 @@ def test_document_review_flow_executes_known_document_review_task() -> None:
     )
     assert result.result[ROUTE_CONFIDENCE_FIELD] == 0.91
     assert result.result[REVIEW_FIELD] == {
-        "handled_by": INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name
+        "handled_by": INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name
     }
-    assert executor.calls == [
-        (
-            INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
-            {
-                DOCUMENT_TEXT_FIELD: payload[DOCUMENT_TEXT_FIELD],
-                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
-                EXTRACT_FOCUS_FIELD: framework.extract_focus if framework else [],
-                ANALYZE_FOCUS_FIELD: framework.analyze_focus if framework else [],
-                REVIEW_GOAL_FIELD: payload[REVIEW_GOAL_FIELD],
-            },
-        )
+    assert [call[0] for call in executor.calls] == [
+        INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
+        INVESTMENT_DOCUMENT_ANALYZE_TASK.name,
+        INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+    ]
+    extract_payload = executor.calls[0][1]
+    assert extract_payload[DOCUMENT_TEXT_FIELD] == payload[DOCUMENT_TEXT_FIELD]
+    assert extract_payload[DOCUMENT_TYPE_FIELD] == InvestmentDocumentType.ETF_FACTSHEET
+    assert extract_payload[EXTRACT_FOCUS_FIELD] == (
+        framework.extract_focus if framework else []
+    )
+    assert extract_payload[REVIEW_GOAL_FIELD] == payload[REVIEW_GOAL_FIELD]
+    assert extract_payload["chunk_index"] == 0
+    assert extract_payload["chunk_count"] == 1
+    assert extract_payload["review_scope"] == "document_chunk"
+
+    analyze_payload = executor.calls[1][1]
+    assert analyze_payload[DOCUMENT_TEXT_FIELD] == payload[DOCUMENT_TEXT_FIELD]
+    assert analyze_payload[ANALYZE_FOCUS_FIELD] == (
+        framework.analyze_focus if framework else []
+    )
+    assert analyze_payload["dependency_results"][0]["id"] == "extract_chunk_0001"
+
+    synthesize_payload = executor.calls[2][1]
+    assert synthesize_payload["review_summary"]["planned_task_count"] == 3
+    assert synthesize_payload["review_summary"]["succeeded_task_ids"] == [
+        "extract_chunk_0001",
+        "analyze_aggregated_chunk_evidence",
     ]
 
 

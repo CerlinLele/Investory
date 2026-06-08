@@ -32,10 +32,24 @@ class InvestmentDocumentReviewTodoTaskInput(BaseModel):
 
 class InvestmentDocumentReviewExtractInput(InvestmentDocumentReviewTodoTaskInput):
     document_text: str = Field(
-        description="Full text of the investment-related document to extract from."
+        description="Full text or one chunk of the investment-related document to extract from."
     )
     extract_focus: list[str] = Field(
         description="Facts or sections this extract task should capture."
+    )
+    chunk_index: int | None = Field(
+        default=None,
+        ge=0,
+        description="Zero-based chunk index when extracting from a document chunk.",
+    )
+    chunk_count: int | None = Field(
+        default=None,
+        ge=1,
+        description="Total number of document chunks when extracting from a chunk.",
+    )
+    review_scope: str = Field(
+        default="full_document",
+        description="Scope of the extraction input, such as full_document or document_chunk.",
     )
 
 

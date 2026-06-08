@@ -167,3 +167,35 @@
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:429`
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:435`
   - Lint evidence: `ReadLints` on `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py` (no diagnostics)
+
+## 2026-06-08T00:00:00+10:00 Step B-4
+
+- Step: Step B-4 - add per-chunk extract and evidence aggregation review path.
+- Commands/actions:
+  - Reviewed `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py` and the To-Do task input model.
+  - Added a chunk-aware graph branch after `build_review_framework` so non-empty `document_chunks` enter To-Do execution instead of the single-pass review path.
+  - Added a deterministic chunk review To-Do plan builder that creates one extract task per chunk, then an aggregate analyze task, then a final synthesize task.
+  - Updated extract task payload/model/prompt handling so chunk extraction receives `document_text`, `chunk_index`, `chunk_count`, and `review_scope="document_chunk"`.
+  - Updated the flow test that previously asserted single-pass execution for known documents to assert chunk extract -> analyze -> synthesize execution.
+  - Ran focused pytest coverage for the changed flow, task model, and prompt behavior.
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py`
+  - `src/investory/agent_core/prompts/tasks/investment_document_extract.md`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+- Result:
+  - Main review flow now covers all chunks through a map-reduce style path: every chunk gets a lightweight extract task, all chunk extracts feed an aggregate analyze task, and the final synthesize task produces the review output.
+  - `document_chunks` empty remains the fallback route to existing single-pass review behavior.
+  - Existing manually constructed To-Do extract payloads remain backward compatible because default full-document chunk metadata is excluded from dumped payloads.
+  - The extract prompt now explicitly treats `document_chunk` scope as chunk-local evidence extraction.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:88`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:370`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:493`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:518`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:624`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:827`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:34`
+  - `src/investory/agent_core/prompts/tasks/investment_document_extract.md:6`
+  - Test evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py::test_document_review_flow_executes_known_document_review_task tests\test_investment_document_review_flow.py::test_execute_review_todo_plan_dispatches_extract_tasks_through_executor tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_todo_prompts.py -q` (11 passed)
