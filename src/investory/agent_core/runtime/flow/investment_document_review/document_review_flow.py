@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
@@ -49,7 +50,15 @@ from investory.agent_core.runtime.todo_core.plan_validator import (
     TodoPlanValidationException,
     ensure_valid_todo_plan,
 )
-from investory.agent_core.runtime.todo_core.runner import TodoExecutionRunner
+from investory.agent_core.runtime.todo_core.runner import (
+    TODO_EVENT_LAYER_STARTED,
+    TODO_EVENT_TASK_FAILED,
+    TODO_EVENT_TASK_RETRYING,
+    TODO_EVENT_TASK_SKIPPED,
+    TODO_EVENT_TASK_STARTED,
+    TODO_EVENT_TASK_SUCCEEDED,
+    TodoExecutionRunner,
+)
 from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_ANALYZE_TASK,
     INVESTMENT_DOCUMENT_EXTRACT_TASK,
@@ -277,6 +286,90 @@ def _log_review_todo_plan_generated(
 
 def _guess_review_plan_chunk_count(state: InvestmentDocumentReviewState) -> int:
     return len(state.document_chunks or [])
+
+
+def _build_review_todo_runner_event_handler(
+    *,
+    session_id: str | None,
+) -> Callable[[str, dict[str, Any]], None]:
+    def handle_event(event_name: str, payload: dict[str, Any]) -> None:
+        if event_name == TODO_EVENT_LAYER_STARTED:
+            logger.debug(
+                "investment_document_review.todo_layer.started session_id=%s layer_index=%s task_ids=%s",
+                session_id,
+                payload.get("layer_index"),
+                ",".join(payload.get("task_ids", [])),
+            )
+            return
+
+        if event_name == TODO_EVENT_TASK_STARTED:
+            logger.info(
+                "investment_document_review.todo_task.started session_id=%s task_id=%s task_kind=%s depends_on=%s attempt=%s",
+                session_id,
+                payload.get("task_id"),
+                payload.get("task_kind"),
+                ",".join(payload.get("depends_on", [])),
+                payload.get("attempt"),
+            )
+            return
+
+        if event_name == TODO_EVENT_TASK_RETRYING:
+            logger.info(
+                "investment_document_review.todo_task.retrying session_id=%s task_id=%s task_kind=%s attempt=%s next_attempt=%s max_attempts=%s error_type=%s",
+                session_id,
+                payload.get("task_id"),
+                payload.get("task_kind"),
+                payload.get("attempt"),
+                payload.get("next_attempt"),
+                payload.get("max_attempts"),
+                payload.get("error_type"),
+            )
+            return
+
+        if event_name == TODO_EVENT_TASK_SUCCEEDED:
+            logger.info(
+                "investment_document_review.todo_task.succeeded session_id=%s task_id=%s task_kind=%s duration_ms=%s result_keys=%s",
+                session_id,
+                payload.get("task_id"),
+                payload.get("task_kind"),
+                payload.get("duration_ms"),
+                ",".join(payload.get("result_keys", [])),
+            )
+            return
+
+        if event_name == TODO_EVENT_TASK_FAILED:
+            logger.warning(
+                "investment_document_review.todo_task.failed session_id=%s task_id=%s task_kind=%s duration_ms=%s error_type=%s stage=%s result_keys=%s",
+                session_id,
+                payload.get("task_id"),
+                payload.get("task_kind"),
+                payload.get("duration_ms"),
+                payload.get("error_type"),
+                payload.get("stage"),
+                ",".join(payload.get("result_keys", [])),
+            )
+            return
+
+        if event_name == TODO_EVENT_TASK_SKIPPED:
+            reason = _todo_task_skip_reason(payload.get("error_type"))
+            logger.info(
+                "investment_document_review.todo_task.skipped session_id=%s task_id=%s task_kind=%s duration_ms=%s reason=%s stage=%s failed_dependency_task_id=%s",
+                session_id,
+                payload.get("task_id"),
+                payload.get("task_kind"),
+                payload.get("duration_ms"),
+                reason,
+                payload.get("stage"),
+                payload.get("failed_dependency_task_id"),
+            )
+
+    return handle_event
+
+
+def _todo_task_skip_reason(error_type: Any) -> str | None:
+    if not isinstance(error_type, str):
+        return None
+    return error_type
 
 
 def _string_list_from_result(result_payload: dict[str, Any], key: str) -> list[str]:
@@ -756,7 +849,10 @@ class InvestmentDocumentReviewFlow:
             return result
 
         return TodoExecutionRunner(
-            execute
+            execute,
+            event_handler=_build_review_todo_runner_event_handler(
+                session_id=state.session_id,
+            ),
         )
 
     async def _execute_review_todo_task(

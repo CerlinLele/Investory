@@ -82,3 +82,38 @@ Notes:
 
 - A pre-existing regression test in `tests/test_investment_document_review_flow.py:1722` now fails because it still expects a non-empty document to take the single-pass path, while the current flow routes non-empty documents through the chunk path.
 - That failure is outside the new logging code and should be handled as a separate follow-up if you want the full file green again.
+
+## Phase 3 - Runner 级记录任务生命周期
+
+Timestamp: 2026-06-09T17:41:00+10:00
+
+Actions:
+
+- Extended `TodoExecutionRunner` skip events to surface `failed_dependency_task_id` in the emitted payload.
+- Wired `InvestmentDocumentReviewFlow._build_todo_execution_runner()` to pass a flow-specific runner event handler into `TodoExecutionRunner`.
+- Added flow-side event mapping for `todo.layer.started`, `todo.task.started`, `todo.task.retrying`, `todo.task.succeeded`, `todo.task.failed`, and `todo.task.skipped`.
+- Added runner-level tests to cover lifecycle event emission for retry, success, failure, and dependency-driven skip cases.
+- Added a flow-level logging test to confirm `execute_review_todo_plan()` emits lifecycle logs without leaking document text.
+
+Files touched:
+
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+- `src/investory/agent_core/runtime/todo_core/runner.py`
+- `tests/test_todo_execution_runner.py`
+- `tests/test_investment_document_review_flow.py`
+- `docs/2-2/worklog/investment_document_review_todo_logging_execution_worklog.md`
+
+Evidence:
+
+- `src/investory/agent_core/runtime/todo_core/runner.py:315` now includes `failed_dependency_task_id` in skipped task payloads.
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:302` maps runner events to flow log messages.
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:864` injects the event handler into `TodoExecutionRunner`.
+- `tests/test_todo_execution_runner.py:643` adds lifecycle event coverage for retry/success and failure/skip flows.
+- `tests/test_investment_document_review_flow.py:683` adds a flow-level lifecycle logging assertion.
+
+Verification:
+
+- Command: `& .\.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py -k "lifecycle_events_for_retry_then_success or failure_and_dependency_skip_events or skips_downstream_task_after_retry_exhaustion"`
+- Result: 3 passed, 9 deselected.
+- Command: `& .\.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py -k "logs_runner_lifecycle or uses_todo_execution_runner or loads_and_saves_resume_state_slot"`
+- Result: 3 passed, 21 deselected.

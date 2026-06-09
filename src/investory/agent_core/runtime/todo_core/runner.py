@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable, Callable
+from time import perf_counter
 from typing import Any
 
 from investory.agent_core.contracts.todo_execution import (
@@ -35,8 +36,16 @@ RETRY_ATTEMPTS_EXHAUSTED_MESSAGE = (
     "Task was not resumed because its retry attempts were already exhausted."
 )
 
+TODO_EVENT_LAYER_STARTED = "todo.layer.started"
+TODO_EVENT_TASK_STARTED = "todo.task.started"
+TODO_EVENT_TASK_SUCCEEDED = "todo.task.succeeded"
+TODO_EVENT_TASK_FAILED = "todo.task.failed"
+TODO_EVENT_TASK_SKIPPED = "todo.task.skipped"
+TODO_EVENT_TASK_RETRYING = "todo.task.retrying"
+
 
 TodoTaskExecutor = Callable[[TodoTaskSpec], Awaitable[TodoTaskResult]]
+TodoExecutionEventHandler = Callable[[str, dict[str, Any]], None]
 
 
 class TodoExecutionRunner:
@@ -46,6 +55,7 @@ class TodoExecutionRunner:
         *,
         concurrency: int = DEFAULT_TODO_CONCURRENCY,
         max_retries: int = DEFAULT_TODO_MAX_RETRIES,
+        event_handler: TodoExecutionEventHandler | None = None,
     ) -> None:
         if concurrency <= 0:
             raise ValueError("Todo runner concurrency must be greater than zero.")
@@ -55,6 +65,7 @@ class TodoExecutionRunner:
         self._executor = executor
         self._concurrency = concurrency
         self._max_retries = max_retries
+        self._event_handler = event_handler
 
     async def run(
         self,
@@ -80,7 +91,14 @@ class TodoExecutionRunner:
         )
         semaphore = asyncio.Semaphore(self._concurrency)
 
-        for layer in layers:
+        for layer_index, layer in enumerate(layers):
+            self._emit_event(
+                TODO_EVENT_LAYER_STARTED,
+                {
+                    "layer_index": layer_index,
+                    "task_ids": [task.id for task in layer],
+                },
+            )
             runnable_tasks: list[TodoTaskSpec] = []
 
             for task in layer:
@@ -89,20 +107,24 @@ class TodoExecutionRunner:
 
                 dependency_failure = _find_dependency_failure(task, result_by_id)
                 if dependency_failure is not None:
-                    result_by_id[task.id] = _build_skipped_result(
+                    result = _build_skipped_result(
                         task_id=task.id,
                         error_type=DEPENDENCY_FAILED_ERROR_TYPE,
                         message=DEPENDENCY_FAILED_MESSAGE,
                         details={"failed_dependency_task_id": dependency_failure},
                     )
+                    result_by_id[task.id] = result
+                    self._emit_task_result_event(task=task, result=result)
                     continue
 
                 if should_stop_after_failure:
-                    result_by_id[task.id] = _build_skipped_result(
+                    result = _build_skipped_result(
                         task_id=task.id,
                         error_type=FAIL_FAST_STOPPED_ERROR_TYPE,
                         message=FAIL_FAST_STOPPED_MESSAGE,
                     )
+                    result_by_id[task.id] = result
+                    self._emit_task_result_event(task=task, result=result)
                     continue
 
                 previous_attempts = resume_attempts_by_id.get(task.id, 0)
@@ -111,11 +133,13 @@ class TodoExecutionRunner:
                     max_retries=self._max_retries,
                     previous_attempts=previous_attempts,
                 ):
-                    result_by_id[task.id] = _build_failed_result(
+                    result = _build_failed_result(
                         task_id=task.id,
                         error_type=RETRY_ATTEMPTS_EXHAUSTED_ERROR_TYPE,
                         message=RETRY_ATTEMPTS_EXHAUSTED_MESSAGE,
                     )
+                    result_by_id[task.id] = result
+                    self._emit_task_result_event(task=task, result=result)
                     continue
 
                 runnable_tasks.append(task)
@@ -169,7 +193,12 @@ class TodoExecutionRunner:
         remaining_attempts = max(total_attempts - previous_attempts, 0)
 
         for attempt in range(1, remaining_attempts + 1):
-            result = await self._execute_once(task=task, semaphore=semaphore)
+            absolute_attempt = previous_attempts + attempt
+            result = await self._execute_once(
+                task=task,
+                semaphore=semaphore,
+                attempt=absolute_attempt,
+            )
 
             if result.status == TodoTaskStatus.SUCCEEDED:
                 return result
@@ -179,6 +208,17 @@ class TodoExecutionRunner:
                 and result.status == TodoTaskStatus.FAILED
                 and attempt < remaining_attempts
             ):
+                self._emit_event(
+                    TODO_EVENT_TASK_RETRYING,
+                    {
+                        "task_id": task.id,
+                        "task_kind": task.kind.value,
+                        "attempt": absolute_attempt,
+                        "next_attempt": absolute_attempt + 1,
+                        "max_attempts": total_attempts,
+                        "error_type": _todo_result_error_type(result),
+                    },
+                )
                 continue
 
             return result
@@ -194,32 +234,43 @@ class TodoExecutionRunner:
         *,
         task: TodoTaskSpec,
         semaphore: asyncio.Semaphore,
+        attempt: int,
     ) -> TodoTaskResult:
         async with semaphore:
+            started_at = perf_counter()
+            self._emit_event(
+                TODO_EVENT_TASK_STARTED,
+                {
+                    "task_id": task.id,
+                    "task_kind": task.kind.value,
+                    "depends_on": task.depends_on,
+                    "attempt": attempt,
+                },
+            )
             try:
                 result = await self._executor(task)
             except Exception as exc:
-                return _build_failed_result(
+                result = _build_failed_result(
                     task_id=task.id,
                     error_type=EXECUTOR_EXCEPTION_ERROR_TYPE,
                     message=EXECUTOR_EXCEPTION_MESSAGE,
                     details={"exception_type": exc.__class__.__name__, "exception": str(exc)},
                 )
+            duration_ms = int((perf_counter() - started_at) * 1000)
 
         if result.id != task.id:
-            return _build_failed_result(
+            result = _build_failed_result(
                 task_id=task.id,
                 error_type=INVALID_EXECUTOR_RESULT_ERROR_TYPE,
                 message=INVALID_EXECUTOR_RESULT_MESSAGE,
                 details={"reason": "result_id_mismatch", "executor_result_id": result.id},
             )
-
-        if result.status not in {
+        elif result.status not in {
             TodoTaskStatus.SUCCEEDED,
             TodoTaskStatus.FAILED,
             TodoTaskStatus.SKIPPED,
         }:
-            return _build_failed_result(
+            result = _build_failed_result(
                 task_id=task.id,
                 error_type=INVALID_EXECUTOR_RESULT_ERROR_TYPE,
                 message=INVALID_EXECUTOR_RESULT_MESSAGE,
@@ -229,7 +280,47 @@ class TodoExecutionRunner:
                 },
             )
 
+        self._emit_task_result_event(
+            task=task,
+            result=result,
+            duration_ms=duration_ms,
+        )
         return result
+
+    def _emit_event(self, event_name: str, payload: dict[str, Any]) -> None:
+        if self._event_handler is None:
+            return
+        self._event_handler(event_name, payload)
+
+    def _emit_task_result_event(
+        self,
+        *,
+        task: TodoTaskSpec,
+        result: TodoTaskResult,
+        duration_ms: int | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "task_id": task.id,
+            "task_kind": task.kind.value,
+            "status": result.status.value,
+            "duration_ms": duration_ms,
+            "error_type": _todo_result_error_type(result),
+            "stage": _todo_result_error_stage(result),
+            "result_keys": _todo_result_keys(result),
+        }
+        if result.status == TodoTaskStatus.SUCCEEDED:
+            self._emit_event(TODO_EVENT_TASK_SUCCEEDED, payload)
+            return
+        if result.status == TodoTaskStatus.SKIPPED:
+            dependency_task_id = _todo_result_error_detail(
+                result,
+                "failed_dependency_task_id",
+            )
+            if isinstance(dependency_task_id, str):
+                payload["failed_dependency_task_id"] = dependency_task_id
+            self._emit_event(TODO_EVENT_TASK_SKIPPED, payload)
+            return
+        self._emit_event(TODO_EVENT_TASK_FAILED, payload)
 
 
 def _find_dependency_failure(
@@ -319,6 +410,36 @@ def _should_stop_after_resume_failure(
         failure_policy == TodoFailurePolicy.FAIL_FAST
         and any(result.status == TodoTaskStatus.FAILED for result in result_by_id.values())
     )
+
+
+def _todo_result_error_type(result: TodoTaskResult) -> str | None:
+    if result.error is None:
+        return None
+    error_type = result.error.get("error_type")
+    return error_type if isinstance(error_type, str) else None
+
+
+def _todo_result_error_stage(result: TodoTaskResult) -> str | None:
+    details = _todo_result_error_details(result)
+    stage = details.get("stage")
+    return stage if isinstance(stage, str) else None
+
+
+def _todo_result_error_detail(result: TodoTaskResult, key: str) -> Any:
+    return _todo_result_error_details(result).get(key)
+
+
+def _todo_result_error_details(result: TodoTaskResult) -> dict[str, Any]:
+    if result.error is None:
+        return {}
+    details = result.error.get("details")
+    return details if isinstance(details, dict) else {}
+
+
+def _todo_result_keys(result: TodoTaskResult) -> list[str]:
+    if not isinstance(result.result, dict):
+        return []
+    return sorted(result.result)
 
 
 def _build_failed_result(

@@ -680,6 +680,79 @@ def test_execute_review_todo_plan_uses_todo_execution_runner() -> None:
     ]
 
 
+def test_execute_review_todo_plan_logs_runner_lifecycle(caplog) -> None:
+    todo_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                },
+                {
+                    "id": "analyze_fee_disclosure",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze fee disclosure",
+                    "description": "Assess fee disclosure from extracted facts.",
+                    "payload": {"analyze_focus": ["fee disclosure"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                },
+            ],
+            "summary": "Extract fee facts before assessing disclosure quality.",
+        }
+    )
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+
+    with caplog.at_level(
+        logging.DEBUG,
+        logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow",
+    ):
+        update = flow.execute_review_todo_plan(
+            InvestmentDocumentReviewState(
+                session_id="session-lifecycle-log",
+                input_payload={
+                    DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt.",
+                    REVIEW_GOAL_FIELD: "Review major risks and information gaps.",
+                },
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                todo_plan=todo_plan,
+            )
+        )
+
+    assert len(update["todo_results"]) == 2
+    assert any(
+        "investment_document_review.todo_layer.started" in record.message
+        and "session-lifecycle-log" in record.message
+        for record in caplog.records
+    )
+    assert any(
+        "investment_document_review.todo_task.started" in record.message
+        and "task_id=extract_fees" in record.message
+        and "session-lifecycle-log" in record.message
+        for record in caplog.records
+    )
+    assert any(
+        "investment_document_review.todo_task.succeeded" in record.message
+        and "task_id=analyze_fee_disclosure" in record.message
+        for record in caplog.records
+    )
+    assert all("ETF factsheet excerpt." not in record.message for record in caplog.records)
+
+
 def test_execute_review_todo_plan_loads_and_saves_resume_state_slot() -> None:
     todo_plan = TodoExecutionPlan.model_validate(
         {
