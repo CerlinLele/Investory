@@ -94,6 +94,7 @@ Actions:
 - Added flow-side event mapping for `todo.layer.started`, `todo.task.started`, `todo.task.retrying`, `todo.task.succeeded`, `todo.task.failed`, and `todo.task.skipped`.
 - Added runner-level tests to cover lifecycle event emission for retry, success, failure, and dependency-driven skip cases.
 - Added a flow-level logging test to confirm `execute_review_todo_plan()` emits lifecycle logs without leaking document text.
+- Ran the new runner lifecycle test subset once, found that the actual event sequence emits `todo.task.failed` before `todo.task.retrying`, then updated the test expectation to match the runner's real behavior and reran the subset.
 
 Files touched:
 
@@ -113,6 +114,9 @@ Evidence:
 
 Verification:
 
+- Command: `& .\.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py -k "lifecycle_events_for_retry_then_success or failure_and_dependency_skip_events or skips_downstream_task_after_retry_exhaustion"`
+- First result: 1 failed, 2 passed, 9 deselected.
+- Failure detail: `test_todo_execution_runner_emits_lifecycle_events_for_retry_then_success` expected retry to be emitted directly after `todo.task.started`, but the runner correctly emits `todo.task.failed` first and then `todo.task.retrying`.
 - Command: `& .\.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py -k "lifecycle_events_for_retry_then_success or failure_and_dependency_skip_events or skips_downstream_task_after_retry_exhaustion"`
 - Result: 3 passed, 9 deselected.
 - Command: `& .\.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py -k "logs_runner_lifecycle or uses_todo_execution_runner or loads_and_saves_resume_state_slot"`
