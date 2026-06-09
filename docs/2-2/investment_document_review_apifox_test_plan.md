@@ -1,5 +1,14 @@
 # 用 Apifox 跑 `/investment-document-review` 和 `/investment-document-review-file`
 
+## 测试时使用的接口路径
+
+- JSON 请求接口：`POST http://127.0.0.1:8000/investment-document-review`
+- 文件上传接口：`POST http://127.0.0.1:8000/investment-document-review-file`
+
+以上两个路径与代码常量保持一致，定义位置见 `src/investory/gateway/api.py`：
+- `INVESTMENT_DOCUMENT_REVIEW_ROUTE = "/investment-document-review"`
+- `INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE = "/investment-document-review-file"`
+
 ## 当前公开 Graph 结构
 
 Phase B-4 已完成，公开 graph 现在有两条主路径，由 `build_review_framework` 的 routing 决定：
@@ -50,6 +59,13 @@ GET http://127.0.0.1:8000/health
 ```
 
 ## JSON Endpoint Test Cases
+
+Apifox 里这一组测试统一使用：
+
+```text
+POST http://127.0.0.1:8000/investment-document-review
+Content-Type: application/json
+```
 
 ### Case 1: Missing Input — 不需要 LLM key
 
