@@ -58,6 +58,48 @@ extract_chunk_0002   ├─ 所有 chunk extract 任务
 GET http://127.0.0.1:8000/health
 ```
 
+## 服务端日志观察点
+
+手工跑 Apifox 用例时，同时观察控制台输出和 `logs/investory.log`。
+
+日志文件位置：
+
+- `logs/investory.log`
+
+建议观察的稳定事件名：
+
+- `investment_document_review.todo_plan.generated`
+- `investment_document_review.todo_execution.started`
+- `investment_document_review.todo_task.started`
+- `investment_document_review.todo_task.retrying`
+- `investment_document_review.todo_task.succeeded`
+- `investment_document_review.todo_task.failed`
+- `investment_document_review.todo_task.skipped`
+- `investment_document_review.todo_execution.completed`
+- `investment_document_review.todo_resume.loaded`
+- `investment_document_review.todo_resume.saved`
+
+按场景看日志时可以重点关注：
+
+- Case 3 短文本 chunk review：通常能看到 `task_count=3`，以及一条 extract、一条 analyze、一条 synthesize 的生命周期日志。
+- Case 5 多 chunk review：通常能看到多个 `extract_chunk_000x` 任务先执行，再进入聚合 analyze 和最终 synthesize。
+- 失败场景：重点看 `investment_document_review.todo_task.failed` 里的 `task_id`、`task_kind`、`error_type`、`stage`。
+- resume 场景：如果后续接入 resume store，重点看 `todo_resume.loaded` 和 `todo_resume.saved` 里的结果数量。
+
+建议检索关键词：
+
+```text
+investment_document_review.todo_
+session_id=apifox-
+task_id=extract_chunk_
+```
+
+日志判读注意点：
+
+- INFO 日志默认不应包含完整 `document_text`、完整 prompt 或完整模型输出。
+- 并发或分层执行时，日志顺序不一定严格等于 plan 顺序，优先用 `session_id` 和 `task_id` 关联。
+- `todo_execution.completed` 出现时，可以快速判断本次请求的 succeeded/failed/skipped 数量，以及是否产出了最终 synthesis。
+
 ## JSON Endpoint Test Cases
 
 Apifox 里这一组测试统一使用：

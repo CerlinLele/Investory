@@ -1833,7 +1833,7 @@ def test_execute_review_todo_plan_does_not_treat_prior_results_as_resume_state()
     ]
 
 
-def test_document_review_flow_preserves_downstream_executor_error_result() -> None:
+def test_document_review_flow_returns_chunk_synthesis_error_when_extract_never_succeeds() -> None:
     error_result = TaskResult(
         ok=False,
         task_name=INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
@@ -1859,6 +1859,18 @@ def test_document_review_flow_preserves_downstream_executor_error_result() -> No
         }
     )
 
-    assert result is error_result
+    assert result.ok is False
+    assert result.task_name == INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name
+    assert result.error is not None
+    assert result.error.error_type == "structured_output_failed"
+    assert result.error.stage == "output_validation"
+    assert result.error.debug_message == (
+        "Chunk-based document review did not produce synthesis."
+    )
     assert len(router.calls) == 1
-    assert len(executor.calls) == 1
+    assert len(executor.calls) == 3
+    assert [call[0] for call in executor.calls] == [
+        INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
+        INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
+        INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
+    ]
