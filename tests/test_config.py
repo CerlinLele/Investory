@@ -23,6 +23,7 @@ def test_load_config_reads_provider_settings_from_environment(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
     monkeypatch.setenv("INVESTORY_LLM_TEMPERATURE", "0.2")
     monkeypatch.setenv("INVESTORY_LLM_MAX_RETRIES", "3")
+    monkeypatch.setenv("INVESTORY_LOG_LEVEL", "debug")
 
     config = load_config(env_file=None)
 
@@ -32,6 +33,7 @@ def test_load_config_reads_provider_settings_from_environment(monkeypatch):
     assert config.llm_api_key == "test-anthropic-key"
     assert config.llm_temperature == 0.2
     assert config.llm_max_retries == 3
+    assert config.log_level == "DEBUG"
 
 
 def test_load_config_uses_provider_default_model_when_model_is_unset(monkeypatch):

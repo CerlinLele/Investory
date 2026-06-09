@@ -16,6 +16,7 @@ from investory.gateway.api import (
     LEARNING_ENTRY_FLOW_STATE_ATTR,
     router as gateway_router,
 )
+from investory.logging_config import configure_logging
 
 
 def create_app() -> FastAPI:
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
 
     config.logs_dir.mkdir(parents=True, exist_ok=True)
     config.data_dir.mkdir(parents=True, exist_ok=True)
+    configure_logging(logs_dir=config.logs_dir, log_level=config.log_level)
 
     app = FastAPI(title=config.app_name)
     app.state.config = config

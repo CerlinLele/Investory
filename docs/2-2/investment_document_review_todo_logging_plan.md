@@ -6,6 +6,12 @@
 
 本计划只关注服务端日志可观察性，不改变接口响应结构，不改变 To-Do DAG 执行语义，不把完整文档正文或完整 LLM 输出默认写入 INFO 日志。
 
+当前实现里的基础日志调用链是：
+
+`main.py -> configure_logging(logs_dir=config.logs_dir, log_level=config.log_level) -> logs/investory.log`
+
+也就是说，FastAPI app 在创建时先准备日志目录，再初始化 root logger，最后把日志同时输出到控制台和 `logs/investory.log`。后续 Phase 2 和 Phase 3 会复用这套基础配置，把 To-Do 计划和执行过程写进同一条日志链路。
+
 ## 当前缺口
 
 1. `config.logs_dir` 已存在，但项目还没有统一 Python logging 配置、文件 handler、日志级别配置或结构化日志格式。
@@ -42,6 +48,17 @@
 ### Phase 1: 接入基础日志配置
 
 目标：应用启动后同时输出 console 日志和文件日志。
+
+当前实现对应的落地点是 `src/investory/main.py`：`create_app()` 会先读取配置、创建 `logs/` 和 `data/` 目录，再调用 `configure_logging()` 完成日志初始化。
+
+`src/investory/logging_config.py` 里实际做的事情是：
+
+- 先把 `log_level` 规范化，并把 `debug` / `info` 这类字符串映射成 Python logging 真正使用的级别值。
+- 确保 `logs/` 目录存在，然后固定把日志文件写到 `logs/investory.log`。
+- 创建统一的日志格式，让控制台和文件里的输出长得一致，便于复制和检索。
+- 拿到 root logger，并先清掉之前由 Investory 自己挂过的 handler，避免测试或重复初始化时出现重复输出。
+- 同时挂上 `StreamHandler` 和 `FileHandler`，让同一条日志既能在终端看到，也能落到文件里。
+- 返回日志文件路径，方便调用方知道最终写到了哪里。
 
 建议修改：
 
@@ -150,4 +167,3 @@ investment_document_review.todo_task.failed session_id=apifox-multi-chunk-review
 1. 先做 Phase 1 + Phase 2：最快让 Apifox 调试时看到生成的 To-Do plan。
 2. 再做 Phase 3：补齐每个 task 的执行生命周期。
 3. 最后做 Phase 4 + Phase 5：增强 resume 可见性和测试保障。
-
