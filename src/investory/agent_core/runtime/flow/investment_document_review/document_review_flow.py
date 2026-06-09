@@ -2,6 +2,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from enum import Enum
+from time import perf_counter
 from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
@@ -370,6 +371,57 @@ def _todo_task_skip_reason(error_type: Any) -> str | None:
     if not isinstance(error_type, str):
         return None
     return error_type
+
+
+def _count_todo_results_by_status(
+    todo_results: list[TodoTaskResult],
+) -> dict[TodoTaskStatus, int]:
+    counts = {
+        TodoTaskStatus.SUCCEEDED: 0,
+        TodoTaskStatus.FAILED: 0,
+        TodoTaskStatus.SKIPPED: 0,
+    }
+    for result in todo_results:
+        if result.status in counts:
+            counts[result.status] += 1
+    return counts
+
+
+def _log_review_todo_execution_started(
+    *,
+    session_id: str | None,
+    todo_plan: TodoExecutionPlan,
+    resume_state: TodoExecutionResumeState | None,
+) -> None:
+    logger.info(
+        "investment_document_review.todo_execution.started session_id=%s "
+        "task_count=%s resume_task_count=%s failure_policy=%s",
+        session_id,
+        len(todo_plan.tasks),
+        len(resume_state.results_by_id) if resume_state is not None else 0,
+        todo_plan.failure_policy.value,
+    )
+
+
+def _log_review_todo_execution_completed(
+    *,
+    session_id: str | None,
+    todo_results: list[TodoTaskResult],
+    duration_ms: int,
+    synthesis_produced: bool,
+) -> None:
+    counts = _count_todo_results_by_status(todo_results)
+    logger.info(
+        "investment_document_review.todo_execution.completed session_id=%s "
+        "succeeded_count=%s failed_count=%s skipped_count=%s duration_ms=%s "
+        "synthesis_produced=%s",
+        session_id,
+        counts[TodoTaskStatus.SUCCEEDED],
+        counts[TodoTaskStatus.FAILED],
+        counts[TodoTaskStatus.SKIPPED],
+        duration_ms,
+        str(synthesis_produced).lower(),
+    )
 
 
 def _string_list_from_result(result_payload: dict[str, Any], key: str) -> list[str]:
@@ -754,6 +806,12 @@ class InvestmentDocumentReviewFlow:
             raise RuntimeError("Document review flow has no To-Do plan to execute.")
 
         resume_state = self._load_todo_resume_state(state)
+        started_at = perf_counter()
+        _log_review_todo_execution_started(
+            session_id=state.session_id,
+            todo_plan=state.todo_plan,
+            resume_state=resume_state,
+        )
         runner = self._build_todo_execution_runner(
             state,
             resume_state=resume_state,
@@ -761,16 +819,22 @@ class InvestmentDocumentReviewFlow:
         todo_results = asyncio.run(
             runner.run(state.todo_plan, resume_state=resume_state)
         )
+        synthesize_result = _find_succeeded_todo_result(
+            todo_results,
+            SYNTHESIZE_REVIEW_TASK_ID,
+        )
+        _log_review_todo_execution_completed(
+            session_id=state.session_id,
+            todo_results=todo_results,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+            synthesis_produced=synthesize_result is not None,
+        )
         self._save_todo_resume_state(
             state=state,
             todo_results=todo_results,
             previous_resume_state=resume_state,
         )
         update: dict[str, Any] = {"todo_results": todo_results}
-        synthesize_result = _find_succeeded_todo_result(
-            todo_results,
-            SYNTHESIZE_REVIEW_TASK_ID,
-        )
         if synthesize_result is not None:
             update["output"] = TaskResult(
                 ok=True,
@@ -801,10 +865,19 @@ class InvestmentDocumentReviewFlow:
         if state.todo_plan is None:
             raise RuntimeError("Document review flow has no To-Do plan to resume.")
 
-        return self.todo_resume_store.load_resume_state(
+        resume_state = self.todo_resume_store.load_resume_state(
             session_id=state.session_id,
             plan=state.todo_plan,
         )
+        if resume_state is not None:
+            logger.info(
+                "investment_document_review.todo_resume.loaded session_id=%s "
+                "resumed_result_count=%s attempt_count=%s",
+                state.session_id,
+                len(resume_state.results_by_id),
+                len(resume_state.attempts_by_id),
+            )
+        return resume_state
 
     def _save_todo_resume_state(
         self,
@@ -827,6 +900,12 @@ class InvestmentDocumentReviewFlow:
             plan=state.todo_plan,
             results=todo_results,
             previous_resume_state=previous_resume_state,
+        )
+        logger.info(
+            "investment_document_review.todo_resume.saved session_id=%s "
+            "saved_result_count=%s",
+            state.session_id,
+            len(todo_results),
         )
 
     def _build_todo_execution_runner(

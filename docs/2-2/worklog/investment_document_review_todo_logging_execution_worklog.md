@@ -121,3 +121,50 @@ Verification:
 - Result: 3 passed, 9 deselected.
 - Command: `& .\.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py -k "logs_runner_lifecycle or uses_todo_execution_runner or loads_and_saves_resume_state_slot"`
 - Result: 3 passed, 21 deselected.
+
+## Phase 4 - Execution summary and resume logging
+
+Timestamp: 2026-06-09T18:47:22+10:00
+
+Actions:
+
+- Added flow-level execution summary logging around `TodoExecutionRunner.run()`.
+- Added `investment_document_review.todo_execution.started` with `session_id`, `task_count`, `resume_task_count`, and `failure_policy`.
+- Added `investment_document_review.todo_execution.completed` with succeeded/failed/skipped counts, execution duration, and whether synthesis output was produced.
+- Added resume visibility logs for successful resume state load and save.
+- Added focused flow tests for execution summary logs and resume load/save logs.
+- Ran the Phase 4 flow test subset once, found the test expected the wrong default `failure_policy`, then updated the assertion to match the actual default value `retry_then_fail` and reran successfully.
+- Reran the Phase 3 runner lifecycle subset to confirm runner event logging still passes after the Phase 4 flow summary changes.
+
+Files touched:
+
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+- `tests/test_investment_document_review_flow.py`
+- `docs/2-2/worklog/investment_document_review_todo_logging_execution_worklog.md`
+
+Evidence:
+
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:376` defines `_count_todo_results_by_status()`.
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:390` defines `_log_review_todo_execution_started()`.
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:406` defines `_log_review_todo_execution_completed()`.
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:810` logs execution start after resume state is loaded.
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:826` logs execution completion after runner results are available and before resume state is saved.
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:874` logs successful resume load.
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:905` logs successful resume save.
+- `tests/test_investment_document_review_flow.py:683` verifies execution start/completion summary logs.
+- `tests/test_investment_document_review_flow.py:773` verifies resume load/save logs.
+
+Verification:
+
+- Command: `.\.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py -k "logs_runner_lifecycle or loads_and_saves_resume_state_slot or includes_resumed_completed_results_in_synthesis_once"`
+- First result: 1 failed, 2 passed, 21 deselected.
+- Failure detail: `test_execute_review_todo_plan_logs_runner_lifecycle` expected `failure_policy=skip_dependents_on_failure`, while the actual default plan policy is `failure_policy=retry_then_fail`.
+- Command: `.\.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py -k "logs_runner_lifecycle or loads_and_saves_resume_state_slot or includes_resumed_completed_results_in_synthesis_once"`
+- Result: 3 passed, 21 deselected.
+- Command: `.\.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py -k "lifecycle_events_for_retry_then_success or failure_and_dependency_skip_events or skips_downstream_task_after_retry_exhaustion"`
+- Result: 3 passed, 9 deselected.
+
+Notes:
+
+- `todo_execution.completed` is intentionally emitted before resume state is saved so runner results remain visible even if a later resume-store save fails.
+- The unrelated working-tree deletion of `logs/.gitkeep` was observed but not touched as part of Phase 4.

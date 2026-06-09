@@ -735,6 +735,23 @@ def test_execute_review_todo_plan_logs_runner_lifecycle(caplog) -> None:
 
     assert len(update["todo_results"]) == 2
     assert any(
+        "investment_document_review.todo_execution.started" in record.message
+        and "session-lifecycle-log" in record.message
+        and "task_count=2" in record.message
+        and "resume_task_count=0" in record.message
+        and "failure_policy=retry_then_fail" in record.message
+        for record in caplog.records
+    )
+    assert any(
+        "investment_document_review.todo_execution.completed" in record.message
+        and "session-lifecycle-log" in record.message
+        and "succeeded_count=2" in record.message
+        and "failed_count=0" in record.message
+        and "skipped_count=0" in record.message
+        and "synthesis_produced=false" in record.message
+        for record in caplog.records
+    )
+    assert any(
         "investment_document_review.todo_layer.started" in record.message
         and "session-lifecycle-log" in record.message
         for record in caplog.records
@@ -753,7 +770,7 @@ def test_execute_review_todo_plan_logs_runner_lifecycle(caplog) -> None:
     assert all("ETF factsheet excerpt." not in record.message for record in caplog.records)
 
 
-def test_execute_review_todo_plan_loads_and_saves_resume_state_slot() -> None:
+def test_execute_review_todo_plan_loads_and_saves_resume_state_slot(caplog) -> None:
     todo_plan = TodoExecutionPlan.model_validate(
         {
             "tasks": [
@@ -791,13 +808,17 @@ def test_execute_review_todo_plan_loads_and_saves_resume_state_slot() -> None:
         todo_resume_store=resume_store,
     )
 
-    update = flow.execute_review_todo_plan(
-        InvestmentDocumentReviewState(
-            session_id="session-1",
-            input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
-            todo_plan=todo_plan,
+    with caplog.at_level(
+        logging.INFO,
+        logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow",
+    ):
+        update = flow.execute_review_todo_plan(
+            InvestmentDocumentReviewState(
+                session_id="session-1",
+                input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
+                todo_plan=todo_plan,
+            )
         )
-    )
 
     expected_results = [
         TodoTaskResult(
@@ -815,6 +836,26 @@ def test_execute_review_todo_plan_loads_and_saves_resume_state_slot() -> None:
         ("session-1", todo_plan, expected_results, resume_state)
     ]
     assert update["todo_results"] == expected_results
+    assert any(
+        "investment_document_review.todo_resume.loaded" in record.message
+        and "session-1" in record.message
+        and "resumed_result_count=1" in record.message
+        and "attempt_count=1" in record.message
+        for record in caplog.records
+    )
+    assert any(
+        "investment_document_review.todo_execution.started" in record.message
+        and "session-1" in record.message
+        and "task_count=1" in record.message
+        and "resume_task_count=1" in record.message
+        for record in caplog.records
+    )
+    assert any(
+        "investment_document_review.todo_resume.saved" in record.message
+        and "session-1" in record.message
+        and "saved_result_count=1" in record.message
+        for record in caplog.records
+    )
 
 
 def test_execute_review_todo_plan_includes_resumed_completed_results_in_synthesis_once() -> None:
