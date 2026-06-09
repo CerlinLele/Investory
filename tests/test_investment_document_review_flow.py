@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 
 from investory.agent_core.contracts.investment_document_review_state import (
     ANALYZE_FOCUS_FIELD,
@@ -492,6 +493,53 @@ def test_generate_review_todo_plan_accepts_supported_document_type_frameworks() 
         INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
         INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
     ]
+
+
+def test_generate_review_todo_plan_logs_plan_summary_and_tasks(caplog) -> None:
+    executor = DocumentTypePlanExecutor()
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    input_payload = {
+        DOCUMENT_TEXT_FIELD: "ETF factsheet review excerpt.",
+        REVIEW_GOAL_FIELD: "Review major risks and information gaps.",
+    }
+
+    with caplog.at_level(logging.DEBUG, logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow"):
+        update = flow.generate_review_todo_plan(
+            InvestmentDocumentReviewState(
+                input_payload=input_payload,
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                review_payload=flow.build_review_framework(
+                    InvestmentDocumentReviewState(
+                        input_payload=input_payload,
+                        document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                    )
+                )["review_payload"],
+                session_id="session-logging-check",
+            )
+        )
+
+    assert "todo_plan" in update
+    assert any(
+        "investment_document_review.todo_plan.generated" in record.message
+        and "session-logging-check" in record.message
+        and "task_count=2" in record.message
+        for record in caplog.records
+    )
+    assert any(
+        "investment_document_review.todo_plan.task" in record.message
+        and "task_id=extract_etf_factsheet" in record.message
+        for record in caplog.records
+    )
+    assert all("ETF factsheet review excerpt." not in record.message for record in caplog.records)
 
 
 def test_generate_review_todo_plan_requires_review_payload() -> None:

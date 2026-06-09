@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
@@ -62,6 +63,7 @@ if TYPE_CHECKING:
 
 
 INVESTMENT_DOCUMENT_REVIEW_TASK_NAME = "investment_document_review"
+logger = logging.getLogger(__name__)
 
 ACTION_FIELD = "action"
 MESSAGE_FIELD = "message"
@@ -241,6 +243,40 @@ def _build_review_todo_summary(
         boundary_notes=boundary_notes,
         task_summaries=task_summaries,
     )
+
+
+def _log_review_todo_plan_generated(
+    *,
+    session_id: str | None,
+    todo_plan: TodoExecutionPlan,
+    document_type: InvestmentDocumentType | None,
+    chunk_count: int,
+) -> None:
+    logger.info(
+        "investment_document_review.todo_plan.generated session_id=%s document_type=%s "
+        "chunk_count=%s task_count=%s failure_policy=%s summary=%s",
+        session_id,
+        document_type.value if document_type is not None else None,
+        chunk_count,
+        len(todo_plan.tasks),
+        todo_plan.failure_policy.value,
+        todo_plan.summary,
+    )
+    for task in todo_plan.tasks:
+        logger.debug(
+            "investment_document_review.todo_plan.task session_id=%s task_id=%s "
+            "task_kind=%s title=%s depends_on=%s completion_criteria_count=%s",
+            session_id,
+            task.id,
+            task.kind.value,
+            task.title,
+            ",".join(task.depends_on) if task.depends_on else "",
+            len(task.completion_criteria),
+        )
+
+
+def _guess_review_plan_chunk_count(state: InvestmentDocumentReviewState) -> int:
+    return len(state.document_chunks or [])
 
 
 def _string_list_from_result(result_payload: dict[str, Any], key: str) -> list[str]:
@@ -494,7 +530,14 @@ class InvestmentDocumentReviewFlow:
         state: InvestmentDocumentReviewState,
     ) -> dict[str, Any]:
         if state.document_chunks:
-            return {"todo_plan": self._build_chunk_review_todo_plan(state)}
+            todo_plan = self._build_chunk_review_todo_plan(state)
+            _log_review_todo_plan_generated(
+                session_id=state.session_id,
+                todo_plan=todo_plan,
+                document_type=state.document_type,
+                chunk_count=_guess_review_plan_chunk_count(state),
+            )
+            return {"todo_plan": todo_plan}
 
         plan_payload = self.build_review_todo_plan_payload(state)
         result = self.executor.run(
@@ -516,6 +559,12 @@ class InvestmentDocumentReviewFlow:
                 )
             }
 
+        _log_review_todo_plan_generated(
+            session_id=state.session_id,
+            todo_plan=todo_plan,
+            document_type=state.document_type,
+            chunk_count=_guess_review_plan_chunk_count(state),
+        )
         return {"todo_plan": todo_plan}
 
     def _build_chunk_review_todo_plan(
