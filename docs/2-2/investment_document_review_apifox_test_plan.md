@@ -1,135 +1,57 @@
-# 用 Apifox 跑 `/investment-document-review`
+# 用 Apifox 跑 `/investment-document-review` 和 `/investment-document-review-file`
 
-## Summary
+## 当前公开 Graph 结构
 
-目标是在 Apifox 里验证当前公开网关流程：`POST /investment-document-review`。当前公开 endpoint 的请求结构是：
+Phase B-4 已完成，公开 graph 现在有两条主路径，由 `build_review_framework` 的 routing 决定：
 
-```json
-{
-  "payload": {},
-  "session_id": "optional-session-id"
-}
 ```
-
-响应结构固定为：
-
-```json
-{
-  "ok": true,
-  "task_name": "investment_document_review",
-  "session_id": "...",
-  "result": {},
-  "error": null
-}
-```
-
-注意：当前公开 FastAPI graph 仍走 `policy gate -> classify_document_type -> build framework -> single-pass review -> final result`。Phase 5 的 To-Do DAG 能力已有内部方法和测试覆盖，但还没有接到公开 endpoint 的主 graph 上。
-
-## 当前公开 FastAPI graph 代码定位
-
-公开入口从 FastAPI app 注入的 flow 开始：
-
-```text
-src/investory/main.py:21
-create_app()
-  -> app.state.investment_document_review_flow = build_investment_document_review_flow()
-```
-
-HTTP endpoint 在 gateway 层：
-
-```text
-src/investory/gateway/api.py:33
-INVESTMENT_DOCUMENT_REVIEW_ROUTE = "/investment-document-review"
-
-src/investory/gateway/api.py:151
-@router.post(INVESTMENT_DOCUMENT_REVIEW_ROUTE, response_model=TaskResponse)
-run_investment_document_review()
-  -> getattr(request.app.state, "investment_document_review_flow", None)
-  -> execute_investment_document_review_request()
-  -> flow.run(review_request.payload, session_id=session_id)
-```
-
-当前公开 graph 的实际编排在：
-
-```text
-src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:294
-InvestmentDocumentReviewFlow._build_graph()
-```
-
-当前 `_build_graph()` 接入的主路径是：
-
-```text
 START
   -> evaluate_policy_gate
   -> classify_document_type
   -> build_review_framework
-  -> run_single_pass_review
-  -> build_final_result
-  -> END
+       |
+       ├─ document_chunks 非空 ──> generate_review_todo_plan
+       │                              -> execute_review_todo_plan
+       │                                   -> build_final_result
+       │
+       └─ document_chunks 为空 ──> run_single_pass_review
+                                      -> build_final_result
 ```
 
-对应代码锚点：
+Chunk 路径的 To-Do plan 结构固定为：
 
-```text
-src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:310
-graph.add_node(... RUN_SINGLE_PASS_REVIEW ..., self.run_single_pass_review)
-
-src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:346
-BUILD_REVIEW_FRAMEWORK -> RUN_SINGLE_PASS_REVIEW
-
-src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:349
-RUN_SINGLE_PASS_REVIEW -> BUILD_FINAL_RESULT
-
-src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:431
-run_single_pass_review()
+```
+extract_chunk_0001  \
+extract_chunk_0002   ├─ 所有 chunk extract 任务
+...                 /
+  -> analyze_aggregated_chunk_evidence
+  -> synthesize_full_document_review
 ```
 
-To-Do DAG 相关节点和方法已经在代码里存在，但当前没有接入 `_build_graph()` 的公开主路径：
+两个公开 endpoint：
 
-```text
-src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:105
-GENERATE_REVIEW_TODO_PLAN = "generate_review_todo_plan"
+| endpoint | 请求格式 | 入口 |
+|---|---|---|
+| `POST /investment-document-review` | JSON body | `run_investment_document_review()` |
+| `POST /investment-document-review-file` | multipart/form-data | `run_investment_document_review_file()` |
 
-src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:106
-EXECUTE_REVIEW_TODO_PLAN = "execute_review_todo_plan"
+两个 endpoint 共享同一个 `execute_investment_document_review_request()` -> flow。
 
-src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:441
-generate_review_todo_plan()
-
-src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:467
-execute_review_todo_plan()
-```
-
-所以用 Apifox 跑公开 endpoint 时，当前验证的是 gateway + policy/classification + single-pass review 公开链路；不是 Phase 5 To-Do DAG 的公开链路。
-
-## Apifox Setup
-
-1. 在仓库根目录启动服务：
+## 服务启动
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn investory.main:app --reload
 ```
 
-2. Apifox 新建请求：
-
-```text
-Method: POST
-URL: http://127.0.0.1:8000/investment-document-review
-Headers:
-Content-Type: application/json
-```
-
-3. 可先用健康检查确认服务活着：
+健康检查：
 
 ```text
 GET http://127.0.0.1:8000/health
 ```
 
-## Test Cases
+## JSON Endpoint Test Cases
 
-### Case 1: Missing Input, 不需要 LLM key
-
-用于确认 policy gate 缺字段分支。
+### Case 1: Missing Input — 不需要 LLM key
 
 ```json
 {
@@ -140,7 +62,7 @@ GET http://127.0.0.1:8000/health
 }
 ```
 
-预期重点：
+预期：
 
 ```json
 {
@@ -154,9 +76,7 @@ GET http://127.0.0.1:8000/health
 }
 ```
 
-### Case 2: Refusal, 不需要 LLM key
-
-用于确认投资建议越界请求会在 router/executor 前被拒绝。
+### Case 2: Refusal — 不需要 LLM key
 
 ```json
 {
@@ -168,7 +88,7 @@ GET http://127.0.0.1:8000/health
 }
 ```
 
-预期重点：
+预期：
 
 ```json
 {
@@ -180,15 +100,13 @@ GET http://127.0.0.1:8000/health
 }
 ```
 
-### Case 3: Full Review, 需要 LLM key
+### Case 3: Short Text — Single-Pass Review — 需要 LLM key
 
-这个会调用 LLM router 和 single-pass review task。先确保 `.env` 或环境变量里有对应 provider key，比如默认 OpenAI：
+文档文本短于 `CHUNK_SIZE=500` 字符时，`split_into_chunks()` 返回单个 chunk，`document_chunks` 非空，**仍然走 chunk 路径**（extract x1 -> analyze -> synthesize）。
 
-```text
-OPENAI_API_KEY=...
-```
+这是与旧测试计划的核心差异：除非 `document_text` 为空，否则现在几乎所有有效输入都走 chunk 路径。
 
-请求体：
+> 注：`route_after_review_framework` 在 `document_chunks` 非空时路由到 `GENERATE_REVIEW_TODO_PLAN`。长度 > 0 的任何有效文本都会产生至少一个 chunk。
 
 ```json
 {
@@ -197,11 +115,11 @@ OPENAI_API_KEY=...
     "document_type_hint": "etf_factsheet",
     "review_goal": "Review fee clarity and risk disclosure completeness"
   },
-  "session_id": "apifox-complete-review"
+  "session_id": "apifox-short-doc-chunk-review"
 }
 ```
 
-预期重点：
+预期（chunk 路径产出，`review` 字段内容为合成结果而非 single-pass 结果）：
 
 ```json
 {
@@ -225,11 +143,13 @@ OPENAI_API_KEY=...
 }
 ```
 
-`route_confidence` 会由模型输出决定，不要固定断言具体数值，只断言它存在并在 `0..1` 范围内。
+断言要点：
+- `result.action == "complete"`
+- `result.document_type == "etf_factsheet"`
+- `result.review` 存在且非 null
+- `route_confidence` 在 `0..1` 范围内，不断言具体值
 
-### Case 4: Unknown Document Type, 需要 LLM 分类参与
-
-用于验证 Phase 6 修复点：unknown 时应返回 `document_type_hint`。
+### Case 4: Unknown Document Type — 需要 LLM 分类参与
 
 ```json
 {
@@ -240,7 +160,7 @@ OPENAI_API_KEY=...
 }
 ```
 
-预期重点：
+预期：
 
 ```json
 {
@@ -253,28 +173,119 @@ OPENAI_API_KEY=...
 }
 ```
 
+### Case 5: Long Document — Multi-Chunk Review — 需要 LLM key
+
+文档 > 500 字符，产生多个 chunks，To-Do plan 中包含 `extract_chunk_0001`、`extract_chunk_0002`...
+
+```json
+{
+  "payload": {
+    "document_text": "[粘贴从真实 ETF factsheet PDF 提取的全文，约 1000-3000 字符]",
+    "document_type_hint": "etf_factsheet",
+    "review_goal": "Review fee, risk disclosure, and liquidity constraints"
+  },
+  "session_id": "apifox-multi-chunk-review"
+}
+```
+
+预期行为（不断言具体 LLM 文本内容）：
+- `result.action == "complete"`
+- `result.review` 非 null，且 `result.review.extracted_facts` / `risk_findings` / `information_gaps` 有内容
+- 响应时间明显长于 Case 3，因为每个 chunk 都调用了一次 extract LLM
+
+---
+
+## File Upload Endpoint Test Cases
+
+### Case 6: PDF Upload — Valid ETF Factsheet — 需要 LLM key
+
+```text
+Method: POST
+URL: http://127.0.0.1:8000/investment-document-review-file
+Content-Type: multipart/form-data
+```
+
+Apifox Body 字段：
+
+| Key | Type | Value |
+|---|---|---|
+| `file` | File | 选择本地 ETF factsheet PDF |
+| `review_goal` | Text | `Review fee clarity and risk disclosure completeness` |
+| `document_type_hint` | Text | `etf_factsheet` |
+| `session_id` | Text | `apifox-file-upload-valid` |
+
+预期：等价于 Case 3 / Case 5 的 `action: complete` 响应，具体取决于 PDF 提取后文本长度。
+
+### Case 7: PDF Upload — Corrupted File — 不需要 LLM key
+
+上传损坏文件（可以把任意文本文件改后缀为 `.pdf`，或构造一个无效 PDF 头的文件）。
+
+预期（HTTP 400）：
+
+```json
+{
+  "ok": false,
+  "task_name": null,
+  "session_id": "...",
+  "result": null,
+  "error": {
+    "error_type": "pdf_extraction_failed",
+    "stage": "input_validation",
+    "retryable": false
+  }
+}
+```
+
+### Case 8: No File Field — FastAPI Validation — 不需要 LLM key
+
+发送 multipart 请求但不包含 `file` 字段。
+
+预期（HTTP 422，FastAPI 自动返回）：
+
+```json
+{
+  "detail": [...]
+}
+```
+
+不走 flow，FastAPI dependency injection 在 request 解析阶段即返回 422。
+
+---
+
+## Apifox 断言建议
+
+只断言以下稳定字段，不断言模型生成文本：
+
+```
+ok                   (bool)
+task_name            (string | null)
+session_id           (string, 非空)
+result.action        ("ask_for_missing_input" | "refuse_and_redirect" | "complete")
+result.missing_fields  (list, 仅 ask_for_missing_input 时)
+result.document_type   (string, 仅 complete 时)
+result.review          (object, 仅 complete 时)
+error                (null 或包含 error_type)
+```
+
+---
+
 ## 真实测试文档来源
 
-`document_text` 是普通字符串字段，直接接受文字内容，不是文件上传。拿到 PDF 后用任意工具（Adobe、pdfplumber、pdfminer）提取文字层粘贴进来即可。ETF factsheet 通常 1-3 页，提取后约 500-1500 字，对 single-pass review 来说信息密度足够。
+- [iShares（BlackRock）](https://www.ishares.com/us/products/etf-investments) — ETF factsheet PDF
+- [Vanguard](https://investor.vanguard.com/investment-products/etfs) — fund fact sheet PDF
+- [SPDR（State Street）](https://www.ssga.com/us/en/intermediary/etfs)
+- [SEC EDGAR](https://www.sec.gov/cgi-bin/browse-edgar) — N-1A / S-1 共同基金招募说明书
 
-### ETF Factsheet（直接对应 `etf_factsheet` 类型）
+JSON endpoint 可直接粘贴 PDF 提取文本；File endpoint 直接上传 PDF 文件。
 
-- [iShares（BlackRock）](https://www.ishares.com/us/products/etf-investments) — 每只产品页都有 PDF factsheet，含费率、指数追踪、持仓分布、风险披露
-- [Vanguard](https://investor.vanguard.com/investment-products/etfs) — 提供 fund fact sheet PDF
-- [SPDR（State Street）](https://www.ssga.com/us/en/intermediary/etfs) — 标准化 factsheet
+---
 
-### 基金招募说明书 / Prospectus
+## 与旧测试计划的主要差异
 
-- [SEC EDGAR](https://www.sec.gov/cgi-bin/browse-edgar) — 美国所有公开基金的法定披露文件，搜 N-1A（共同基金）或 S-1
-
-### 香港 / 亚洲市场
-
-- [香港证监会基金认可列表](https://apps.sfc.hk/cgi-bin/fund/cgi/html/fundSearch.cgi) — 授权基金招股说明书和年报
-- [富达香港](https://www.fidelity.com.hk/)、[先锋香港](https://www.vanguard.com.hk/) — 中英文 factsheet
-
-## Assumptions
-
-- 默认本地服务地址是 `http://127.0.0.1:8000`。
-- 如果只想先确认 endpoint 和兼容分支，跑 Case 1 和 Case 2 就够，不需要 LLM key。
-- 如果要跑完整审查结果，必须配置 LLM provider key；当前默认 provider 是 `openai`，默认读取 `OPENAI_API_KEY`。
-- Apifox 断言建议只检查稳定字段：`ok`、`task_name`、`session_id`、`result.action`、`error`，不要断言模型生成文本的完整内容。
+| 变化点 | 旧测试计划 | 当前实现 |
+|---|---|---|
+| 主路径 | single-pass review | chunk 路径（任何非空文档） |
+| single-pass 触发条件 | 已分类文档均走此路径 | `document_chunks` 为空才走（实际几乎不触发） |
+| File upload endpoint | 不存在 | `/investment-document-review-file` (multipart) |
+| To-Do DAG | 未接入公开 graph | 已是公开主路径 |
+| `result.review` 来源 | single-pass task 直接输出 | synthesize task 输出（经过 extract -> analyze 聚合） |
