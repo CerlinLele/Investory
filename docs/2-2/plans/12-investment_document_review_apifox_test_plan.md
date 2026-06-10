@@ -287,6 +287,65 @@ Apifox Body 字段：
 
 预期：等价于 Case 3 / Case 5 的 `action: complete` 响应，具体取决于 PDF 提取后文本长度。
 
+### Case 6H: PDF Upload — Local HYG ETF Factsheet PDF — 需要 LLM key
+
+适用场景：
+
+- 需要一个比 NIST 长文档更轻量的本地 PDF 样本
+- 适合验证 `/investment-document-review-file` 的上传、提取、路由和 chunk review 主路径
+- 适合作为日常 smoke test 或更快的手工回归样本
+
+当前本地测试文件路径：
+
+- `data/hyg-ishares-iboxx-high-yield-corporate-bond-etf-fund-fact-sheet-en-us.pdf`
+
+文档特征：
+
+- 官方 ETF factsheet
+- 页数较少，通常明显短于长报告类 PDF
+- 内容里通常会包含费用、收益率、久期/债券特征、风险披露和产品摘要
+
+```text
+Method: POST
+URL: http://127.0.0.1:8000/investment-document-review-file
+Content-Type: multipart/form-data
+```
+
+Apifox Body 类型：
+
+- 选择 `Body -> form-data`
+- 不要用 `raw JSON`
+- 不要用整包 `binary`
+
+Apifox Body 字段：
+
+| Key | Type | Value |
+|---|---|---|
+| `file` | File | `data/hyg-ishares-iboxx-high-yield-corporate-bond-etf-fund-fact-sheet-en-us.pdf` |
+| `review_goal` | Text | `Review fee clarity, risk disclosure, holdings, yield-related metrics, and performance limitations` |
+| `document_type_hint` | Text | `etf_factsheet` |
+| `session_id` | Text | `apifox-hyg-file-upload` |
+
+预期行为（不断言具体 LLM 文本内容）：
+
+- `ok == true`
+- `task_name == "investment_document_review"`
+- `result.action == "complete"`
+- `result.document_type == "etf_factsheet"`
+- `result.review` 非 `null`
+
+与 `Case 6A` 相比，这个用例的价值在于：
+
+- 响应通常更快
+- chunk 数通常更少
+- 更适合日常检查 file upload endpoint 是否工作正常
+
+建议同时观察日志：
+
+- `investment_document_review.todo_plan.generated`
+- `investment_document_review.todo_task.started`
+- `investment_document_review.todo_execution.completed`
+
 ### Case 6A: PDF Upload — Local NIST AI RMF PDF — 需要 LLM key
 
 适用场景：
@@ -419,5 +478,4 @@ JSON endpoint 可直接粘贴 PDF 提取文本；File endpoint 直接上传 PDF 
 | File upload endpoint | 不存在                   | `/investment-document-review-file` (multipart) |
 | To-Do DAG            | 未接入公开 graph           | 已是公开主路径                                        |
 | `result.review` 来源   | single-pass task 直接输出 | synthesize task 输出（经过 extract -> analyze 聚合）   |
-
 
