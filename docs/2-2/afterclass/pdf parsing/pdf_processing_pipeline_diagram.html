@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF 处理流程图</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --paper: #ffffff;
+      --ink: #162033;
+      --muted: #5d687d;
+      --line: #273245;
+      --lane: #fafcff;
+      --blue: #eaf4ff;
+      --blue-line: #2f6fab;
+      --green: #edf9f2;
+      --green-line: #24845e;
+      --amber: #fff6df;
+      --amber-line: #b97817;
+      --purple: #f2efff;
+      --purple-line: #6754b8;
+      --red: #fff0f0;
+      --red-line: #bb4141;
+      --shadow: 0 18px 44px rgba(31, 42, 68, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(47, 111, 171, 0.10), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(103, 84, 184, 0.08), transparent 30%),
+        var(--bg);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.25;
+    }
+
+    .subtitle {
+      max-width: 980px;
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(140px, 1fr));
+      gap: 10px;
+      margin: 0 0 18px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid #d9e0ea;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.84);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border: 2px solid;
+      border-radius: 4px;
+      flex: 0 0 auto;
+    }
+
+    .canvas {
+      overflow: auto;
+      border: 1px solid #d7deeb;
+      border-radius: 14px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    svg {
+      display: block;
+      min-width: 1260px;
+      width: 100%;
+      height: auto;
+    }
+
+    .lane {
+      fill: var(--lane);
+      stroke: #dbe2ed;
+      stroke-width: 1;
+      rx: 14;
+    }
+
+    .lane-title {
+      fill: #43506a;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .box {
+      stroke-width: 2.1;
+      rx: 11;
+      ry: 11;
+      filter: drop-shadow(0 8px 14px rgba(27, 38, 60, 0.07));
+    }
+
+    .start { fill: var(--blue); stroke: var(--blue-line); }
+    .extract { fill: var(--green); stroke: var(--green-line); }
+    .decision { fill: var(--amber); stroke: var(--amber-line); }
+    .process { fill: var(--purple); stroke: var(--purple-line); }
+    .fallback { fill: var(--red); stroke: var(--red-line); }
+
+    .title {
+      fill: var(--ink);
+      font-size: 13.5px;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .body {
+      fill: var(--muted);
+      font-size: 11.5px;
+      font-weight: 500;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+
+    .edge-label {
+      fill: #334155;
+      font-size: 12px;
+      font-weight: 700;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .note {
+      padding: 16px 18px;
+      border: 1px solid #d9e0ea;
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 10px 26px rgba(31, 42, 68, 0.07);
+    }
+
+    .note h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    @media (max-width: 860px) {
+      main { padding: 18px; }
+      .legend, .notes { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>PDF 处理流程图</h1>
+      <p class="subtitle">
+        这张图只保留 PDF 处理主链路：识别文档类型、选择解析或 OCR 路径、逐页抽取、轻量清洗、质量校验，再进入分块或下游 LLM 任务。
+      </p>
+    </header>
+
+    <section class="legend" aria-label="legend">
+      <div class="legend-item"><span class="swatch" style="background: var(--blue); border-color: var(--blue-line)"></span>输入 / 起点</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--green); border-color: var(--green-line)"></span>抽取 / 校验</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--amber); border-color: var(--amber-line)"></span>分支判断</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--purple); border-color: var(--purple-line)"></span>结构化处理</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--red); border-color: var(--red-line)"></span>回退 / 补救</div>
+    </section>
+
+    <section class="canvas" aria-label="PDF processing pipeline diagram">
+      <svg viewBox="0 0 1500 1040" role="img" aria-labelledby="diagram-title diagram-desc">
+        <title id="diagram-title">PDF 处理流程图</title>
+        <desc id="diagram-desc">A standalone PDF processing pipeline diagram that shows parser selection, OCR fallback, cleanup, validation, chunking, and downstream LLM tasks.</desc>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#263244"></path>
+          </marker>
+        </defs>
+
+        <rect class="lane" x="36" y="70" width="1428" height="170"></rect>
+        <text class="lane-title" x="58" y="100">1. Input and type detection</text>
+
+        <rect class="lane" x="36" y="275" width="1428" height="200"></rect>
+        <text class="lane-title" x="58" y="305">2. Extraction path</text>
+
+        <rect class="lane" x="36" y="515" width="1428" height="165"></rect>
+        <text class="lane-title" x="58" y="545">3. Cleanup and validation</text>
+
+        <rect class="lane" x="36" y="715" width="1428" height="160"></rect>
+        <text class="lane-title" x="58" y="745">4. Structured processing</text>
+
+        <rect class="lane" x="36" y="905" width="1428" height="95"></rect>
+        <text class="lane-title" x="58" y="935">5. Fallback loop</text>
+
+        <rect class="box start" x="70" y="122" width="160" height="72"></rect>
+        <text class="title" x="150" y="147">Raw PDF</text>
+        <text class="body" x="150" y="170">file / bytes / upload</text>
+
+        <rect class="box decision" x="300" y="112" width="220" height="92"></rect>
+        <text class="title" x="410" y="136">PDF Type?</text>
+        <text class="body" x="410" y="162">text / scanned / mixed</text>
+        <text class="body" x="410" y="182">quick sample-based judgment</text>
+
+        <rect class="box extract" x="120" y="330" width="245" height="94"></rect>
+        <text class="title" x="242.5" y="354">Text Extractor</text>
+        <text class="body" x="242.5" y="380">pdfplumber / pypdf / PyMuPDF</text>
+        <text class="body" x="242.5" y="400">use when the PDF already contains text</text>
+
+        <rect class="box fallback" x="455" y="330" width="245" height="94"></rect>
+        <text class="title" x="577.5" y="354">OCR Pipeline</text>
+        <text class="body" x="577.5" y="380">render page images -> OCR</text>
+        <text class="body" x="577.5" y="400">use for scanned or image-heavy pages</text>
+
+        <rect class="box process" x="790" y="330" width="245" height="94"></rect>
+        <text class="title" x="912.5" y="354">Hybrid Path</text>
+        <text class="body" x="912.5" y="380">extract native text first</text>
+        <text class="body" x="912.5" y="400">OCR only weak or empty pages</text>
+
+        <rect class="box extract" x="1125" y="330" width="245" height="94"></rect>
+        <text class="title" x="1247.5" y="354">Page-by-Page Extraction</text>
+        <text class="body" x="1247.5" y="380">keep page order and boundaries</text>
+        <text class="body" x="1247.5" y="400">collect page-level text and stats</text>
+
+        <rect class="box process" x="230" y="565" width="250" height="94"></rect>
+        <text class="title" x="355" y="589">Light Cleanup</text>
+        <text class="body" x="355" y="615">trim / collapse blank lines</text>
+        <text class="body" x="355" y="635">remove repeated headers and footers</text>
+
+        <rect class="box extract" x="610" y="565" width="250" height="94"></rect>
+        <text class="title" x="735" y="589">Page-Level Validation</text>
+        <text class="body" x="735" y="615">page count / empty pages / samples</text>
+        <text class="body" x="735" y="635">check readability before downstream use</text>
+
+        <rect class="box decision" x="990" y="565" width="250" height="94"></rect>
+        <text class="title" x="1115" y="589">Quality Good Enough?</text>
+        <text class="body" x="1115" y="615">readable text, usable structure,</text>
+        <text class="body" x="1115" y="635">acceptable noise level</text>
+
+        <rect class="box process" x="170" y="760" width="230" height="84"></rect>
+        <text class="title" x="285" y="784">Structured Output</text>
+        <text class="body" x="285" y="810">page metadata / sections / tables</text>
+
+        <rect class="box process" x="495" y="760" width="230" height="84"></rect>
+        <text class="title" x="610" y="784">Chunking or Indexing</text>
+        <text class="body" x="610" y="810">split only after extraction is usable</text>
+
+        <rect class="box process" x="820" y="760" width="230" height="84"></rect>
+        <text class="title" x="935" y="784">LLM Task Layer</text>
+        <text class="body" x="935" y="810">review / summary / RAG / extraction</text>
+
+        <rect class="box start" x="1145" y="760" width="230" height="84"></rect>
+        <text class="title" x="1260" y="784">Saved Notes</text>
+        <text class="body" x="1260" y="810">method / stats / caveats / result</text>
+
+        <rect class="box fallback" x="845" y="925" width="300" height="50"></rect>
+        <text class="title" x="995" y="950">Fallback: switch parser / add OCR / tune cleanup</text>
+
+        <path class="edge" d="M 230 158 H 300"></path>
+        <path class="edge" d="M 410 204 V 260 H 242.5 V 330"></path>
+        <rect x="252" y="240" width="70" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="287" y="255">text</text>
+
+        <path class="edge" d="M 450 204 V 260 H 577.5 V 330"></path>
+        <rect x="484" y="240" width="90" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="529" y="255">scanned</text>
+
+        <path class="edge" d="M 490 204 V 260 H 912.5 V 330"></path>
+        <rect x="756" y="240" width="70" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="791" y="255">mixed</text>
+
+        <path class="edge" d="M 365 377 H 1125"></path>
+        <path class="edge" d="M 700 377 H 1125"></path>
+        <path class="edge" d="M 1035 377 H 1125"></path>
+
+        <path class="edge" d="M 1247.5 424 V 500 H 355 V 565"></path>
+        <path class="edge" d="M 480 612 H 610"></path>
+        <path class="edge" d="M 860 612 H 990"></path>
+
+        <path class="edge" d="M 1115 659 V 705 H 285 V 760"></path>
+        <rect x="700" y="686" width="76" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="738" y="701">yes</text>
+
+        <path class="edge" d="M 400 802 H 495"></path>
+        <path class="edge" d="M 725 802 H 820"></path>
+        <path class="edge" d="M 1050 802 H 1145"></path>
+
+        <path class="edge" d="M 1115 659 V 900 H 995 V 925"></path>
+        <rect x="1080" y="866" width="64" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1112" y="881">no</text>
+
+        <path class="edge" d="M 845 950 H 735 V 659"></path>
+      </svg>
+    </section>
+
+    <section class="notes">
+      <article class="note">
+        <h2>关键点</h2>
+        <p>真正决定精度的，不只是“选了哪个 PDF 库”，而是有没有在进入分块和 LLM 之前做页级质量校验。</p>
+      </article>
+      <article class="note">
+        <h2>回退策略</h2>
+        <p>抽取质量不够时，优先回到解析层修正：换 parser、补 OCR、调清洗，而不是在脏文本上继续往下做。</p>
+      </article>
+      <article class="note">
+        <h2>适用范围</h2>
+        <p>这张图适用于文本型 PDF、扫描件 PDF 和混合型 PDF 的通用处理讨论，也适合拿来对照产品中的实际实现。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
