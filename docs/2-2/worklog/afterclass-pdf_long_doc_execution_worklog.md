@@ -1,4 +1,4 @@
-# PDF Long Document Execution Worklog
+﻿# PDF Long Document Execution Worklog
 
 ## 2026-06-08T00:00:00+10:00 Step A-1
 
@@ -9,7 +9,7 @@
   - Staged the dependency update for `pyproject.toml` when processing Step A-1.
 - Files touched:
   - `pyproject.toml`
-  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+  - `docs/2-2/worklog/afterclass-pdf_long_doc_execution_worklog.md`
 - Result:
   - Added `pdfplumber==0.11.9` for PDF text extraction.
   - Added `python-multipart==0.0.32` for FastAPI `multipart/form-data` upload parsing.
@@ -29,7 +29,7 @@
   - Ran linter diagnostics for `src/investory/gateway/pdf_extractor.py`.
 - Files touched:
   - `src/investory/gateway/pdf_extractor.py`
-  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+  - `docs/2-2/worklog/afterclass-pdf_long_doc_execution_worklog.md`
 - Result:
   - Added `extract_text_from_pdf(file_bytes: bytes) -> str` for gateway-side PDF text extraction.
   - The extractor opens PDFs from memory via `pdfplumber.open(io.BytesIO(file_bytes))`, extracts text page by page, skips empty pages, joins pages with blank-line separation, and collapses excessive blank lines.
@@ -52,7 +52,7 @@
   - Ran linter diagnostics for `src/investory/gateway/schemas.py`.
 - Files touched:
   - `src/investory/gateway/schemas.py`
-  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+  - `docs/2-2/worklog/afterclass-pdf_long_doc_execution_worklog.md`
 - Result:
   - Added `InvestmentDocumentReviewFileUploadRequest` as a plain dependency-injection class instead of a Pydantic `FlowRequest` subclass.
   - Added `UploadFile` and `Form` fields for the PDF file, optional review goal, optional document type hint, and optional session id.
@@ -75,7 +75,7 @@
   - Ran linter diagnostics for `src/investory/gateway/api.py`.
 - Files touched:
   - `src/investory/gateway/api.py`
-  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+  - `docs/2-2/worklog/afterclass-pdf_long_doc_execution_worklog.md`
 - Result:
   - Added `INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE = "/investment-document-review-file"`.
   - Added `run_investment_document_review_file()` as an async multipart upload endpoint using `InvestmentDocumentReviewFileUploadRequest = Depends()`.
@@ -108,7 +108,7 @@
   - `pyproject.toml`
   - `requirements.lock.txt`
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py`
-  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+  - `docs/2-2/worklog/afterclass-pdf_long_doc_execution_worklog.md`
 - Result:
   - Replaced the hand-written paragraph chunking implementation with LangChain's `RecursiveCharacterTextSplitter`.
   - Added `langchain-text-splitters==1.1.2` to project dependencies and the lock file.
@@ -137,7 +137,7 @@
   - Ran linter diagnostics for `src/investory/agent_core/contracts/investment_document_review_state.py`.
 - Files touched:
   - `src/investory/agent_core/contracts/investment_document_review_state.py`
-  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+  - `docs/2-2/worklog/afterclass-pdf_long_doc_execution_worklog.md`
 - Result:
   - Added `document_chunks: list[str] = Field(default_factory=list)` to `InvestmentDocumentReviewState`.
   - Kept the default as an empty list so existing single-pass review paths and tests can instantiate state without providing chunk data.
@@ -156,7 +156,7 @@
   - Ran linter diagnostics for `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`.
 - Files touched:
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
-  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+  - `docs/2-2/worklog/afterclass-pdf_long_doc_execution_worklog.md`
 - Result:
   - Imported `split_into_chunks()` into the investment document review flow.
   - Added document chunk construction at the end of `build_review_framework` from `state.input_payload[DOCUMENT_TEXT_FIELD]`.
@@ -183,7 +183,7 @@
   - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py`
   - `src/investory/agent_core/prompts/tasks/investment_document_extract.md`
   - `tests/test_investment_document_review_flow.py`
-  - `docs/2-2/worklog/pdf_long_doc_execution_worklog.md`
+  - `docs/2-2/worklog/afterclass-pdf_long_doc_execution_worklog.md`
 - Result:
   - Main review flow now covers all chunks through a map-reduce style path: every chunk gets a lightweight extract task, all chunk extracts feed an aggregate analyze task, and the final synthesize task produces the review output.
   - `document_chunks` empty remains the fallback route to existing single-pass review behavior.

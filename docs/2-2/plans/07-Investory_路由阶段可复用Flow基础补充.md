@@ -1,6 +1,6 @@
-# Investory 路由阶段可复用 Flow 基础补充
+﻿# Investory 路由阶段可复用 Flow 基础补充
 
-这份补充文档对应 `docs/2-2/01-Investory_第2-2课_Routing内容提取与项目落点.md`，专门整理当前 routing 阶段里能跨不同 flow 复用的基础层。
+这份补充文档对应 `docs/2-2/plans/01-Investory_第2-2课_Routing内容提取与项目落点.md`，专门整理当前 routing 阶段里能跨不同 flow 复用的基础层。
 
 ## 1. 可以复用的部分
 

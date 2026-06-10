@@ -1,4 +1,4 @@
-# Investory 投资文档审查助手 v1 任务清单可行性与实施计划
+﻿# Investory 投资文档审查助手 v1 任务清单可行性与实施计划
 
 ## 1. 结论
 
@@ -590,7 +590,7 @@ execute_review_todo_plan
 新增可视化流程图：
 
 ```text
-docs/2-2/investment_document_review_synthesis_flowchart.html
+docs/2-2/flowcharts/investment_document_review_synthesis_flowchart.html
 ```
 
 ### 阶段 6：网关与兼容性测试

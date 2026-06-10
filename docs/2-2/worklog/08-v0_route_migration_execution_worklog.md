@@ -1,6 +1,6 @@
-# Investment Document Review V0 Route Migration Worklog (Retroactive)
+﻿# Investment Document Review V0 Route Migration Worklog (Retroactive)
 
-Plan source: `docs/2-2/08-Investory_投资文档审查助手v0路由迁移实施计划.md`
+Plan source: `docs/2-2/plans/08-Investory_投资文档审查助手v0路由迁移实施计划.md`
 
 This worklog was reconstructed from git history after implementation. It records the v0 route migration work that introduced the investment document review contracts, rules, LLM router, single-pass review task, LangGraph flow, and gateway endpoint.
 
@@ -10,7 +10,7 @@ Timestamp: 2026-06-06
 
 Commands used:
 
-- `git log --date=iso --format="%h%x09%ad%x09%s" 4cfcf63^..b43ff42 -- docs/2-2/08-Investory_投资文档审查助手v0路由迁移实施计划.md src/investory/agent_core/contracts/investment_document_review_state.py src/investory/agent_core/runtime/flow/investment_document_review src/investory/agent_core/task_models/investment_document_review.py src/investory/agent_core/tasks.py src/investory/gateway src/investory/main.py tests/test_investment_document_review* tests/test_gateway_schemas.py tests/test_tasks.py`
+- `git log --date=iso --format="%h%x09%ad%x09%s" 4cfcf63^..b43ff42 -- docs/2-2/plans/08-Investory_投资文档审查助手v0路由迁移实施计划.md src/investory/agent_core/contracts/investment_document_review_state.py src/investory/agent_core/runtime/flow/investment_document_review src/investory/agent_core/task_models/investment_document_review.py src/investory/agent_core/tasks.py src/investory/gateway src/investory/main.py tests/test_investment_document_review* tests/test_gateway_schemas.py tests/test_tasks.py`
 - `rg -n "class InvestmentDocumentType|class InvestmentDocumentReviewRouteDecision|class InvestmentDocumentReviewState|DOCUMENT_TEXT_FIELD|class InvestmentDocumentReviewResult" src/investory/agent_core/contracts/investment_document_review_state.py src/investory/agent_core/task_models/investment_document_review.py`
 - `rg -n "DOCUMENT_ROUTER_MAX_CHARS|def detect_missing_fields|def looks_like_investment_advice|def requires_realtime_data|def build_document_excerpt|DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE|def get_review_framework" src/investory/agent_core/runtime/flow/investment_document_review/document_review_rules.py`
 - `rg -n "class InvestmentDocumentReviewLLMRouter|def normalize_route_decision|INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS|InvestmentDocumentReviewNode|class InvestmentDocumentReviewFlow|INVESTMENT_DOCUMENT_REVIEW_ROUTE|InvestmentDocumentReviewRequest" src/investory/agent_core/runtime/flow/investment_document_review/document_review_router.py src/investory/agent_core/tasks.py src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py src/investory/gateway/api.py src/investory/gateway/schemas.py`
@@ -47,7 +47,7 @@ Actions:
 
 Files touched:
 
-- `docs/2-2/08-Investory_投资文档审查助手v0路由迁移实施计划.md`
+- `docs/2-2/plans/08-Investory_投资文档审查助手v0路由迁移实施计划.md`
 
 Result:
 

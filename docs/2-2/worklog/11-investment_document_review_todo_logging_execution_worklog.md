@@ -1,6 +1,6 @@
-# Investment Document Review To-Do Logging Execution Worklog
+﻿# Investment Document Review To-Do Logging Execution Worklog
 
-Plan source: `docs/2-2/investment_document_review_todo_logging_plan.md`
+Plan source: `docs/2-2/plans/11-investment_document_review_todo_logging_plan.md`
 
 ## Phase 1 - 接入基础日志配置
 
@@ -22,7 +22,7 @@ Files touched:
 - `src/investory/main.py`
 - `tests/test_config.py`
 - `tests/test_logging_config.py`
-- `docs/2-2/worklog/investment_document_review_todo_logging_execution_worklog.md`
+- `docs/2-2/worklog/11-investment_document_review_todo_logging_execution_worklog.md`
 
 Evidence:
 
@@ -62,7 +62,7 @@ Files touched:
 
 - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
 - `tests/test_investment_document_review_flow.py`
-- `docs/2-2/worklog/investment_document_review_todo_logging_execution_worklog.md`
+- `docs/2-2/worklog/11-investment_document_review_todo_logging_execution_worklog.md`
 
 Evidence:
 
@@ -102,7 +102,7 @@ Files touched:
 - `src/investory/agent_core/runtime/todo_core/runner.py`
 - `tests/test_todo_execution_runner.py`
 - `tests/test_investment_document_review_flow.py`
-- `docs/2-2/worklog/investment_document_review_todo_logging_execution_worklog.md`
+- `docs/2-2/worklog/11-investment_document_review_todo_logging_execution_worklog.md`
 
 Evidence:
 
@@ -140,7 +140,7 @@ Files touched:
 
 - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
 - `tests/test_investment_document_review_flow.py`
-- `docs/2-2/worklog/investment_document_review_todo_logging_execution_worklog.md`
+- `docs/2-2/worklog/11-investment_document_review_todo_logging_execution_worklog.md`
 
 Evidence:
 
@@ -184,17 +184,17 @@ Actions:
 Files touched:
 
 - `tests/test_investment_document_review_flow.py`
-- `docs/2-2/investment_document_review_apifox_test_plan.md`
-- `docs/2-2/worklog/investment_document_review_todo_logging_execution_worklog.md`
+- `docs/2-2/plans/12-investment_document_review_apifox_test_plan.md`
+- `docs/2-2/worklog/11-investment_document_review_todo_logging_execution_worklog.md`
 
 Evidence:
 
 - `tests/test_investment_document_review_flow.py:1836` now verifies the chunk-review failure outcome instead of expecting the old single-pass error passthrough.
 - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:658` routes any non-empty `document_chunks` state into the To-Do plan path.
 - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:849` emits the `Chunk-based document review did not produce synthesis.` fallback error when chunk execution never produces a synthesize result.
-- `docs/2-2/investment_document_review_apifox_test_plan.md:61` adds the new `服务端日志观察点` section.
-- `docs/2-2/investment_document_review_apifox_test_plan.md:86` documents how to inspect failure logs via `todo_task.failed`.
-- `docs/2-2/investment_document_review_apifox_test_plan.md:101` documents how to read `todo_execution.completed` as the request-level completion summary.
+- `docs/2-2/plans/12-investment_document_review_apifox_test_plan.md:61` adds the new `服务端日志观察点` section.
+- `docs/2-2/plans/12-investment_document_review_apifox_test_plan.md:86` documents how to inspect failure logs via `todo_task.failed`.
+- `docs/2-2/plans/12-investment_document_review_apifox_test_plan.md:101` documents how to read `todo_execution.completed` as the request-level completion summary.
 
 Verification:
 

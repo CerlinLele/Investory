@@ -1,4 +1,4 @@
-# 投资文档审查 To-Do 计划与执行日志实施计划
+﻿# 投资文档审查 To-Do 计划与执行日志实施计划
 
 ## 目标
 
@@ -128,7 +128,7 @@
 
 - 单元测试：验证 plan 日志 helper 不输出完整 document text。
 - 单元测试：验证 runner event handler 在 success、failed、skipped、retry 场景被调用。
-- 更新 `docs/2-2/investment_document_review_apifox_test_plan.md`，增加“服务端日志观察点”章节。
+- 更新 `docs/2-2/plans/12-investment_document_review_apifox_test_plan.md`，增加“服务端日志观察点”章节。
 
 建议测试命令：
 
