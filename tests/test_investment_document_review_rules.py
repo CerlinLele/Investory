@@ -127,6 +127,16 @@ def test_looks_like_investment_advice_ignores_document_text_keywords_only():
     assert looks_like_investment_advice(payload) is False
 
 
+def test_looks_like_investment_advice_does_not_treat_holdings_as_hold_intent():
+    payload = {
+        REVIEW_GOAL_FIELD: (
+            "Review fee clarity, risk disclosure, holdings, yield-related metrics, "
+            "and performance limitations."
+        )
+    }
+    assert looks_like_investment_advice(payload) is False
+
+
 def test_requires_realtime_data_detects_review_goal_intent():
     payload = {REVIEW_GOAL_FIELD: "Use this material and give me today's price impact."}
     assert requires_realtime_data(payload) is True

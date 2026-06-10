@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from investory.agent_core.contracts.investment_document_review_state import (
@@ -127,6 +128,18 @@ def _intent_text(payload: dict[str, Any]) -> str:
     )
 
 
+def _contains_policy_term(text: str, term: str) -> bool:
+    if term.isascii() and any(char.isalpha() for char in term):
+        escaped_term = re.escape(term)
+        pattern = rf"(?<![a-z0-9]){escaped_term}(?![a-z0-9])"
+        return re.search(pattern, text) is not None
+    return term in text
+
+
+def _matches_any_policy_term(text: str, terms: tuple[str, ...]) -> bool:
+    return any(_contains_policy_term(text, term) for term in terms)
+
+
 def detect_missing_fields(payload: dict[str, Any]) -> list[str]:
     if has_value(payload, DOCUMENT_TEXT_FIELD):
         return []
@@ -135,12 +148,12 @@ def detect_missing_fields(payload: dict[str, Any]) -> list[str]:
 
 def looks_like_investment_advice(payload: dict[str, Any]) -> bool:
     text = _intent_text(payload)
-    return any(term in text for term in INVESTMENT_ADVICE_TERMS)
+    return _matches_any_policy_term(text, INVESTMENT_ADVICE_TERMS)
 
 
 def requires_realtime_data(payload: dict[str, Any]) -> bool:
     text = _intent_text(payload)
-    return any(term in text for term in REALTIME_DATA_TERMS)
+    return _matches_any_policy_term(text, REALTIME_DATA_TERMS)
 
 
 def build_document_excerpt(payload: dict[str, Any]) -> str:
