@@ -274,6 +274,56 @@ Apifox Body 字段：
 
 预期：等价于 Case 3 / Case 5 的 `action: complete` 响应，具体取决于 PDF 提取后文本长度。
 
+### Case 6A: PDF Upload — Local NIST AI RMF PDF — 需要 LLM key
+
+适用场景：
+
+- 需要用仓库内现成长 PDF 验证 `/investment-document-review-file` 的上传、提取、分块、To-Do plan 和 synthesize 全链路。
+- 当前本地测试文件路径：`data/NIST.AI.100-1.pdf`
+
+注意：
+
+- 该 PDF 不是 ETF factsheet、prospectus 或 earnings report，而是偏教学/框架型材料。
+- 为减少 router 因前 600 字摘录判断不稳而返回 `missing_fields: ["document_type_hint"]`，建议显式传 `document_type_hint=learning_material`。
+
+```text
+Method: POST
+URL: http://127.0.0.1:8000/investment-document-review-file
+Content-Type: multipart/form-data
+```
+
+Apifox Body 字段：
+
+| Key | Type | Value |
+|---|---|---|
+| `file` | File | `data/NIST.AI.100-1.pdf` |
+| `review_goal` | Text | `Summarize the core AI risk management concepts and identify main implementation considerations` |
+| `document_type_hint` | Text | `learning_material` |
+| `session_id` | Text | `apifox-nist-pdf-learning-material` |
+
+预期行为（不断言具体 LLM 文本内容）：
+
+- `ok == true`
+- `task_name == "investment_document_review"`
+- `result.action == "complete"`
+- `result.document_type == "learning_material"`
+- `result.review` 非 `null`
+- 因为该 PDF 篇幅较长，通常会走 multi-chunk 路径，而不是单次 single-pass
+
+建议同时观察日志：
+
+- `investment_document_review.todo_plan.generated`
+- `investment_document_review.todo_task.started`
+- `task_id=extract_chunk_`
+- `investment_document_review.todo_execution.completed`
+
+如果不传 `document_type_hint`，可额外做一次对照测试：
+
+- 可能结果 A：router 仍成功分类为 `learning_material` 并完成审查
+- 可能结果 B：返回 `ask_for_missing_input`，且 `missing_fields` 包含 `document_type_hint`
+
+这个对照用例适合验证 router 在非典型“投资文档”上的稳健性，但如果目标是稳定验证 PDF 审查链路，仍建议优先传 `learning_material`。
+
 ### Case 7: PDF Upload — Corrupted File — 不需要 LLM key
 
 上传损坏文件（可以把任意文本文件改后缀为 `.pdf`，或构造一个无效 PDF 头的文件）。
