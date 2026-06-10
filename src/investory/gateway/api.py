@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
 
@@ -204,4 +206,8 @@ async def run_investment_document_review_file(
         payload=payload,
         session_id=upload.session_id,
     )
-    return execute_investment_document_review_request(review_request, flow=flow)
+    return await asyncio.to_thread(
+        execute_investment_document_review_request,
+        review_request,
+        flow=flow,
+    )

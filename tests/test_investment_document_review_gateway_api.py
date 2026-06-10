@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -22,6 +24,7 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
 )
 from investory.gateway.api import (
     INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR,
+    INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE,
     INVESTMENT_DOCUMENT_REVIEW_ROUTE,
     execute_investment_document_review_request,
     router,
@@ -146,9 +149,14 @@ def test_investment_document_review_endpoint_runs_complete_review_through_execut
         DOCUMENT_TYPE_FIELD: "etf_factsheet",
         ROUTE_REASON_FIELD: "The excerpt clearly matches an ETF factsheet.",
         ROUTE_CONFIDENCE_FIELD: 0.91,
-        REVIEW_FIELD: {"handled_by": "investment_document_review_single_pass"},
+        REVIEW_FIELD: {"handled_by": "investment_document_synthesize"},
     }
-    assert len(executor.calls) == 1
+    assert [name for name, _ in executor.calls] == [
+        "investment_document_extract",
+        "investment_document_extract",
+        "investment_document_analyze",
+        "investment_document_synthesize",
+    ]
 
 
 def test_investment_document_review_endpoint_preserves_refusal_branch():
@@ -262,3 +270,51 @@ def test_investment_document_review_endpoint_returns_error_response_for_flow_fai
             "request_id": None,
         },
     }
+
+
+def test_investment_document_review_file_endpoint_runs_flow_without_event_loop_error():
+    flow = FakeFlow(
+        TaskResult(
+            ok=True,
+            task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
+            result={"action": "complete", "document_type": "learning_material"},
+        )
+    )
+    client = _client_with_flow(flow)
+
+    with patch(
+        "investory.gateway.api.extract_text_from_pdf",
+        return_value="Extracted PDF text for review.",
+    ):
+        response = client.post(
+            INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE,
+            files={
+                "file": (
+                    "sample.pdf",
+                    b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF",
+                    "application/pdf",
+                )
+            },
+            data={
+                "review_goal": "Summarize the document",
+                "document_type_hint": "learning_material",
+                "session_id": "session-file-1",
+            },
+        )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["task_name"] == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
+    assert body["session_id"] == "session-file-1"
+    assert body["result"] == {"action": "complete", "document_type": "learning_material"}
+    assert flow.calls == [
+        (
+            {
+                "document_text": "Extracted PDF text for review.",
+                "review_goal": "Summarize the document",
+                "document_type_hint": "learning_material",
+            },
+            "session-file-1",
+        )
+    ]
