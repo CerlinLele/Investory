@@ -958,7 +958,7 @@ class InvestmentDocumentReviewFlow:
                 },
             )
 
-        result = self.executor.run(spec, payload)
+        result = await asyncio.to_thread(self.executor.run, spec, payload)
         if result.ok:
             return TodoTaskResult(
                 id=task.id,

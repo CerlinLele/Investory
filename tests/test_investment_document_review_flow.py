@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 import logging
+from threading import Lock
+from time import perf_counter, sleep
 
 from investory.agent_core.contracts.investment_document_review_state import (
     ANALYZE_FOCUS_FIELD,
@@ -1683,6 +1685,104 @@ def test_execute_review_todo_plan_dispatches_analyze_tasks_with_dependency_resul
             },
         ),
     ]
+
+
+def test_execute_review_todo_plan_runs_independent_extract_tasks_concurrently() -> None:
+    class BlockingExtractExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+            self._lock = Lock()
+            self.active_calls = 0
+            self.max_active_calls = 0
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            with self._lock:
+                self.calls.append((spec.name, payload))
+                self.active_calls += 1
+                self.max_active_calls = max(self.max_active_calls, self.active_calls)
+
+            try:
+                sleep(0.2)
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "extracted_facts": [f"Handled {payload['task_id']}."],
+                        "source_citations": [f"Chunk for {payload['task_id']}"],
+                        "information_gaps": [],
+                        "boundary_notes": [],
+                        "summary": f"Completed {payload['task_id']}.",
+                    },
+                )
+            finally:
+                with self._lock:
+                    self.active_calls -= 1
+
+    executor = BlockingExtractExecutor()
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    todo_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_chunk_0001",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract chunk 1",
+                    "description": "Extract facts from chunk 1.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Chunk 1 facts are extracted."],
+                },
+                {
+                    "id": "extract_chunk_0002",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract chunk 2",
+                    "description": "Extract facts from chunk 2.",
+                    "payload": {"extract_focus": ["holdings"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Chunk 2 facts are extracted."],
+                },
+                {
+                    "id": "extract_chunk_0003",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract chunk 3",
+                    "description": "Extract facts from chunk 3.",
+                    "payload": {"extract_focus": ["risks"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Chunk 3 facts are extracted."],
+                },
+            ],
+            "summary": "Extract three independent chunks.",
+        }
+    )
+
+    started_at = perf_counter()
+    update = flow.execute_review_todo_plan(
+        InvestmentDocumentReviewState(
+            input_payload={
+                DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt split into several chunks.",
+                REVIEW_GOAL_FIELD: "Extract facts from each chunk.",
+            },
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            todo_plan=todo_plan,
+        )
+    )
+    duration = perf_counter() - started_at
+
+    assert len(update["todo_results"]) == 3
+    assert all(
+        result.status == TodoTaskStatus.SUCCEEDED for result in update["todo_results"]
+    )
+    assert executor.max_active_calls >= 2
+    assert duration < 0.45
 
 
 def test_execute_review_todo_plan_does_not_treat_prior_results_as_resume_state() -> None:
