@@ -2,15 +2,16 @@
 
 ## 1. 结论
 
-`v1_加任务清单` 对 Investory 是可行的，但不应该照搬 Agently / TriggerFlow 代码。更合适的做法是复用它的业务结构：
+`v1_加任务清单` 对 Investory 是可行的，但不应该照搬 Agently / TriggerFlow 代码。更合适的做法是复用它的业务结构，并结合当前已经落地的 chunk 路由能力做混合方案：
 
 ```text
 文档输入
   -> 投资边界与缺失字段检查
   -> 文档类型路由
   -> 构建审查框架
-  -> 生成结构化 To-Do Plan
-  -> 按依赖分层并发执行 extract / analyze 子任务
+  -> 长文档: 生成结构化 Hybrid To-Do Plan
+  -> 长文档: 按依赖分层并发执行 chunk extract / dimension analyze / synthesize 子任务
+  -> 短文档: 保持 single-pass 审查
   -> 汇总为现有 gateway 响应结构
 ```
 
@@ -23,7 +24,7 @@
 - `src/investory/agent_core/runtime/todo_core/runner.py` 已有依赖分层、并发、重试、失败策略执行器。
 - `src/investory/agent_core/runtime/todo_core/plan_validator.py` 和 `dependency_layers.py` 已有依赖校验与拓扑分层。
 
-所以 v1 在本项目中的重点不是“新增一个执行框架”，而是“把现有投资文档审查 single-pass 节点替换为 plan generation + todo execution + synthesis”。
+所以 v1 在本项目中的重点不是“新增一个执行框架”，而是“让长文档路径升级为 plan generation + todo execution + synthesis，同时保留短文档 single-pass 作为低成本路径和 fallback”。
 
 ## 2. 参考示例的核心能力
 
@@ -59,29 +60,35 @@ C:\Users\hy120\Downloads\zhihullm\agent\lecture\08. 实战——智能文档审�
 
 ### 3.1 流程层可行
 
-现有 `InvestmentDocumentReviewFlow` 的主线是：
+现有 `InvestmentDocumentReviewFlow` 的主线已经不是单一路径，而是：
 
 ```text
 evaluate_policy_gate
   -> classify_document_type
   -> build_review_framework
-  -> run_single_pass_review
-  -> build_final_result
+  -> route_after_review_framework
+     -> chunk route: generate_review_todo_plan -> execute_review_todo_plan -> build_final_result
+     -> full-document route: run_single_pass_review -> build_final_result
 ```
 
-v1 只需要替换中后段：
+因此 v1 更合适的目标不是“删除 single-pass”，而是把长文档路径稳定收口为 Hybrid To-Do 执行，把短文档路径继续留给 single-pass：
 
 ```text
 evaluate_policy_gate
   -> classify_document_type
   -> build_review_framework
-  -> generate_review_todo_plan
-  -> execute_review_todo_plan
-  -> synthesize_review_result
-  -> build_final_result
+  -> route_after_review_framework
+     -> long-document / chunked:
+        generate_review_todo_plan
+        -> execute_review_todo_plan
+        -> synthesize_review_result
+        -> build_final_result
+     -> short-document / non-chunked:
+        run_single_pass_review
+        -> build_final_result
 ```
 
-前半段的缺失字段检查、投资建议拒绝、实时行情拒绝、文档分类都应该保留。这样可以避免 v1 任务拆解阶段生成越界任务。
+前半段的缺失字段检查、投资建议拒绝、实时行情拒绝、文档分类都应该保留。这样可以避免 v1 任务拆解阶段生成越界任务，也能避免把简单请求强行送进较重的 To-Do 执行链路。
 
 ### 3.2 合约层可行
 
@@ -242,7 +249,7 @@ src/investory/agent_core/task_models/investment_document_review_todo.py
 
 ### 5.2 新增任务模型与 prompts
 
-建议新增三个 LLM task：
+建议新增四个内部 task，其中 plan 负责规划，执行层分成 extract / analyze / synthesize：
 
 ```text
 investment_document_review_plan
@@ -268,19 +275,19 @@ src/investory/agent_core/prompts/tasks/investment_document_synthesize.md
 | Task | 职责 | 输出 |
 |---|---|---|
 | plan | 根据 document type、framework、review goal 生成 To-Do plan | `TodoExecutionPlan` |
-| extract | 只提取事实，不判断 | facts / citations / summary |
-| analyze | 基于上游 facts 判断风险、缺口、一致性 | findings / severity / boundary notes |
+| extract | 只提取事实，不判断；长文档默认按 chunk fan-out | facts / citations / summary |
+| analyze | 基于上游 facts 判断风险、缺口、一致性；长文档默认按审查维度 fan-out | findings / severity / boundary notes |
 | synthesize | 汇总所有 task results 为最终审查结果 | `InvestmentDocumentReviewResult` |
 
 ### 5.3 Flow 节点调整
 
-建议把现有节点：
+建议保留现有路由形态，但把 chunk 路径里的 To-Do plan 明确升级为 hybrid plan。现有节点：
 
 ```text
 RUN_SINGLE_PASS_REVIEW
 ```
 
-替换为：
+在长文档路径中对应：
 
 ```text
 GENERATE_REVIEW_TODO_PLAN
@@ -299,6 +306,52 @@ review_synthesis_payload: dict[str, Any] | None = None
 ```
 
 如果担心 Pydantic state 复杂度，也可以先用 `dict[str, Any]`，但最终建议使用已定义的 Pydantic 合约，方便测试和错误定位。
+
+### 5.4 推荐的 Hybrid To-Do 结构
+
+结合当前代码，第一优先级不建议把长文档改成“按维度重复读取全文”的 extract 方案。更稳妥的方式是：
+
+```text
+Layer 1:
+  extract_chunk_0001
+  extract_chunk_0002
+  extract_chunk_0003
+  ...
+
+Layer 2:
+  analyze_fees
+  analyze_holdings
+  analyze_risks
+  analyze_disclosure_gaps
+  ...
+
+Layer 3:
+  synthesize_review
+```
+
+依赖建议：
+
+- Layer 1 的 chunk extract 全部 `depends_on=[]`，由 runner 并发执行。
+- Layer 2 的维度 analyze 任务依赖 Layer 1 的 extract 结果，默认可先依赖所有 chunk extract。
+- Layer 3 的 synthesize 依赖所有 analyze 任务。
+
+这样设计的原因是：
+
+- 复用当前 `document_chunks` 分流，不推翻现有长文档路径。
+- 事实抽取只对每个 chunk 扫一遍，避免每个维度都重复全量阅读全文。
+- 维度并发发生在分析层，更贴近 `analyze_focus` 的语义，也更容易解释和测试。
+- 继续复用 `TodoExecutionRunner` 的 dependency layer 并发能力，不需要新造执行器。
+
+不建议作为默认方案的是：
+
+```text
+extract_fees_from_full_doc
+extract_holdings_from_full_doc
+extract_risks_from_full_doc
+...
+```
+
+因为这会让多个 extract 任务重复扫描整篇长文档，增加 token 成本、时延和结果重复度。
 
 ## 6. 分阶段实施计划
 
@@ -357,21 +410,26 @@ Step:
 
 ### 阶段 2：生成投资文档审查 To-Do Plan
 
-目标：在 `build_review_framework` 之后生成结构化 plan。
+目标：在 `build_review_framework` 之后生成结构化 plan，并把长文档默认计划固定为“chunk extract + dimension analyze + synthesize”的 hybrid DAG。
 
 Step:
 
 1. 先把 `generate_review_todo_plan` 作为独立节点设计出来，不直接塞进执行器。
 2. 明确 plan 生成输入，至少包含 `document_text`、`document_type`、`extract_focus`、`analyze_focus`、`review_goal`。
-3. 设计 prompt 约束，限定 extract 和 analyze 的职责边界。
-4. 把 `depends_on`、`completion_criteria`、task id 规则写进输出要求。
-5. 用 `ensure_valid_todo_plan()` 做模型输出的二次校验。
-6. 先用一个或两个文档类型跑通 plan 生成，再扩大覆盖面。
+3. 长文档默认优先走受控的 hybrid plan builder，而不是立刻完全依赖 LLM 自由规划。
+4. 设计 prompt 约束，限定 extract 和 analyze 的职责边界。
+5. 把 `depends_on`、`completion_criteria`、task id 规则写进输出要求。
+6. 用 `ensure_valid_todo_plan()` 做模型输出的二次校验。
+7. 先用一个或两个文档类型跑通 plan 生成，再扩大覆盖面。
 
 实施项：
 
 - 新增 `generate_review_todo_plan` flow 节点。
 - 输入包含 `document_text`、`document_type`、`extract_focus`、`analyze_focus`、`review_goal`。
+- 长文档默认由本地 builder 生成 hybrid plan：
+  - chunk extract 任务来自 `document_chunks`
+  - dimension analyze 任务来自 `analyze_focus`
+  - synthesize 任务依赖所有 analyze 任务
 - prompt 强制输出：
   - extract 任务必须 `depends_on=[]`。
   - analyze 任务必须依赖至少一个 extract 任务。
@@ -385,6 +443,7 @@ Step:
 - valid plan 进入下一节点。
 - unknown dependency、self dependency、cycle、empty completion criteria 会失败并返回结构化错误。
 - 计划生成不改变现有 missing/refusal 行为。
+- 长文档默认不会退化成“每个维度都重新读全文”的 extract 计划。
 
 当前实现说明：
 
@@ -394,17 +453,18 @@ Step:
 - `depends_on`、`completion_criteria`、稳定 task id 规则都已经写进 plan 输出要求。原因不是为了“格式整齐”，而是为了让 validator 和 runner 真正能消费这些字段，而不是把它们当摆设。
 - 计划生成后会先经过模型反序列化，再调用 `ensure_valid_todo_plan()` 做二次校验。也就是说，LLM 只是提议 plan，最终是否可执行由本地 validator 判定。
 - 当前实现先从一个受控文档类型范围起步，再逐步扩展覆盖面，这比一开始追求“所有类型都能规划”更稳。因为 v1 真正难的不是生成任务列表，而是生成“能被现有执行器稳定消费的任务列表”。
+- 结合当前代码状态，下一步更推荐的不是把所有长文档都交给 LLM 自由拆任务，而是把 chunk extract 固定下来，再基于 `analyze_focus` 生成维度 analyze 任务。这样可以把动态性放在分析层，而不是放在最贵、最容易重复读全文的抽取层。
 
 ### 阶段 3：接入 TodoExecutionRunner
 
-目标：用现有 runner 按依赖分层并发执行投资文档子任务。
+目标：用现有 runner 按依赖分层并发执行投资文档子任务，并优先支持 hybrid plan 的三层 DAG。
 
 Step:
 
 1. 先把 `TodoExecutionRunner` 当成唯一执行入口，而不是在 flow 里临时拼执行逻辑。
 2. 设计 task.kind 到具体 TaskSpec 的分发规则。
 3. 为 extract/analyze/synthesize 准备各自的 payload 结构。
-4. 确认依赖结果如何传给 analyze 任务。
+4. 确认依赖结果如何传给 analyze 任务，尤其是“多个 chunk extract 结果 -> 单个维度 analyze”的聚合输入。
 5. 让 runner 先只支持单次请求内执行，不引入 resume。
 6. 用失败任务和依赖任务做边界测试，确认 skip 和 retry 的行为稳定。
 
@@ -416,6 +476,10 @@ Step:
 - 使用 `TodoExecutionRunner`，默认并发先使用 `DEFAULT_TODO_CONCURRENCY`。
 - 对失败策略先使用 `RETRY_THEN_FAIL`，避免单次模型波动导致整体失败。
 - 先保持单次请求内执行，不在本阶段引入跨请求 resume。
+- 第一版优先保证：
+  - Layer 1: chunk extract 并发
+  - Layer 2: dimension analyze 并发
+  - Layer 3: synthesize 串行收口
 
 验收：
 
@@ -423,6 +487,7 @@ Step:
 - analyze 任务等待依赖结果。
 - 依赖失败时下游任务被 skipped。
 - executor 返回 id 不匹配时被 runner 识别为 failed。
+- 多个 analyze 任务可以在 chunk extract 完成后同层并发执行。
 
 当前实现说明：
 
@@ -432,6 +497,7 @@ Step:
 - analyze 依赖结果是在运行时按 `depends_on` 收集并注入的，而不是在 plan 生成时把上游结果预填进去。原因很简单：plan 生成阶段还没有结果，真正可用的依赖结果只能发生在 executor 运行中。
 - 阶段 3 的实现刻意只做“单次请求内的 To-Do 执行”，没有立刻把 resume 混进来。这是个很实用的拆分：先让 plan 和 DAG 执行稳定，再处理跨请求恢复，否则问题会纠缠在一起。
 - 失败与依赖边界测试也在这阶段补齐了，重点验证的是：同层 extract 可以并发、analyze 会等待依赖、依赖失败会产出 `skipped`、executor 返回非法结果会被 runner 识别为失败。这些都是后面 resume 和 synthesis 能站住的前提。
+- 如果后续接入 hybrid plan，这一阶段的主要新增点不在 runner 本身，而在于 analyze payload 的构造方式：一个 analyze 任务需要稳定消费多个 chunk extract 的结果，并按维度聚合成低噪音输入。
 
 ### 阶段 4：补充 resume_state / previous_results 断点续跑
 
@@ -698,6 +764,7 @@ tests/test_todo_execution_resume.py
 | analyze 任务没有事实依据 | 产生幻觉判断 | analyze payload 必须包含上游 result |
 | 子任务过多 | 成本和延迟上升 | plan prompt 限制任务数量，例如 4-8 个 |
 | 并发过高 | API 限流或成本失控 | 使用 `DEFAULT_TODO_CONCURRENCY=3`，后续配置化 |
+| 按维度重复扫描全文 | token 成本高、延迟高、结果重复 | 长文档默认使用 chunk extract + dimension analyze hybrid plan |
 | 输出结构不兼容 | gateway 调用方破坏 | 保持 `InvestmentDocumentReviewResult` 主结构 |
 | 投资建议越界 | 安全风险 | policy gate 前置，prompt 和 synthesis 双重约束 |
 | 实时数据误用 | 给出过期或虚构价格 | 当前继续拒绝 realtime request |
@@ -711,14 +778,15 @@ tests/test_todo_execution_resume.py
 推荐按以下顺序推进：
 
 1. 先保留现有 v0 flow，新增 v1 节点但不删除 single-pass task。
-2. 用 fake runner / fake executor 写完 flow 单元测试。
-3. 先接入 `TodoExecutionRunner` 的单次请求执行。
-4. 再补 `resume_state / previous_results`，让已完成任务不重复执行。
-5. 接入真实 prompts 和 TaskSpec。
-6. 用 `.venv` 跑全量测试。
-7. 如果 v1 稳定，再决定是否移除或降级 single-pass 为 fallback。
+2. 先把长文档默认 plan 固定为 hybrid 结构：chunk extract + dimension analyze + synthesize。
+3. 用 fake runner / fake executor 写完 flow 单元测试。
+4. 先接入 `TodoExecutionRunner` 的单次请求执行。
+5. 再补 `resume_state / previous_results`，让已完成任务不重复执行。
+6. 接入真实 prompts 和 TaskSpec。
+7. 用 `.venv` 跑全量测试。
+8. 如果 hybrid 路径稳定，再决定是否扩大 LLM 自由规划范围；single-pass 继续保留为短文档路径和 fallback。
 
-第一版最务实的目标不是“让每个文档都自动拆得很复杂”，而是让长文档审查具备可验证的事实提取、依赖分析和汇总链路，同时不破坏 Investory 当前的投资边界和 API 契约。
+第一版最务实的目标不是“让每个文档都自动拆得很复杂”，而是让长文档审查具备可验证的 chunk 事实提取、维度分析和汇总链路，同时不破坏 Investory 当前的投资边界和 API 契约。
 
 ## 10. 补充问答与设计决策
 
