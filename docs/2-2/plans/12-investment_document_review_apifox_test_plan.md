@@ -263,6 +263,12 @@ URL: http://127.0.0.1:8000/investment-document-review-file
 Content-Type: multipart/form-data
 ```
 
+Apifox Body 类型：
+
+- 选择 `Body -> form-data`
+- 不要用 `raw JSON`
+- 不要用整包 `binary`
+
 Apifox Body 字段：
 
 | Key | Type | Value |
@@ -291,6 +297,12 @@ Method: POST
 URL: http://127.0.0.1:8000/investment-document-review-file
 Content-Type: multipart/form-data
 ```
+
+Apifox Body 类型：
+
+- 选择 `Body -> form-data`
+- 不要用 `raw JSON`
+- 不要用整包 `binary`
 
 Apifox Body 字段：
 
