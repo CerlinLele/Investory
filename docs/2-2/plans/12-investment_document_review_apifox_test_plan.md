@@ -6,6 +6,7 @@
 - 文件上传接口：`POST http://127.0.0.1:8000/investment-document-review-file`
 
 以上两个路径与代码常量保持一致，定义位置见 `src/investory/gateway/api.py`：
+
 - `INVESTMENT_DOCUMENT_REVIEW_ROUTE = "/investment-document-review"`
 - `INVESTMENT_DOCUMENT_REVIEW_FILE_ROUTE = "/investment-document-review-file"`
 
@@ -39,10 +40,12 @@ extract_chunk_0002   ├─ 所有 chunk extract 任务
 
 两个公开 endpoint：
 
-| endpoint | 请求格式 | 入口 |
-|---|---|---|
-| `POST /investment-document-review` | JSON body | `run_investment_document_review()` |
+
+| endpoint                                | 请求格式                | 入口                                      |
+| --------------------------------------- | ------------------- | --------------------------------------- |
+| `POST /investment-document-review`      | JSON body           | `run_investment_document_review()`      |
 | `POST /investment-document-review-file` | multipart/form-data | `run_investment_document_review_file()` |
+
 
 两个 endpoint 共享同一个 `execute_investment_document_review_request()` -> flow。
 
@@ -202,6 +205,7 @@ Content-Type: application/json
 ```
 
 断言要点：
+
 - `result.action == "complete"`
 - `result.document_type == "etf_factsheet"`
 - `result.review` 存在且非 null
@@ -247,6 +251,7 @@ Content-Type: application/json
 ```
 
 预期行为（不断言具体 LLM 文本内容）：
+
 - `result.action == "complete"`
 - `result.review` 非 null，且 `result.review.extracted_facts` / `risk_findings` / `information_gaps` 有内容
 - 响应时间明显长于 Case 3，因为每个 chunk 都调用了一次 extract LLM
@@ -271,12 +276,14 @@ Apifox Body 类型：
 
 Apifox Body 字段：
 
-| Key | Type | Value |
-|---|---|---|
-| `file` | File | 选择本地 ETF factsheet PDF |
-| `review_goal` | Text | `Review fee clarity and risk disclosure completeness` |
-| `document_type_hint` | Text | `etf_factsheet` |
-| `session_id` | Text | `apifox-file-upload-valid` |
+
+| Key                  | Type | Value                                                 |
+| -------------------- | ---- | ----------------------------------------------------- |
+| `file`               | File | 选择本地 ETF factsheet PDF                                |
+| `review_goal`        | Text | `Review fee clarity and risk disclosure completeness` |
+| `document_type_hint` | Text | `etf_factsheet`                                       |
+| `session_id`         | Text | `apifox-file-upload-valid`                            |
+
 
 预期：等价于 Case 3 / Case 5 的 `action: complete` 响应，具体取决于 PDF 提取后文本长度。
 
@@ -306,12 +313,14 @@ Apifox Body 类型：
 
 Apifox Body 字段：
 
-| Key | Type | Value |
-|---|---|---|
-| `file` | File | `data/NIST.AI.100-1.pdf` |
-| `review_goal` | Text | `Summarize the core AI risk management concepts and identify main implementation considerations` |
-| `document_type_hint` | Text | `learning_material` |
-| `session_id` | Text | `apifox-nist-pdf-learning-material` |
+
+| Key                  | Type | Value                                                                                            |
+| -------------------- | ---- | ------------------------------------------------------------------------------------------------ |
+| `file`               | File | `data/NIST.AI.100-1.pdf`                                                                         |
+| `review_goal`        | Text | `Summarize the core AI risk management concepts and identify main implementation considerations` |
+| `document_type_hint` | Text | `learning_material`                                                                              |
+| `session_id`         | Text | `apifox-nist-pdf-learning-material`                                                              |
+
 
 预期行为（不断言具体 LLM 文本内容）：
 
@@ -402,10 +411,13 @@ JSON endpoint 可直接粘贴 PDF 提取文本；File endpoint 直接上传 PDF 
 
 ## 与旧测试计划的主要差异
 
-| 变化点 | 旧测试计划 | 当前实现 |
-|---|---|---|
-| 主路径 | single-pass review | chunk 路径（任何非空文档） |
-| single-pass 触发条件 | 已分类文档均走此路径 | `document_chunks` 为空才走（实际几乎不触发） |
-| File upload endpoint | 不存在 | `/investment-document-review-file` (multipart) |
-| To-Do DAG | 未接入公开 graph | 已是公开主路径 |
-| `result.review` 来源 | single-pass task 直接输出 | synthesize task 输出（经过 extract -> analyze 聚合） |
+
+| 变化点                  | 旧测试计划                 | 当前实现                                           |
+| -------------------- | --------------------- | ---------------------------------------------- |
+| 主路径                  | single-pass review    | chunk 路径（任何非空文档）                               |
+| single-pass 触发条件     | 已分类文档均走此路径            | `document_chunks` 为空才走（实际几乎不触发）                |
+| File upload endpoint | 不存在                   | `/investment-document-review-file` (multipart) |
+| To-Do DAG            | 未接入公开 graph           | 已是公开主路径                                        |
+| `result.review` 来源   | single-pass task 直接输出 | synthesize task 输出（经过 extract -> analyze 聚合）   |
+
+
