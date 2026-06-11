@@ -22,8 +22,10 @@ from investory.agent_core.contracts.todo_execution import (
     TodoTaskStatus,
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_flow import (
+    AGGREGATE_ANALYZE_TASK_ID,
     ACTION_FIELD,
     CHUNK_REVIEW_SCOPE,
+    CHUNK_EXTRACT_TASK_ID_PREFIX,
     DOCUMENT_TYPE_FIELD,
     FULL_DOCUMENT_REVIEW_SCOPE,
     INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
@@ -32,6 +34,7 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     REVIEW_FIELD,
     ROUTE_CONFIDENCE_FIELD,
     ROUTE_REASON_FIELD,
+    SYNTHESIZE_REVIEW_TASK_ID,
     InvestmentDocumentReviewAction,
     InvestmentDocumentReviewFlow,
     should_use_chunk_review,
@@ -553,6 +556,120 @@ def test_generate_review_todo_plan_accepts_supported_document_type_frameworks() 
         INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
         INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
     ]
+
+
+def test_generate_review_todo_plan_builds_dimension_analyze_fan_out_for_multi_chunk_documents() -> None:
+    executor = FakeExecutor()
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+
+    update = flow.generate_review_todo_plan(
+        InvestmentDocumentReviewState(
+            input_payload={
+                DOCUMENT_TEXT_FIELD: "Chunked ETF factsheet excerpt.",
+                REVIEW_GOAL_FIELD: "Review fees, holdings, and risk gaps.",
+            },
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            review_payload={
+                DOCUMENT_TEXT_FIELD: "Chunked ETF factsheet excerpt.",
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                EXTRACT_FOCUS_FIELD: ["fees", "holdings", "risks"],
+                ANALYZE_FOCUS_FIELD: [
+                    "Fee Disclosure",
+                    "Holdings / Concentration",
+                    "Fee disclosure ",
+                ],
+                REVIEW_GOAL_FIELD: "Review fees, holdings, and risk gaps.",
+            },
+            document_chunks=["chunk 1", "chunk 2", "chunk 3"],
+        )
+    )
+
+    todo_plan = update["todo_plan"]
+    extract_tasks = todo_plan.tasks[:3]
+    analyze_tasks = todo_plan.tasks[3:6]
+    synthesize_task = todo_plan.tasks[6]
+
+    extract_task_ids = [
+        f"{CHUNK_EXTRACT_TASK_ID_PREFIX}_{idx:04d}" for idx in range(1, 4)
+    ]
+    assert [task.id for task in extract_tasks] == extract_task_ids
+    assert all(task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT for task in extract_tasks)
+
+    assert [task.id for task in analyze_tasks] == [
+        "analyze_fee_disclosure",
+        "analyze_holdings_concentration",
+        "analyze_fee_disclosure_2",
+    ]
+    assert all(task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE for task in analyze_tasks)
+    assert [task.payload[ANALYZE_FOCUS_FIELD] for task in analyze_tasks] == [
+        ["Fee Disclosure"],
+        ["Holdings / Concentration"],
+        ["Fee disclosure"],
+    ]
+    assert all(task.depends_on == extract_task_ids for task in analyze_tasks)
+
+    assert synthesize_task.id == SYNTHESIZE_REVIEW_TASK_ID
+    assert synthesize_task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE
+    assert synthesize_task.depends_on == [task.id for task in analyze_tasks]
+    assert (
+        todo_plan.summary
+        == "Extract lightweight evidence from every document chunk, analyze the "
+        "evidence by review dimension, then synthesize the full document review."
+    )
+    assert executor.calls == []
+
+
+def test_generate_review_todo_plan_uses_fallback_analyze_task_when_no_dimension_focus_survives_cleaning() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+
+    update = flow.generate_review_todo_plan(
+        InvestmentDocumentReviewState(
+            input_payload={DOCUMENT_TEXT_FIELD: "Chunked ETF factsheet excerpt."},
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            review_payload={
+                DOCUMENT_TEXT_FIELD: "Chunked ETF factsheet excerpt.",
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                EXTRACT_FOCUS_FIELD: ["fees"],
+                ANALYZE_FOCUS_FIELD: [" ", "", "   "],
+                REVIEW_GOAL_FIELD: "Review fees.",
+            },
+            document_chunks=["chunk 1", "chunk 2"],
+        )
+    )
+
+    todo_plan = update["todo_plan"]
+
+    assert [task.id for task in todo_plan.tasks] == [
+        "extract_chunk_0001",
+        "extract_chunk_0002",
+        AGGREGATE_ANALYZE_TASK_ID,
+        SYNTHESIZE_REVIEW_TASK_ID,
+    ]
+    assert todo_plan.tasks[2].kind == TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE
+    assert todo_plan.tasks[2].payload[ANALYZE_FOCUS_FIELD] == []
+    assert todo_plan.tasks[2].depends_on == [
+        "extract_chunk_0001",
+        "extract_chunk_0002",
+    ]
+    assert todo_plan.tasks[3].depends_on == [AGGREGATE_ANALYZE_TASK_ID]
 
 
 def test_generate_review_todo_plan_logs_plan_summary_and_tasks(caplog) -> None:

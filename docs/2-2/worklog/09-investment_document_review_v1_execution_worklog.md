@@ -1187,3 +1187,38 @@
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:803`
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:807`
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:848`
+
+## 2026-06-11T17:22:18.7508254+10:00 Phase 8 Step 2
+
+- Step: Phase 8 Step 2 - add focused flow coverage for the new dimension-analyze fan-out plan shape.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `rg -n "chunk_review|AGGREGATE_ANALYZE_TASK_ID|analyze_focus|synthesize|extract_chunk|analyze_" src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `rg -n "chunk|AGGREGATE_ANALYZE_TASK_ID|analyze_focus|synthesize|extract_chunk|analyze_" tests/test_investment_document_review_flow.py`
+  - `Get-Content tests/test_investment_document_review_flow.py | Select-Object -Skip 380 -First 360`
+  - `Get-Content src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py | Select-Object -Skip 780 -First 95`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `rg -n 'test_generate_review_todo_plan_builds_dimension_analyze_fan_out_for_multi_chunk_documents|test_generate_review_todo_plan_uses_fallback_analyze_task_when_no_dimension_focus_survives_cleaning' tests/test_investment_document_review_flow.py`
+  - `rg -n 'AGGREGATE_ANALYZE_TASK_ID|SYNTHESIZE_REVIEW_TASK_ID|_build_chunk_review_analyze_tasks|evidence by review dimension' src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+- Result:
+  - Added a focused multi-chunk plan-generation test that locks in the new `N extract + M analyze + 1 synthesize` shape for long-document chunk review.
+  - The new test asserts stable analyze task ids derived from `analyze_focus`, including duplicate normalized ids receiving a deterministic numeric suffix.
+  - The new test also asserts every analyze task depends on all chunk extract tasks, and the synthesize task depends on the full analyze-task set rather than a single aggregate analyze node.
+  - Added a fallback coverage test proving that when `analyze_focus` only contains blank values after cleaning, the plan still emits `AGGREGATE_ANALYZE_TASK_ID` and keeps the synthesize dependency chain intact.
+  - Confirmed the local chunk-review builder still short-circuits plan generation for multi-chunk documents without calling the LLM plan task executor.
+  - Ran the focused flow suite from the repository `.venv`; all tests passed on the first run, so no implementation follow-up was needed in this step.
+- Evidence anchors:
+  - `tests/test_investment_document_review_flow.py:561`
+  - `tests/test_investment_document_review_flow.py:631`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:111`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:112`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:303`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:803`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:840`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:861`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` passed with 29 passed.
