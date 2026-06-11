@@ -983,6 +983,7 @@ Implementation steps:
 
 - 真实 `todo_resume_store` 持久化后端，例如文件、SQLite、Postgres 或 LangGraph checkpointer。
 - 用户/API 默认暴露完整 `execution_trace`。
+- 提升 dimension analyze task 的日志可读性：当前 plan 日志和 task 执行日志已经能打印 `task_id` / `task_kind`，但还没有默认把 `analyze_focus`、dimension label 或更直观的 `task_title` 一起打出来。后续可在 `todo_plan.task` 与 `todo_task.started/succeeded/failed` 日志中补充这些字段，便于从日志直接区分 `analyze_fee_disclosure`、`analyze_holdings`、`analyze_risks` 等维度任务，而不必只靠 task id 推断。
 - LangGraph `Send` / checkpoint / streaming 子任务级追踪。
 - review framework 从 Python 常量迁移到 YAML。
 - 扩大 LLM 自由规划范围，让模型完全决定 long-document DAG。
