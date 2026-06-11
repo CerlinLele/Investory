@@ -341,6 +341,9 @@ Layer 3:
 - 事实抽取只对每个 chunk 扫一遍，避免每个维度都重复全量阅读全文。
 - 维度并发发生在分析层，更贴近 `analyze_focus` 的语义，也更容易解释和测试。
 - 继续复用 `TodoExecutionRunner` 的 dependency layer 并发能力，不需要新造执行器。
+- 换句话说，这里的并发分工是：extract 层按文本切片并发，analyze 层按业务维度并发。extract 的职责是尽量完整、低判断地收集事实；analyze 的职责才是围绕费用、持仓、风险、披露缺口等维度做判断。
+- 不把 extract 也拆成费用、持仓、风险等维度，是为了避免多个 extract 任务重复读取同一个 chunk 或全文。否则 `extract_fees` 可能顺手抽到风险，`extract_risks` 也可能抽到费用，最终 synthesis 要处理更多重复、重叠甚至措辞不一致的事实。
+- 过早按业务维度拆 extract 也容易让模型在抽取阶段开始做“费用是否高”“披露是否充分”这类分析判断，模糊 extract / analyze 的职责边界，削弱“先事实、后判断”的可靠性。
 
 不建议作为默认方案的是：
 
