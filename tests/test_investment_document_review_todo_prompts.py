@@ -11,6 +11,7 @@ from investory.agent_core.runtime.message_builder import build_messages
 from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_ANALYZE_TASK,
     INVESTMENT_DOCUMENT_EXTRACT_TASK,
+    INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
 )
@@ -125,3 +126,30 @@ def test_investment_document_synthesize_prompt_builds_messages() -> None:
     assert "final review result" in messages[1].content
     assert "failed or were skipped" in messages[1].content
     assert "route_confidence" in messages[1].content
+
+
+def test_investment_document_risk_assessment_prompt_builds_messages() -> None:
+    messages = build_messages(
+        INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
+        {
+            "document_type": InvestmentDocumentType.ETF_FACTSHEET,
+            "route_confidence": 0.91,
+            "risk_findings": ["Fee disclosure is incomplete."],
+            "information_gaps": ["No benchmark methodology is provided."],
+            "boundary_notes": [
+                "The review does not assess live market conditions."
+            ],
+            "task_status_summary": [
+                "analyze-fees: succeeded",
+                "analyze-benchmark: skipped",
+            ],
+        },
+    )
+
+    assert len(messages) == 2
+    assert "structured review evidence" in messages[1].content
+    assert "do not ask for or rely on the full document text" in messages[1].content
+    assert "high` risk must include one or more `critical_issues`" in messages[
+        1
+    ].content
+    assert "auto_proceed=false" in messages[1].content
