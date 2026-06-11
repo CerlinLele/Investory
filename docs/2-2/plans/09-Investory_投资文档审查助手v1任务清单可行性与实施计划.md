@@ -788,9 +788,200 @@ tests/test_todo_execution_resume.py
 
 第一版最务实的目标不是“让每个文档都自动拆得很复杂”，而是让长文档审查具备可验证的 chunk 事实提取、维度分析和汇总链路，同时不破坏 Investory 当前的投资边界和 API 契约。
 
-## 10. 补充问答与设计决策
+## 10. 计划修正后的剩余实施清单
 
-### 10.1 能不能在 LangGraph 内动态画子图？
+> 计划修正说明：中途插入“按 chunk 并发”的设计后，当前代码已经有 chunk extract 并发的雏形，但还没有完全收口到本计划定义的 hybrid DAG。剩余工作不应再按“Phase 1-6 已完成”简单判断，而应以本节作为下一轮实施依据。
+
+### 10.1 当前差距
+
+当前实现中已经具备：
+
+- `document_chunks` 会进入 To-Do 路径。
+- 本地 plan builder 会生成 `extract_chunk_0001` 这类无依赖 extract 任务。
+- `TodoExecutionRunner` 会按 dependency layer 并发执行同层任务。
+- 已有测试验证手写 plan 中的多个 independent extract task 可以并发执行。
+
+但与修正后的目标仍有这些差距：
+
+1. worklog 没有单独记录“按 chunk 并发”这段插入实现，和计划执行纪律不一致。
+2. 短文档 single-pass 边界被弱化：只要 `split_into_chunks()` 返回非空，当前就会走 chunk To-Do 路径；短文本通常也会返回 1 个 chunk。
+3. 计划要求的是 `chunk extract fan-out -> dimension analyze fan-out -> synthesize`，当前更接近 `chunk extract fan-out -> single aggregate analyze -> synthesize`。
+4. 缺少直接覆盖本地 chunk plan builder 的多 chunk plan 生成测试；已有并发测试更多是在验证 runner 对手写 plan 的执行能力。
+
+### 10.2 阶段 7：修复短文档 single-pass 与长文档 chunk 路由边界
+
+目标：恢复计划中的双路径语义：短文档继续走 `run_single_pass_review`，长文档或确实被分成多个 chunk 的文档才走 To-Do hybrid 路径。
+
+Implementation steps:
+
+1. 先补 worklog 条目，说明计划已修正并插入 chunk 并发收口阶段；记录当前代码状态与差距。
+2. 检查 `document_chunker.split_into_chunks()` 的语义，确认短文本返回 1 个 chunk 是正常行为，不应被直接解释为“需要 chunked review”。
+3. 在 flow 层增加明确的路由判断，例如 `should_use_chunk_review(state)`，避免在 `route_after_review_framework()` 里直接用 `if state.document_chunks`。
+4. 第一版建议规则：`len(state.document_chunks) > 1` 才进入 `CHUNK_REVIEW_SCOPE`；`len(state.document_chunks) <= 1` 走 `FULL_DOCUMENT_REVIEW_SCOPE`。
+5. 如果后续需要更精细控制，可以再引入字符数阈值或 request flag，但第一版不要扩大 API surface。
+6. 更新或新增 flow 测试：
+   - 短文档只产生 1 个 chunk 时走 single-pass。
+   - 多 chunk 文档走 `generate_review_todo_plan -> execute_review_todo_plan`。
+   - missing input、refusal、unknown document type 不受影响。
+7. 用仓库 `.venv` 运行 focused tests：
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py
+```
+
+验收：
+
+- 单 chunk 文档不会触发 chunk To-Do plan。
+- 多 chunk 文档会触发 chunk To-Do plan。
+- gateway 对外主响应结构不变。
+
+### 10.3 阶段 8：把 single aggregate analyze 升级为 dimension analyze fan-out
+
+目标：把当前单个 `analyze_aggregated_chunk_evidence` 改为按审查维度拆分的 analyze 任务，使 long-document 路径符合：
+
+```text
+Layer 1:
+  extract_chunk_0001
+  extract_chunk_0002
+  ...
+
+Layer 2:
+  analyze_fees
+  analyze_holdings
+  analyze_risks
+  analyze_disclosure_gaps
+  ...
+
+Layer 3:
+  synthesize_full_document_review
+```
+
+Implementation steps:
+
+1. 在 `_build_chunk_review_todo_plan()` 中保留 chunk extract task 生成逻辑，确保每个 extract task：
+   - `kind=TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT`
+   - `depends_on=[]`
+   - payload 包含 `document_text`、`extract_focus`、`chunk_index`、`chunk_count`、`review_scope=document_chunk`
+2. 从 `state.review_payload[ANALYZE_FOCUS_FIELD]` 构造 analyze task 列表。
+3. 为每个 analyze focus 生成稳定 task id，例如：
+   - `analyze_fees`
+   - `analyze_holdings`
+   - `analyze_risk_disclosures`
+   - `analyze_information_gaps`
+4. task id 生成必须做规范化：
+   - lowercase
+   - snake_case
+   - 去掉标点和空白噪音
+   - 避免重复；重复时追加稳定序号
+5. 每个 analyze task 都依赖全部 chunk extract task：
+
+```python
+depends_on = extract_task_ids
+```
+
+6. 每个 analyze payload 至少包含：
+   - 当前维度的 `analyze_focus`
+   - 可选的 `analyze_dimension` 或 `focus_label`
+   - 不直接塞入 dependency results；dependency results 继续由执行阶段根据 `depends_on` 注入。
+7. 如果 `analyze_focus` 为空，保留一个 fallback analyze task，例如 `analyze_document_review_evidence`，避免生成只有 extract 和 synthesize 的不完整 plan。
+8. 更新 synthesize task，使其依赖所有 analyze task，而不是只依赖 `AGGREGATE_ANALYZE_TASK_ID`。
+9. 删除或降级 `AGGREGATE_ANALYZE_TASK_ID` 的默认使用；如果保留常量，只作为 fallback 或兼容历史测试使用，不作为多维度 plan 的主路径。
+10. 调用 `TodoExecutionPlan.model_validate()` 后继续执行 `ensure_valid_todo_plan()`，保证新 DAG 没有重复 id、未知依赖或 cycle。
+
+验收：
+
+- 多 chunk 文档生成 `N 个 extract + M 个 analyze + 1 个 synthesize`。
+- 所有 extract task 在同一 dependency layer。
+- 所有 analyze task 在 extract 全部完成后的同一 dependency layer。
+- synthesize task 依赖全部 analyze task。
+- analyze payload 中的 `dependency_results` 来自执行阶段的上游结果，而不是 plan builder 提前拼接。
+
+### 10.4 阶段 9：补齐 chunk plan builder 与并发行为测试
+
+目标：测试不仅证明 runner 能并发，还要证明投资文档 flow 生成的本地 hybrid plan 本身符合预期。
+
+Implementation steps:
+
+1. 新增或扩展 `tests/test_investment_document_review_flow.py`，覆盖 `_build_chunk_review_todo_plan()` 或 `generate_review_todo_plan()` 的多 chunk 路径。
+2. 构造足够长的 `document_text`，确保 `split_into_chunks()` 返回至少 2 个 chunk；如果测试需要稳定性，可以直接在 state 中注入 `document_chunks`。
+3. 断言 extract tasks：
+   - id 使用 `extract_chunk_0001`、`extract_chunk_0002` 格式。
+   - `depends_on=[]`。
+   - payload 中 `chunk_index` 从 0 开始。
+   - payload 中 `chunk_count` 等于 chunk 总数。
+4. 断言 analyze tasks：
+   - 数量来自 `analyze_focus`。
+   - 每个 analyze task 依赖所有 extract task。
+   - task id 稳定且没有重复。
+5. 断言 synthesize task：
+   - id 为 `synthesize_full_document_review`。
+   - 依赖所有 analyze task。
+6. 增加一个执行层测试，使用 flow 生成出来的真实 chunk plan，而不是手写 plan，验证 extract layer 至少出现并发执行。
+7. 保留现有手写 runner 并发测试，因为它仍然能直接证明 `TodoExecutionRunner` 的 layer concurrency。
+8. 用仓库 `.venv` 运行 focused tests 和相关 regression tests：
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py
+```
+
+验收：
+
+- 本地 chunk plan builder 的 plan shape 有直接测试覆盖。
+- 并发测试覆盖从 flow 生成 plan 到 runner 执行的真实路径。
+- 失败依赖、skipped 下游、resume 已完成任务不重复执行的既有测试继续通过。
+
+### 10.5 阶段 10：兼容性收口与 worklog 修复
+
+目标：把修正后的 chunk 并发计划作为一轮完整计划步骤收口，而不是只改代码不留执行证据。
+
+Implementation steps:
+
+1. 按计划执行纪律更新 worklog：
+   - 记录短/长文档路由边界修复。
+   - 记录 dimension analyze fan-out 改造。
+   - 记录新增测试与每轮验证命令。
+   - 如果测试先失败再修复，要记录失败原因、修复动作、重跑命令和最终结果。
+2. 更新 Phase 6 的兼容性说明，避免继续笼统表述“v1 全部完成”；应明确“原 Phase 1-6 已完成，chunk 并发修正项仍按 Phase 7-10 收口”。
+3. 运行 gateway compatibility tests：
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py
+```
+
+4. 运行 full repository tests：
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests
+```
+
+5. 检查公开响应：
+   - 短文档仍可返回 `action=complete`。
+   - 长文档 chunk path 最终仍返回 `investment_document_review` 对外 task name。
+   - `document_type`、`route_reason`、`route_confidence` 没有丢失。
+   - `review` 主结构仍是 `InvestmentDocumentReviewResult`。
+
+验收：
+
+- worklog 能追溯 chunk 并发修正项的实施与验证。
+- focused tests、gateway tests、full tests 均通过。
+- 没有引入新的 public endpoint 或 gateway schema 破坏性变更。
+
+### 10.6 暂不纳入本轮收口的后续增强
+
+以下能力仍然保留为后续增强，不应混入本轮 chunk 并发收口：
+
+- 真实 `todo_resume_store` 持久化后端，例如文件、SQLite、Postgres 或 LangGraph checkpointer。
+- 用户/API 默认暴露完整 `execution_trace`。
+- LangGraph `Send` / checkpoint / streaming 子任务级追踪。
+- review framework 从 Python 常量迁移到 YAML。
+- 扩大 LLM 自由规划范围，让模型完全决定 long-document DAG。
+- 将 `DEFAULT_TODO_CONCURRENCY=3` 配置化。
+
+本轮剩余工作的主目标只有一个：让 long-document path 真正稳定落到 `chunk extract fan-out -> dimension analyze fan-out -> synthesize`，同时恢复 short-document single-pass 边界并补齐 worklog 与测试证据。
+
+## 11. 补充问答与设计决策
+
+### 11.1 能不能在 LangGraph 内动态画子图？
 
 可以，但第一版不建议把它作为 Investory 的主实现方式。
 
@@ -822,7 +1013,7 @@ validate -> dependency layers -> bounded concurrency -> retries -> skipped/faile
 
 如果后续需要 LangGraph 原生 checkpoint、streaming trace、或者在调试 UI 中可视化每个子任务节点，再考虑把 plan execution 改成 `Send` 或运行时子图。
 
-### 10.2 当前 TodoExecutionRunner 和 LangGraph Send 的区别是什么？
+### 11.2 当前 TodoExecutionRunner 和 LangGraph Send 的区别是什么？
 
 当前 `TodoExecutionRunner` 是业务级任务调度器；LangGraph `Send` 更像图内 fan-out 分发机制。两者不是同一层能力。
 
@@ -903,7 +1094,7 @@ state -> generate many payloads -> call same node many times -> merge results
 
 一句话：当前 executor 是调度器，`Send` 是分发语法。现在的问题用调度器更合适。
 
-### 10.3 如果中断后不想重复执行已完成任务，哪种方式合适？
+### 11.3 如果中断后不想重复执行已完成任务，哪种方式合适？
 
 这种需求本质是 checkpoint / resume：执行到一半中断后，下次从已完成结果继续，而不是重新跑全部任务。
 
@@ -982,7 +1173,7 @@ generate_plan
 
 也就是说，核心问题不是 fan-out，而是“已完成任务不要重复执行”。这个能力可以先在当前调度器里解决。
 
-### 10.4 拓扑图具体执行顺序是否需要展示给用户？
+### 11.4 拓扑图具体执行顺序是否需要展示给用户？
 
 通常不需要。拓扑图的主要价值是内部执行质量控制，不是用户侧主要内容。
 
