@@ -3,7 +3,13 @@ from investory.agent_core.contracts.investment_document_review_state import (
 )
 from investory.agent_core.runtime.message_builder import build_prompt_messages
 from investory.agent_core.task_models.investment_document_review import (
+    COMPLIANCE_REVIEWER_ROLE,
+    INVESTMENT_DOCUMENT_RISK_ASSESSMENT_NAME,
+    InvestmentDocumentReviewApprovalStatus,
     InvestmentDocumentReviewInput,
+    InvestmentDocumentReviewRiskAssessmentInput,
+    InvestmentDocumentReviewRiskAssessmentResult,
+    InvestmentDocumentReviewRiskLevel,
     InvestmentDocumentReviewResult,
 )
 
@@ -36,6 +42,59 @@ def test_investment_document_review_result_allows_optional_learning_steps() -> N
     )
 
     assert result.learning_next_steps is None
+
+
+def test_investment_document_review_risk_assessment_constants_are_stable() -> None:
+    assert INVESTMENT_DOCUMENT_RISK_ASSESSMENT_NAME == (
+        "investment_document_risk_assessment"
+    )
+    assert COMPLIANCE_REVIEWER_ROLE == "compliance_reviewer"
+
+
+def test_investment_document_review_risk_assessment_input_accepts_expected_payload() -> None:
+    payload = InvestmentDocumentReviewRiskAssessmentInput.model_validate(
+        {
+            "document_type": InvestmentDocumentType.ETF_FACTSHEET,
+            "route_confidence": 0.92,
+            "risk_findings": ["Fee disclosure is incomplete."],
+            "information_gaps": ["No benchmark methodology is provided."],
+            "boundary_notes": ["The review does not assess live market conditions."],
+            "task_status_summary": ["analyze-fees: succeeded", "analyze-risk: skipped"],
+        }
+    )
+
+    assert payload.document_type is InvestmentDocumentType.ETF_FACTSHEET
+    assert payload.route_confidence == 0.92
+    assert payload.task_status_summary == [
+        "analyze-fees: succeeded",
+        "analyze-risk: skipped",
+    ]
+
+
+def test_investment_document_review_risk_assessment_result_accepts_structured_status() -> None:
+    result = InvestmentDocumentReviewRiskAssessmentResult.model_validate(
+        {
+            "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH,
+            "risk_reason": "Multiple unresolved disclosure gaps prevent automatic release.",
+            "critical_issues": [
+                "No benchmark methodology is provided.",
+                "Fee disclosure is incomplete.",
+            ],
+            "approval_status": (
+                InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL
+            ),
+            "required_role": COMPLIANCE_REVIEWER_ROLE,
+            "auto_proceed": False,
+        }
+    )
+
+    assert result.overall_risk is InvestmentDocumentReviewRiskLevel.HIGH
+    assert (
+        result.approval_status
+        is InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL
+    )
+    assert result.required_role == COMPLIANCE_REVIEWER_ROLE
+    assert result.auto_proceed is False
 
 
 def test_investment_document_review_prompt_builds_messages() -> None:

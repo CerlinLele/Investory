@@ -1,3 +1,5 @@
+from enum import Enum
+
 from pydantic import BaseModel, Field
 
 from investory.agent_core.contracts.investment_document_review_state import (
@@ -24,6 +26,23 @@ class InvestmentDocumentReviewInput(BaseModel):
     )
 
 
+INVESTMENT_DOCUMENT_RISK_ASSESSMENT_NAME = "investment_document_risk_assessment"
+COMPLIANCE_REVIEWER_ROLE = "compliance_reviewer"
+
+
+class InvestmentDocumentReviewRiskLevel(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class InvestmentDocumentReviewApprovalStatus(str, Enum):
+    AUTO_APPROVED = "auto_approved"
+    PENDING_HUMAN_APPROVAL = "pending_human_approval"
+    HUMAN_APPROVED = "human_approved"
+    CANCELLED = "cancelled"
+
+
 class InvestmentDocumentReviewResult(BaseModel):
     document_type: InvestmentDocumentType = Field(
         description="Reviewed document type used for the single-pass analysis."
@@ -46,4 +65,49 @@ class InvestmentDocumentReviewResult(BaseModel):
     learning_next_steps: list[str] | None = Field(
         default=None,
         description="Optional educational follow-up directions that stay within learning boundaries.",
+    )
+
+
+class InvestmentDocumentReviewRiskAssessmentInput(BaseModel):
+    document_type: InvestmentDocumentType = Field(
+        description="Reviewed document type used to contextualize the risk assessment."
+    )
+    route_confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Router confidence for the selected document type.",
+    )
+    risk_findings: list[str] = Field(
+        description="Structured risk findings aggregated from prior review steps."
+    )
+    information_gaps: list[str] = Field(
+        description="Missing details that reduce confidence in the review outcome."
+    )
+    boundary_notes: list[str] = Field(
+        description="Boundary and scope notes carried forward from the review."
+    )
+    task_status_summary: list[str] = Field(
+        description="Execution-status summaries from prior review tasks."
+    )
+
+
+class InvestmentDocumentReviewRiskAssessmentResult(BaseModel):
+    overall_risk: InvestmentDocumentReviewRiskLevel = Field(
+        description="Machine-readable overall risk level for the completed review."
+    )
+    risk_reason: str = Field(
+        description="Short explanation of the overall risk classification."
+    )
+    critical_issues: list[str] = Field(
+        description="Critical issues that block automatic downstream release."
+    )
+    approval_status: InvestmentDocumentReviewApprovalStatus = Field(
+        description="Machine-readable approval state derived from the risk level."
+    )
+    required_role: str | None = Field(
+        default=None,
+        description="Role required for manual approval when automatic release is blocked.",
+    )
+    auto_proceed: bool = Field(
+        description="Whether downstream systems may proceed without human approval."
     )
