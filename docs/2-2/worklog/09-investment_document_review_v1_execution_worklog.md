@@ -1124,3 +1124,33 @@
   - `tests/test_investment_document_review_flow.py:1994`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` first run failed with 2 failures.
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` rerun passed with 27 passed.
+
+## 2026-06-11T16:52:10.1011135+10:00 Phase 7 Step 3
+
+- Step: Phase 7 Step 3 - run broader regression checks for the chunk-route boundary change.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `rg -n "def should_use_chunk_review|route_after_review_framework|test_document_review_flow_routes_only_multi_chunk_documents_to_chunk_review|test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document|test_investment_document_review" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_gateway_api.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md | Select-Object -Last 80`
+  - `rg -n "Phase 7 Step 2|Phase 7 Step 3|should_use_chunk_review|test_document_review_flow_routes_only_multi_chunk_documents_to_chunk_review|test_investment_document_review_endpoint_runs_complete_review_through_executor" docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_gateway_api.py`
+- Files touched:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `tests/test_investment_document_review_gateway_api.py`
+- Result:
+  - Confirmed the route-boundary helper and focused flow tests remain in place after the Phase 7 Step 2 change.
+  - Ran the broader compatibility regression set covering the public investment document review gateway, the investment document review flow, and document review rules.
+  - Verified gateway compatibility remains intact after narrowing chunk review to multi-chunk documents.
+  - No implementation changes were needed in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:292`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:663`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:681`
+  - `tests/test_investment_document_review_flow.py:358`
+  - `tests/test_investment_document_review_gateway_api.py:118`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py` passed with 57 passed.
