@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from collections.abc import Callable
 from enum import Enum
 from time import perf_counter
@@ -106,6 +107,7 @@ CHUNK_REVIEW_SCOPE_FIELD = "review_scope"
 FULL_DOCUMENT_REVIEW_SCOPE = "full_document"
 CHUNK_REVIEW_SCOPE = "document_chunk"
 CHUNK_EXTRACT_TASK_ID_PREFIX = "extract_chunk"
+ANALYZE_TASK_ID_PREFIX = "analyze"
 AGGREGATE_ANALYZE_TASK_ID = "analyze_aggregated_chunk_evidence"
 SYNTHESIZE_REVIEW_TASK_ID = "synthesize_full_document_review"
 COMPLETED_TODO_RESULT_STATUSES = {
@@ -291,6 +293,74 @@ def _guess_review_plan_chunk_count(state: InvestmentDocumentReviewState) -> int:
 
 def should_use_chunk_review(state: InvestmentDocumentReviewState) -> bool:
     return len(state.document_chunks or []) > 1
+
+
+def _normalize_todo_task_id_fragment(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+    return normalized or "dimension"
+
+
+def _build_chunk_review_analyze_tasks(
+    *,
+    analyze_focus: list[str],
+    extract_task_ids: list[str],
+) -> list[dict[str, Any]]:
+    normalized_counts: dict[str, int] = {}
+    analyze_tasks: list[dict[str, Any]] = []
+
+    for focus in analyze_focus:
+        if not isinstance(focus, str):
+            continue
+        cleaned_focus = focus.strip()
+        if not cleaned_focus:
+            continue
+
+        normalized_focus = _normalize_todo_task_id_fragment(cleaned_focus)
+        occurrence = normalized_counts.get(normalized_focus, 0) + 1
+        normalized_counts[normalized_focus] = occurrence
+        task_id = f"{ANALYZE_TASK_ID_PREFIX}_{normalized_focus}"
+        if occurrence > 1:
+            task_id = f"{task_id}_{occurrence}"
+
+        analyze_tasks.append(
+            {
+                "id": task_id,
+                "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                "title": f"Analyze {cleaned_focus}",
+                "description": (
+                    "Review the extracted chunk evidence for this dimension and "
+                    "identify supported risks, inconsistencies, limits, and gaps."
+                ),
+                "payload": {ANALYZE_FOCUS_FIELD: [cleaned_focus]},
+                "depends_on": extract_task_ids,
+                "completion_criteria": [
+                    f"Findings stay focused on {cleaned_focus}.",
+                    "Findings are based only on successful chunk extraction results.",
+                    "Material gaps, conflicts, and boundary limits are identified.",
+                ],
+            }
+        )
+
+    if analyze_tasks:
+        return analyze_tasks
+
+    return [
+        {
+            "id": AGGREGATE_ANALYZE_TASK_ID,
+            "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+            "title": "Analyze aggregated chunk evidence",
+            "description": (
+                "Merge evidence extracted from every document chunk and analyze "
+                "risks, disclosure quality, inconsistencies, constraints, and gaps."
+            ),
+            "payload": {ANALYZE_FOCUS_FIELD: []},
+            "depends_on": extract_task_ids,
+            "completion_criteria": [
+                "Findings are based only on successful chunk extraction results.",
+                "Cross-chunk conflicts, limitations, and disclosure gaps are identified.",
+            ],
+        }
+    ]
 
 
 def _build_review_todo_runner_event_handler(
@@ -730,6 +800,11 @@ class InvestmentDocumentReviewFlow:
         ]
         extract_focus = state.review_payload.get(EXTRACT_FOCUS_FIELD) or []
         analyze_focus = state.review_payload.get(ANALYZE_FOCUS_FIELD) or []
+        analyze_tasks = _build_chunk_review_analyze_tasks(
+            analyze_focus=analyze_focus,
+            extract_task_ids=extract_task_ids,
+        )
+        analyze_task_ids = [task["id"] for task in analyze_tasks]
         tasks = [
             {
                 "id": task_id,
@@ -759,22 +834,8 @@ class InvestmentDocumentReviewFlow:
             )
         ]
         tasks.extend(
-            [
-                {
-                    "id": AGGREGATE_ANALYZE_TASK_ID,
-                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
-                    "title": "Analyze aggregated chunk evidence",
-                    "description": (
-                        "Merge evidence extracted from every document chunk and analyze "
-                        "risks, disclosure quality, inconsistencies, constraints, and gaps."
-                    ),
-                    "payload": {ANALYZE_FOCUS_FIELD: analyze_focus},
-                    "depends_on": extract_task_ids,
-                    "completion_criteria": [
-                        "Findings are based only on successful chunk extraction results.",
-                        "Cross-chunk conflicts, limitations, and disclosure gaps are identified.",
-                    ],
-                },
+            analyze_tasks
+            + [
                 {
                     "id": SYNTHESIZE_REVIEW_TASK_ID,
                     "kind": TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE,
@@ -784,7 +845,7 @@ class InvestmentDocumentReviewFlow:
                         "chunk evidence and analysis results."
                     ),
                     "payload": {},
-                    "depends_on": [AGGREGATE_ANALYZE_TASK_ID],
+                    "depends_on": analyze_task_ids,
                     "completion_criteria": [
                         "Final review covers extracted evidence from all document chunks.",
                         "Facts, risks, gaps, boundary notes, and summary are supported by task results.",
@@ -796,8 +857,8 @@ class InvestmentDocumentReviewFlow:
             {
                 "tasks": tasks,
                 "summary": (
-                    "Extract lightweight evidence from every document chunk, aggregate the "
-                    "evidence by review theme, then synthesize the full document review."
+                    "Extract lightweight evidence from every document chunk, analyze the "
+                    "evidence by review dimension, then synthesize the full document review."
                 ),
             }
         )

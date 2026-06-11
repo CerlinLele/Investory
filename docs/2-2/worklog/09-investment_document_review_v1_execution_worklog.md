@@ -1154,3 +1154,36 @@
   - `tests/test_investment_document_review_flow.py:358`
   - `tests/test_investment_document_review_gateway_api.py:118`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py` passed with 57 passed.
+
+## 2026-06-11T17:13:42.0443228+10:00 Phase 8 Step 1
+
+- Step: Phase 8 Step 1 - reshape the chunk review plan builder so analyze tasks fan out by review dimension.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py | Select-Object -Skip 700 -First 140`
+  - `Get-Content src\investory\agent_core\task_models\investment_document_review_todo_tasks.py | Select-Object -First 220`
+  - `git diff --stat`
+  - `Get-Date -Format o`
+  - `git status --short`
+  - `rg -n "ANALYZE_TASK_ID_PREFIX|_normalize_todo_task_id_fragment|_build_chunk_review_analyze_tasks|analyze_task_ids|AGGREGATE_ANALYZE_TASK_ID|SYNTHESIZE_REVIEW_TASK_ID" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py`
+- Result:
+  - Kept the existing chunk extract task generation path unchanged so Layer 1 still emits one extract task per chunk with `depends_on=[]`.
+  - Added `ANALYZE_TASK_ID_PREFIX` plus `_normalize_todo_task_id_fragment()` and `_build_chunk_review_analyze_tasks()` to generate stable analyze task ids from `analyze_focus`.
+  - Updated the chunk review plan builder so each non-empty analyze focus now produces its own `investment_document_analyze` task with `depends_on=extract_task_ids`.
+  - Added duplicate-id protection by normalizing each focus into snake_case and appending a stable numeric suffix when the same normalized id appears more than once.
+  - Added a fallback path that still emits `AGGREGATE_ANALYZE_TASK_ID` when `analyze_focus` is empty after cleaning, so the plan does not collapse into extract-plus-synthesize only.
+  - Updated the synthesize task to depend on all generated analyze task ids rather than a single aggregate analyze task by default.
+  - Updated the chunk plan summary text so it now describes “analyze the evidence by review dimension” instead of a single aggregate analysis pass.
+  - This step intentionally stopped at plan-shape implementation. No tests were run yet because Phase 9 covers the test expansion for the new fan-out structure.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:110`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:298`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:303`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:803`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:807`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:848`
