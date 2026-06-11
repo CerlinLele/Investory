@@ -1222,3 +1222,34 @@
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:840`
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:861`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` passed with 29 passed.
+
+## 2026-06-11T17:27:49.6392806+10:00 Phase 9 Step 1
+
+- Step: Phase 9 Step 1 - extend chunk-plan builder coverage and verify the real flow-generated chunk plan executes concurrently.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `rg -n "ensure_valid_todo_plan|_build_chunk_review_todo_plan|execute_review_todo_plan_runs_independent_extract_tasks_concurrently|RecordingTodoRunner|BlockingExtractExecutor|split_into_chunks|chunk_count|chunk_index" src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py tests/test_investment_document_review_flow.py tests/test_todo_execution_runner.py`
+  - `Get-Content tests/test_investment_document_review_flow.py | Select-Object -Skip 1740 -First 180`
+  - `Get-Content src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py | Select-Object -Skip 730 -First 150`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py`
+  - `rg -n "generate_review_todo_plan\(|ensure_valid_todo_plan\(todo_plan\)|test_generate_review_todo_plan_returns_error_for_invalid_chunk_plan|test_execute_review_todo_plan_runs_flow_generated_chunk_plan_concurrently|CHUNK_COUNT_FIELD|CHUNK_INDEX_FIELD|CHUNK_REVIEW_SCOPE_FIELD" src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py tests/test_investment_document_review_flow.py`
+  - `git diff --stat`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Updated the multi-chunk local plan path so it now follows the same validation discipline as the LLM plan path: chunk-review plans are passed through `ensure_valid_todo_plan()`, and validation failures are normalized into the same `investment_document_review_plan` output error shape instead of surfacing as an uncaught exception.
+  - Extended the existing dimension fan-out plan-shape test to assert chunk extract payload metadata directly, including `chunk_index`, `chunk_count`, `review_scope=document_chunk`, and `depends_on=[]`.
+  - Added an invalid local chunk-plan test by forcing duplicate analyze task ids and verifying `generate_review_todo_plan()` now returns a structured output-validation error for the chunk-review branch.
+  - Added a real-path execution test that uses `generate_review_todo_plan()` to build the chunk plan and then runs `execute_review_todo_plan()` against that generated plan, proving the extract layer still executes concurrently without relying on a hand-written plan fixture.
+  - Ran the focused regression set for the investment document review flow and shared runner behaviors from the repository `.venv`; all tests passed on the first run, so no follow-up repair loop was required.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:747`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:781`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:831`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:875`
+  - `tests/test_investment_document_review_flow.py:578`
+  - `tests/test_investment_document_review_flow.py:687`
+  - `tests/test_investment_document_review_flow.py:2038`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py` passed with 43 passed.

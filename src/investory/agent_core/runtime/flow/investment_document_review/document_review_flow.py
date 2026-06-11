@@ -749,7 +749,17 @@ class InvestmentDocumentReviewFlow:
         state: InvestmentDocumentReviewState,
     ) -> dict[str, Any]:
         if should_use_chunk_review(state):
-            todo_plan = self._build_chunk_review_todo_plan(state)
+            try:
+                todo_plan = self._build_chunk_review_todo_plan(state)
+            except (ValidationError, TodoPlanValidationException) as exc:
+                return {
+                    "output": TaskResult(
+                        ok=False,
+                        task_name=INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
+                        error=normalize_task_error(exc, stage="output_validation"),
+                    )
+                }
+
             _log_review_todo_plan_generated(
                 session_id=state.session_id,
                 todo_plan=todo_plan,
@@ -853,7 +863,7 @@ class InvestmentDocumentReviewFlow:
                 },
             ]
         )
-        return TodoExecutionPlan.model_validate(
+        todo_plan = TodoExecutionPlan.model_validate(
             {
                 "tasks": tasks,
                 "summary": (
@@ -862,6 +872,8 @@ class InvestmentDocumentReviewFlow:
                 ),
             }
         )
+        ensure_valid_todo_plan(todo_plan)
+        return todo_plan
 
     def execute_review_todo_plan(
         self,
