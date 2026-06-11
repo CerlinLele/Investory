@@ -1054,3 +1054,32 @@
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_v1_minimal_validation.py` (6 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py` (50 passed)
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests` (253 passed, 44 warnings)
+
+## 2026-06-11T16:40:17.3917859+10:00 Phase 7 Step 1
+
+- Step: Phase 7 Step 1 - record the plan correction and current chunk-routing gap before changing the routing boundary.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md | Select-Object -Last 80`
+  - `rg -n "Phase 6|chunk|single-pass|route_after_review_framework|split_into_chunks|extract_chunk_0001|analyze_aggregated_chunk_evidence" docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+- Result:
+  - Confirmed the original worklog closes at Phase 6 and does not separately record the later plan correction that inserted chunk-routing follow-up work.
+  - Confirmed the current flow already builds chunk review plans locally through `_build_chunk_review_todo_plan()` and uses `extract_chunk_0001`-style task ids plus `analyze_aggregated_chunk_evidence` for the long-document path.
+  - Confirmed the current route boundary is broader than the corrected plan: `route_after_review_framework()` routes to chunk review whenever `state.document_chunks` is non-empty, and `build_review_framework()` populates `document_chunks` from `split_into_chunks(document_text)`.
+  - Confirmed existing flow coverage already reflects this broadened behavior: the main complete-review test asserts a single short document still executes the chunk extract/analyze/synthesize path with `chunk_count == 1`.
+  - Recorded the Phase 7 starting assumption for the next step: the routing rule should be narrowed so single-chunk documents stay on `run_single_pass_review`, while multi-chunk documents continue to use the chunk To-Do path.
+- Evidence anchors:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md:1015`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:650`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:658`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:659`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:677`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:715`
+  - `tests/test_investment_document_review_flow.py:353`
+  - `tests/test_investment_document_review_flow.py:362`
+  - `tests/test_investment_document_review_flow.py:367`
