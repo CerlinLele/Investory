@@ -218,6 +218,194 @@ INVESTMENT_DOCUMENT_RISK_ASSESSMENT_NAME = "investment_document_risk_assessment"
 5. low / medium 返回自动批准状态；high 返回 `pending_human_approval`。
 6. 后续再接入人工审批 resume / webhook。
 
+## Implementation steps
+
+下面把上面的优先级展开为一轮可执行的实现顺序。这个实现顺序默认遵循当前 Investory 架构边界：
+
+- 继续使用 `LangGraph + TaskSpec + Pydantic + TodoExecutionRunner`。
+- 风险审批只消费审查结果，不重新自由审全文。
+- 第一版先做“机器可读风险等级 + 待人工审批状态”，不在同一轮里引入完整审批 UI 或 webhook。
+
+### 阶段 1：补齐风险评估合约与固定常量
+
+目标：先把风险评估和审批状态表达成稳定合约，避免后续 flow、task、API 各自散落字符串。
+
+Implementation steps:
+
+1. 在投资文档审查相关 task model 模块中新增 `InvestmentDocumentReviewRiskLevel` 和 `InvestmentDocumentReviewApprovalStatus` 两个 `str, Enum`。
+2. 新增 `InvestmentDocumentReviewRiskAssessmentInput`，输入字段至少包含：
+   - `document_type`
+   - `route_confidence`
+   - `risk_findings`
+   - `information_gaps`
+   - `boundary_notes`
+   - `task_status_summary`
+3. 新增 `InvestmentDocumentReviewRiskAssessmentResult`，输出字段至少包含：
+   - `overall_risk`
+   - `risk_reason`
+   - `critical_issues`
+   - `approval_status`
+   - `required_role`
+   - `auto_proceed`
+4. 用模块级常量固定 task name，例如：
+   - `INVESTMENT_DOCUMENT_RISK_ASSESSMENT_NAME`
+   - 如有需要，再补 `COMPLIANCE_REVIEWER_ROLE`
+5. 检查是否已有可复用的结果外壳；如果没有，再决定风险评估结果是挂在最终响应顶层，还是先挂在 `review.execution_trace` 旁路字段。
+
+验收：
+
+- Pydantic 模型能独立校验通过。
+- 风险等级和审批状态不依赖 raw string。
+- 结果字段足够支撑 flow 路由和前端展示。
+
+### 阶段 2：新增独立 risk assessment task 与 prompt
+
+目标：把“风险等级判断”从 `synthesize` 中拆开，形成职责单一的新 task。
+
+Implementation steps:
+
+1. 新增 `investment_document_risk_assessment` 对应的 TaskSpec 注册。
+2. 新增 `investment_document_risk_assessment.md` prompt 文件。
+3. 在 prompt 中明确约束：
+   - 只能基于输入里的结构化审查证据判断。
+   - 不得重新要求全文内容。
+   - 不得输出投资建议、买卖建议或实时行情判断。
+   - `high` 风险必须给出 `critical_issues`。
+   - `low` / `medium` 默认 `auto_proceed=true`，`high` 默认 `auto_proceed=false`。
+4. 明确 risk assessment task 的职责边界：
+   - 不改写用户可读审查报告。
+   - 不补造 extract / analyze 阶段没有产出的事实。
+   - 只做聚合判断和处置建议。
+5. 补最小单元测试，验证 TaskSpec 可被解析，且输出模型字段完整。
+
+验收：
+
+- `resolve_task_spec()` 能找到 `investment_document_risk_assessment`。
+- prompt 和输出模型职责边界清晰，不与 `synthesize` 重叠。
+- 风险评估 task 可以单独被调用并返回结构化结果。
+
+### 阶段 3：在 flow 中插入 assess_review_risk 节点
+
+目标：让 single-pass 和 To-Do 两条路径在生成审查报告后，都进入统一的风险评估节点。
+
+Implementation steps:
+
+1. 在 `InvestmentDocumentReviewState` 中新增：
+   - `risk_assessment`
+   - `approval_status`
+   - 如有需要，再补 `approval_required_role`
+2. 在 `document_review_flow.py` 中新增 `assess_review_risk` 节点，位置放在：
+   - `run_single_pass_review` 之后，`build_final_result` 之前。
+   - `synthesize_review_result` 之后，`build_final_result` 之前。
+3. 在 `_build_review_todo_summary()` 附近新增 `_build_review_risk_assessment_payload()`，专门构造 risk assessment 输入。
+4. 这个 payload 只聚合已有审查结果，建议包含：
+   - `risk_findings`
+   - `information_gaps`
+   - `boundary_notes`
+   - failed / skipped task summary
+   - `document_type`
+   - `route_confidence`
+5. 不要在 `assess_review_risk` 节点重新读取 `document_text` 做自由判断；如果确实需要引用文本，也只传前面阶段已经抽取出的结构化证据。
+6. 为 flow 增加条件路由，例如 `route_after_risk_assessment`：
+   - `AUTO_APPROVED` -> `build_final_result`
+   - `PENDING_HUMAN_APPROVAL` -> `build_pending_approval_result`
+   - 后续如支持人工驳回，再扩展 `CANCELLED` 路径
+
+验收：
+
+- single-pass 和 To-Do 两条路径都能进入统一风险评估节点。
+- 风险评估节点不重复审全文。
+- flow 路由只依赖结构化状态，不依赖字符串散落判断。
+
+### 阶段 4：把“审查结果”和“审批状态”分开输出
+
+目标：保持用户可读报告不变，同时让 API 明确表达“是否需要人工审批”。
+
+Implementation steps:
+
+1. 扩展 `build_final_result()`，在现有 `review` 外增加：
+   - `risk_assessment`
+   - `approval`
+2. 新增 `build_pending_approval_result()`，用于 high risk 场景返回：
+   - 审查报告已经生成
+   - 风险等级已经生成
+   - 当前状态为 `pending_human_approval`
+3. 明确第一版公开响应的最小字段集，例如：
+   - `risk_assessment.overall_risk`
+   - `risk_assessment.risk_reason`
+   - `risk_assessment.critical_issues`
+   - `approval.status`
+   - `approval.required_role`
+4. 保持现有 `review` 主结构尽量不变，避免把风险审批信息硬塞回 `InvestmentDocumentReviewResult` 的报告正文。
+5. 如果担心 API 兼容性，第一版可先在内部结果和测试里落地，再决定是否在 gateway 响应顶层公开全部字段。
+
+验收：
+
+- 用户可读审查报告仍然存在。
+- 高风险场景不会被误标成普通 `complete` 放行。
+- 前端/API 可以直接判断是否需要人工审批。
+
+### 阶段 5：为后续人工审批 resume 留好扩展点
+
+目标：第一版先不实现完整人工审批闭环，但要把恢复接口和状态接缝留正确。
+
+Implementation steps:
+
+1. 在审批状态模型里保留：
+   - `PENDING_HUMAN_APPROVAL`
+   - `HUMAN_APPROVED`
+   - `CANCELLED`
+2. 设计好高风险中断后的最小恢复语义：
+   - 审查任务已完成
+   - 风险评估已完成
+   - 仅审批决定待补充
+3. 评估是否需要在 resume store 中新增审批相关字段，例如：
+   - `approval_status`
+   - `approval_decision_at`
+   - `approval_actor_role`
+4. 第一版即使不落库，也要在文档和 state 结构上明确：后续 resume 不应重新跑 extract / analyze / synthesize。
+5. 如果后续接 webhook 或前端按钮，建议入口语义是“恢复审批决策”，不是“重新审查全文”。
+
+验收：
+
+- 高风险状态有明确的后续落点。
+- 后续人工审批接入时，不需要推翻第一版 flow。
+- 审批恢复和审查执行的职责边界清晰。
+
+### 阶段 6：补齐测试、兼容性和执行记录
+
+目标：让这一轮改动可验证、可回归、可审计。
+
+Implementation steps:
+
+1. 为 risk assessment model 和 task 增加单元测试。
+2. 为 flow 增加路径测试，至少覆盖：
+   - single-pass -> low/medium -> final result
+   - To-Do synthesize -> low/medium -> final result
+   - 任一路径 -> high -> pending approval result
+3. 为 payload builder 增加测试，验证它只消费结构化审查结果，不依赖全文原文。
+4. 为 gateway 或最终响应结构增加兼容性测试，确认：
+   - 原有 `review` 字段未丢失
+   - 新增 `risk_assessment` 和 `approval` 字段可选或按预期出现
+5. 真正执行实施时，要同步更新对应 worklog，记录：
+   - 修改点
+   - 验证命令
+   - 首次失败原因
+   - 修复动作
+   - 最终通过结果
+6. 用仓库本地 `.venv` 跑 focused tests；如果这一轮未来进入实现，建议至少覆盖：
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py
+.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py
+```
+
+验收：
+
+- 风险评估新增能力有直接测试覆盖。
+- 高风险审批路径不会破坏现有 API 主结构。
+- worklog 能追溯实现、失败、修复和最终验证。
+
 ## 总结
 
 参考项目的执行架构不需要照搬，Investory 当前实现已经更成熟。
