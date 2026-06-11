@@ -835,6 +835,14 @@ Implementation steps:
 - 多 chunk 文档会触发 chunk To-Do plan。
 - gateway 对外主响应结构不变。
 
+设计理由补充：
+
+- 单 chunk 文档在技术上也可以走 `extract -> dimension analyze fan-out -> synthesize`，这不是能力限制。
+- 这一阶段仍然保留 short-document `single-pass`，是因为多 chunk 路径的主要收益来自“切开长文档后避免重复扫描全文并在 extract 层并发执行”；只有 1 个 chunk 时，这部分收益明显下降。
+- 如果单 chunk 也默认走 fan-out，通常会从 1 次 single-pass 调用变成 `1 次 extract + N 次 analyze + 1 次 synthesize`，延迟、token 成本和失败面都会扩大。
+- 短文档上下文本身集中，single-pass 往往已经足够稳定；在这一类输入上优先保留低成本路径，更符合本计划“短文档轻路径、长文档重路径”的双路径策略。
+- 后续如果更重视 traceability、维度级 explainability、统一执行形态，而不是延迟与成本，可以再把“单 chunk 也走 dimension analyze fan-out”作为明确的策略升级单独评估，而不是在 Phase 7 默认启用。
+
 ### 10.3 阶段 8：把 single aggregate analyze 升级为 dimension analyze fan-out
 
 目标：把当前单个 `analyze_aggregated_chunk_evidence` 改为按审查维度拆分的 analyze 任务，使 long-document 路径符合：
