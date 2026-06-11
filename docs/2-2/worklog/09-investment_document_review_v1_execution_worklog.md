@@ -1040,6 +1040,7 @@
   - Updated `classify_document_type()` so an `unknown` router decision with no explicit missing fields falls back to `UNKNOWN_DOCUMENT_MISSING_FIELDS`, keeping the public missing-input response actionable.
   - Updated legacy synthesize model validation tests to include the Phase 5 `review_summary` field required by `InvestmentDocumentReviewSynthesizeInput`.
   - Ran the full repository test suite from `.venv`; all tests passed.
+  - Phase 10 status note: this Phase 6 entry should now be read as the original gateway-compatibility baseline for Phases 1-6, not as the final closeout of the later chunk-routing and dimension-fan-out corrections that continued through Phases 7-10.
 - Evidence anchors:
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:30`
   - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:384`
@@ -1253,3 +1254,37 @@
   - `tests/test_investment_document_review_flow.py:687`
   - `tests/test_investment_document_review_flow.py:2038`
   - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py` passed with 43 passed.
+
+## 2026-06-11T17:27:49.6392806+10:00 Phase 10
+
+- Step: Phase 10 - compatibility closeout and worklog repair for the chunk-concurrency corrections.
+- Commands/actions:
+  - `rg -n "10\.5|Phase 10|阶段 10|Phase 6|v1 全部完成|已完成|兼容性" docs\2-2\plans\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `rg -n "Phase 6|v1 全部完成|已完成|兼容性|Phase 10|阶段 10" docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md | Select-Object -Skip 1008 -First 80`
+  - `Get-Content docs\2-2\plans\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md | Select-Object -Skip 944 -First 40`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - `Get-Content tests\test_investment_document_review_gateway_api.py | Select-Object -Skip 110 -First 70`
+  - `rg -n "runs_complete_review_through_executor|investment_document_extract|investment_document_analyze|investment_document_synthesize|handled_by" tests\test_investment_document_review_gateway_api.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - `.venv\Scripts\python.exe -m pytest tests`
+- Files touched:
+  - `tests/test_investment_document_review_gateway_api.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `docs/2-2/plans/09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+- Result:
+  - Updated the Phase 6 compatibility wording so it no longer reads like the final closeout of the entire investment document review v1 effort; it now explicitly serves as the pre-correction baseline before the Phase 7-10 chunk-concurrency follow-up work.
+  - The first Phase 10 gateway compatibility run failed in `test_investment_document_review_endpoint_runs_complete_review_through_executor` because the assertion still expected the old long-document shape with a single analyze task between extract and synthesize.
+  - The public endpoint behavior itself remained compatible: the response still returned `task_name=investment_document_review`, `action=complete`, `document_type`, `route_reason`, `route_confidence`, and a final `review` payload handled by synthesize.
+  - Repaired the gateway test so it now asserts the compatibility boundary that still matters after the fan-out change: two extract calls for the long input, one or more analyze calls, and synthesize as the final internal task.
+  - Re-ran the gateway compatibility suite from `.venv`; all gateway tests passed after the assertion update.
+  - Re-ran the full repository test suite from `.venv`; the whole test suite passed after the Phase 7-10 chunk review corrections and Phase 10 compatibility cleanup.
+- Evidence anchors:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md:1029`
+  - `tests/test_investment_document_review_gateway_api.py:118`
+  - `tests/test_investment_document_review_gateway_api.py:154`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py` first run failed with 1 failure in `test_investment_document_review_endpoint_runs_complete_review_through_executor`.
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py` rerun passed with 7 passed.
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests` passed with 268 passed and 44 warnings.
