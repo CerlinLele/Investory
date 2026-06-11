@@ -23,7 +23,9 @@ from investory.agent_core.contracts.todo_execution import (
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_flow import (
     ACTION_FIELD,
+    CHUNK_REVIEW_SCOPE,
     DOCUMENT_TYPE_FIELD,
+    FULL_DOCUMENT_REVIEW_SCOPE,
     INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
     MESSAGE_FIELD,
     MISSING_FIELDS_FIELD,
@@ -32,6 +34,7 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     ROUTE_REASON_FIELD,
     InvestmentDocumentReviewAction,
     InvestmentDocumentReviewFlow,
+    should_use_chunk_review,
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
     get_review_framework,
@@ -336,36 +339,91 @@ def test_document_review_flow_executes_known_document_review_task() -> None:
     )
     assert result.result[ROUTE_CONFIDENCE_FIELD] == 0.91
     assert result.result[REVIEW_FIELD] == {
+        "handled_by": INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name
+    }
+    assert executor.calls == [
+        (
+            INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+            {
+                DOCUMENT_TEXT_FIELD: payload[DOCUMENT_TEXT_FIELD],
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                EXTRACT_FOCUS_FIELD: framework.extract_focus if framework else [],
+                ANALYZE_FOCUS_FIELD: framework.analyze_focus if framework else [],
+                REVIEW_GOAL_FIELD: payload[REVIEW_GOAL_FIELD],
+            },
+        )
+    ]
+
+
+def test_document_review_flow_routes_only_multi_chunk_documents_to_chunk_review() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+
+    single_chunk_state = InvestmentDocumentReviewState(
+        input_payload={},
+        document_chunks=["short excerpt"],
+    )
+    multi_chunk_state = InvestmentDocumentReviewState(
+        input_payload={},
+        document_chunks=["first chunk", "second chunk"]
+    )
+
+    assert should_use_chunk_review(single_chunk_state) is False
+    assert flow.route_after_review_framework(single_chunk_state) == FULL_DOCUMENT_REVIEW_SCOPE
+    assert should_use_chunk_review(multi_chunk_state) is True
+    assert flow.route_after_review_framework(multi_chunk_state) == CHUNK_REVIEW_SCOPE
+
+
+def test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document() -> None:
+    executor = FakeExecutor()
+    router = FakeDocumentReviewRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.91,
+            reason="The excerpt clearly matches an ETF factsheet.",
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+
+    long_document = "\n\n".join(
+        [
+            (
+                f"Section {idx}: The ETF factsheet describes fees, holdings, "
+                "index exposure, risk disclosures, performance limits, and "
+                "important investor notices. "
+            )
+            * 3
+            for idx in range(8)
+        ]
+    )
+
+    result = flow.run(
+        {
+            DOCUMENT_TEXT_FIELD: long_document,
+            REVIEW_GOAL_FIELD: "Check major fees and risks",
+        }
+    )
+
+    assert result.ok is True
+    assert result.task_name == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == InvestmentDocumentReviewAction.COMPLETE.value
+    assert result.result[REVIEW_FIELD] == {
         "handled_by": INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name
     }
-    assert [call[0] for call in executor.calls] == [
-        INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
+    called_task_names = [call[0] for call in executor.calls]
+    assert called_task_names.count(INVESTMENT_DOCUMENT_EXTRACT_TASK.name) > 1
+    assert called_task_names[-2:] == [
         INVESTMENT_DOCUMENT_ANALYZE_TASK.name,
         INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
-    ]
-    extract_payload = executor.calls[0][1]
-    assert extract_payload[DOCUMENT_TEXT_FIELD] == payload[DOCUMENT_TEXT_FIELD]
-    assert extract_payload[DOCUMENT_TYPE_FIELD] == InvestmentDocumentType.ETF_FACTSHEET
-    assert extract_payload[EXTRACT_FOCUS_FIELD] == (
-        framework.extract_focus if framework else []
-    )
-    assert extract_payload[REVIEW_GOAL_FIELD] == payload[REVIEW_GOAL_FIELD]
-    assert extract_payload["chunk_index"] == 0
-    assert extract_payload["chunk_count"] == 1
-    assert extract_payload["review_scope"] == "document_chunk"
-
-    analyze_payload = executor.calls[1][1]
-    assert analyze_payload[DOCUMENT_TEXT_FIELD] == payload[DOCUMENT_TEXT_FIELD]
-    assert analyze_payload[ANALYZE_FOCUS_FIELD] == (
-        framework.analyze_focus if framework else []
-    )
-    assert analyze_payload["dependency_results"][0]["id"] == "extract_chunk_0001"
-
-    synthesize_payload = executor.calls[2][1]
-    assert synthesize_payload["review_summary"]["planned_task_count"] == 3
-    assert synthesize_payload["review_summary"]["succeeded_task_ids"] == [
-        "extract_chunk_0001",
-        "analyze_aggregated_chunk_evidence",
     ]
 
 
@@ -1953,11 +2011,19 @@ def test_document_review_flow_returns_chunk_synthesis_error_when_extract_never_s
     )
     flow = InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
 
-    result = flow.run(
-        {
-            DOCUMENT_TEXT_FIELD: "This prospectus covers redemption rules and fees.",
-        }
+    long_document = "\n\n".join(
+        [
+            (
+                f"Section {idx}: This prospectus covers redemption rules, fees, "
+                "liquidity constraints, investor eligibility, risk factors, and "
+                "disclosure limits. "
+            )
+            * 3
+            for idx in range(8)
+        ]
     )
+
+    result = flow.run({DOCUMENT_TEXT_FIELD: long_document})
 
     assert result.ok is False
     assert result.task_name == INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name
@@ -1968,9 +2034,7 @@ def test_document_review_flow_returns_chunk_synthesis_error_when_extract_never_s
         "Chunk-based document review did not produce synthesis."
     )
     assert len(router.calls) == 1
-    assert len(executor.calls) == 3
-    assert [call[0] for call in executor.calls] == [
-        INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
-        INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
-        INVESTMENT_DOCUMENT_EXTRACT_TASK.name,
-    ]
+    assert len(executor.calls) > 3
+    assert {call[0] for call in executor.calls} == {
+        INVESTMENT_DOCUMENT_EXTRACT_TASK.name
+    }

@@ -1083,3 +1083,44 @@
   - `tests/test_investment_document_review_flow.py:353`
   - `tests/test_investment_document_review_flow.py:362`
   - `tests/test_investment_document_review_flow.py:367`
+
+## 2026-06-11T16:46:40.1997384+10:00 Phase 7 Step 2
+
+- Step: Phase 7 Step 2 - narrow the chunk review route so single-chunk documents stay on the single-pass path.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py | Select-Object -First 880`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_chunker.py`
+  - `Get-Content tests\test_investment_document_review_flow.py | Select-Object -First 430`
+  - `Get-Content tests\test_investment_document_review_flow.py | Select-Object -Last 160`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `rg -n "def should_use_chunk_review|route_after_review_framework|generate_review_todo_plan|elif should_use_chunk_review|test_document_review_flow_executes_known_document_review_task|test_document_review_flow_routes_only_multi_chunk_documents_to_chunk_review|test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document|test_document_review_flow_returns_chunk_synthesis_error_when_extract_never_succeeds" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `git diff --stat`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `should_use_chunk_review()` as the explicit route-boundary helper and made chunk review require more than one document chunk.
+  - Updated `route_after_review_framework()` and `generate_review_todo_plan()` to use the narrowed helper instead of treating any non-empty chunk list as chunk-review eligible.
+  - Updated the chunk-specific synthesis-error fallback so it only applies to states that are actually eligible for chunk review.
+  - Updated the known-document short review test so a single-chunk document now verifies the `investment_document_review_single_pass` path and payload.
+  - Added focused route-boundary coverage proving one chunk routes to `full_document` and multiple chunks route to `document_chunk`.
+  - Added a multi-chunk flow test proving a long document still executes multiple extract tasks followed by analyze and synthesize.
+  - First focused test run failed with 2 failures:
+    - The new route-boundary test built `InvestmentDocumentReviewState` without the required `input_payload`.
+    - The existing chunk synthesis-error test still used a short document and now correctly reached `investment_document_review_single_pass` instead of chunk synthesis.
+  - Fixed the test setup by adding `input_payload={}` to manual states and changing the synthesis-error test to use a multi-chunk long document.
+  - Re-ran the focused flow suite from `.venv`; all tests passed.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:292`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:662`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:677`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:848`
+  - `tests/test_investment_document_review_flow.py:309`
+  - `tests/test_investment_document_review_flow.py:358`
+  - `tests/test_investment_document_review_flow.py:385`
+  - `tests/test_investment_document_review_flow.py:1994`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` first run failed with 2 failures.
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` rerun passed with 27 passed.

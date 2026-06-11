@@ -289,6 +289,10 @@ def _guess_review_plan_chunk_count(state: InvestmentDocumentReviewState) -> int:
     return len(state.document_chunks or [])
 
 
+def should_use_chunk_review(state: InvestmentDocumentReviewState) -> bool:
+    return len(state.document_chunks or []) > 1
+
+
 def _build_review_todo_runner_event_handler(
     *,
     session_id: str | None,
@@ -656,7 +660,7 @@ class InvestmentDocumentReviewFlow:
         }
 
     def route_after_review_framework(self, state: InvestmentDocumentReviewState) -> str:
-        if state.document_chunks:
+        if should_use_chunk_review(state):
             return CHUNK_REVIEW_SCOPE
         return FULL_DOCUMENT_REVIEW_SCOPE
 
@@ -674,7 +678,7 @@ class InvestmentDocumentReviewFlow:
         self,
         state: InvestmentDocumentReviewState,
     ) -> dict[str, Any]:
-        if state.document_chunks:
+        if should_use_chunk_review(state):
             todo_plan = self._build_chunk_review_todo_plan(state)
             _log_review_todo_plan_generated(
                 session_id=state.session_id,
@@ -841,7 +845,7 @@ class InvestmentDocumentReviewFlow:
                 task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
                 result=synthesize_result.result,
             )
-        elif state.document_chunks:
+        elif should_use_chunk_review(state):
             update["output"] = TaskResult(
                 ok=False,
                 task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
