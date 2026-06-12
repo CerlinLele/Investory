@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -53,6 +54,8 @@ class InvestmentDocumentReviewState(BaseModel):
     risk_assessment: dict[str, Any] | None = None
     approval_status: str | None = None
     approval_required_role: str | None = None
+    approval_decision_at: datetime | None = None
+    approval_actor_role: str | None = None
     output: TaskResult | None = None
 
 

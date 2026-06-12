@@ -1995,6 +1995,60 @@ def test_build_pending_approval_result_returns_pending_action_and_approval_field
     )
 
 
+def test_build_pending_approval_result_does_not_require_todo_resume_to_rebuild_review() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    decided_at = datetime(2026, 6, 12, 10, 30, tzinfo=timezone.utc)
+
+    update = flow.build_pending_approval_result(
+        InvestmentDocumentReviewState(
+            session_id="session-pending-approval",
+            input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            route_reason="The excerpt clearly matches an ETF factsheet.",
+            route_confidence=0.91,
+            risk_assessment={
+                "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+                "risk_reason": "Missing disclosures require manual review.",
+                "critical_issues": ["No benchmark methodology is provided."],
+                "approval_status": (
+                    InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+                ),
+                "required_role": COMPLIANCE_REVIEWER_ROLE,
+                "auto_proceed": False,
+            },
+            approval_status=(
+                InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+            ),
+            approval_required_role=COMPLIANCE_REVIEWER_ROLE,
+            approval_decision_at=decided_at,
+            approval_actor_role="compliance_reviewer",
+            output=TaskResult(
+                ok=True,
+                task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+                result={"summary": "Review already completed before approval."},
+            ),
+        )
+    )
+
+    assert update["output"].result is not None
+    assert (
+        update["output"].result[ACTION_FIELD]
+        == InvestmentDocumentReviewAction.PENDING_HUMAN_APPROVAL.value
+    )
+    assert update["output"].result[REVIEW_FIELD] == {
+        "summary": "Review already completed before approval."
+    }
+
+
 def test_route_after_risk_assessment_returns_pending_route_for_manual_review() -> None:
     flow = InvestmentDocumentReviewFlow(
         executor=FakeExecutor(),

@@ -191,3 +191,44 @@
 - Phase 4 completed.
 - User-readable review output remains intact while approval-oriented data is now exposed in separate `risk_assessment` and `approval` fields.
 - High-risk results are no longer mislabeled as ordinary `complete`; they surface an explicit `pending_human_approval` action and approval status.
+
+## Phase 5
+
+- Timestamp: `2026-06-12 21:08:11 +10:00`
+- Plan: [13-Investory_参考v2加风险审批可借鉴点.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\plans\13-Investory_参考v2加风险审批可借鉴点.md)
+- Scope: `Phase 5 - 为后续人工审批 resume 留好扩展点`
+
+### Actions
+
+1. Added future approval-resume state fields in [investment_document_review_state.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\contracts\investment_document_review_state.py:42):
+   - `approval_decision_at`
+   - `approval_actor_role`
+2. Clarified the resume boundary in [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:152) by documenting that the current resume store persists only To-Do review execution and that future approval-resume metadata remains on `InvestmentDocumentReviewState`.
+3. Kept the existing `InvestmentDocumentReviewTodoResumeStore` protocol unchanged in this phase after evaluating the plan’s suggested additions:
+   - no `approval_status` persistence added yet
+   - no `approval_decision_at` persistence added yet
+   - no `approval_actor_role` persistence added yet
+   - decision: defer storage-contract expansion until a real approval resume entrypoint exists, so we do not prematurely lock in persistence semantics
+4. Added tests to make the intended extension point explicit:
+   - [test_investment_document_review_rules.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_rules.py:67) now checks the new approval resume fields default to `None` and validate cleanly when present.
+   - [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1998) now verifies a pending-approval result can be rebuilt from already-completed review output plus approval metadata, without needing To-Do review resume inputs.
+
+### Files Touched
+
+- [investment_document_review_state.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\contracts\investment_document_review_state.py:1)
+- [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:1)
+- [test_investment_document_review_rules.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_rules.py:1)
+- [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1)
+
+### Verification
+
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_rules.py`
+  - Result: `24 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - Result: `36 passed`
+
+### Result
+
+- Phase 5 completed.
+- The state model now has explicit fields for future approval decisions without changing current gateway output or To-Do resume storage contracts.
+- The extension point is intentionally shaped so future approval resume can continue from a completed review and risk assessment instead of rerunning extract / analyze / synthesize.

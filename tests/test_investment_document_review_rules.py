@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 from pydantic import ValidationError
 
@@ -81,6 +83,11 @@ def test_investment_document_review_state_defaults_to_expected_empty_values():
     assert state.route_confidence is None
     assert state.review_framework is None
     assert state.review_payload is None
+    assert state.risk_assessment is None
+    assert state.approval_status is None
+    assert state.approval_required_role is None
+    assert state.approval_decision_at is None
+    assert state.approval_actor_role is None
     assert state.output is None
 
 
@@ -91,6 +98,23 @@ def test_investment_document_review_state_requires_input_payload():
     missing_fields = {error["loc"][0] for error in exc_info.value.errors()}
 
     assert missing_fields == {"input_payload"}
+
+
+def test_investment_document_review_state_accepts_future_approval_resume_fields():
+    decided_at = datetime(2026, 6, 12, 10, 30, tzinfo=timezone.utc)
+
+    state = InvestmentDocumentReviewState(
+        input_payload={DOCUMENT_TEXT_FIELD: "Example document text"},
+        approval_status="pending_human_approval",
+        approval_required_role="compliance_reviewer",
+        approval_decision_at=decided_at,
+        approval_actor_role="compliance_reviewer",
+    )
+
+    assert state.approval_status == "pending_human_approval"
+    assert state.approval_required_role == "compliance_reviewer"
+    assert state.approval_decision_at == decided_at
+    assert state.approval_actor_role == "compliance_reviewer"
 
 
 def test_document_review_framework_defaults_to_empty_lists():

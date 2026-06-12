@@ -150,6 +150,8 @@ class InvestmentDocumentReviewNode(str, Enum):
 
 
 class InvestmentDocumentReviewTodoResumeStore(Protocol):
+    # This checkpoint persists only review-task execution. Future approval resume
+    # metadata stays on InvestmentDocumentReviewState and should not rerun review work.
     def load_resume_state(
         self,
         *,
