@@ -229,7 +229,7 @@
     <header>
       <h1>Investory v2 风险审批架构图</h1>
       <p class="subtitle">
-        这张图对应 <code>13-Investory_参考v2加风险审批可借鉴点.md</code> 的建议实现：现有投资文档审查先生成报告，再进入独立的风险评估 task，最后根据机器可读风险等级进入自动批准或人工审批等待状态。
+        这张图对应 <code>13-Investory_参考v2加风险审批可借鉴点.md</code> 的规划实现：现有投资文档审查先生成审查报告，再进入独立的风险评估 task，最后根据机器可读风险等级进入自动批准或人工审批等待状态。
       </p>
     </header>
 
@@ -290,7 +290,7 @@
         <text class="body" x="925" y="168">payload + chunks</text>
 
         <rect class="box review" x="1100" y="98" width="230" height="92"></rect>
-        <text class="title" x="1215" y="122">route_review_scope</text>
+        <text class="title" x="1215" y="122">route_after_review_framework</text>
         <text class="body" x="1215" y="148">single-pass</text>
         <text class="body" x="1215" y="168">or To-Do DAG</text>
 
@@ -334,7 +334,7 @@
         <path class="edge-soft" d="M 1165 430 V 465 H 695"></path>
 
         <rect class="box risk" x="175" y="610" width="270" height="96"></rect>
-        <text class="title" x="310" y="632">_build_risk_payload</text>
+        <text class="title" x="310" y="632">_build_review_risk_assessment_payload</text>
         <text class="body" x="310" y="658">risk_findings + gaps</text>
         <text class="body" x="310" y="678">boundary + task status</text>
 
@@ -349,7 +349,7 @@
         <text class="body" x="1037.5" y="678">critical_issues + auto_proceed</text>
 
         <rect class="box approval" x="1240" y="610" width="210" height="96"></rect>
-        <text class="title" x="1345" y="632">route_after_risk</text>
+        <text class="title" x="1345" y="632">route_after_risk_assessment</text>
         <text class="body" x="1345" y="658">low / medium</text>
         <text class="body" x="1345" y="678">or high</text>
 
@@ -368,17 +368,17 @@
         <rect class="box approval" x="520" y="875" width="290" height="92"></rect>
         <text class="title" x="665" y="899">PENDING_HUMAN_APPROVAL</text>
         <text class="body" x="665" y="925">high risk</text>
-        <text class="body" x="665" y="945">required_role=compliance</text>
+        <text class="body" x="665" y="945">required_role=compliance_reviewer</text>
 
         <rect class="box approval" x="920" y="875" width="230" height="92"></rect>
-        <text class="title" x="1035" y="899">resume approval</text>
+        <text class="title" x="1035" y="899">future approval resume</text>
         <text class="body" x="1035" y="925">human_approved</text>
         <text class="body" x="1035" y="945">or cancelled</text>
 
         <rect class="box final" x="1225" y="875" width="205" height="92"></rect>
         <text class="title" x="1327.5" y="899">final state builder</text>
         <text class="body" x="1327.5" y="925">build_final_result</text>
-        <text class="body" x="1327.5" y="945">or cancelled result</text>
+        <text class="body" x="1327.5" y="945">or build_pending_approval_result</text>
 
         <path class="edge" d="M 1310 706 V 794 H 272.5 V 875"></path>
         <rect x="596" y="776" width="104" height="22" rx="5" fill="#ffffff" stroke="#d7dfdd"></rect>
