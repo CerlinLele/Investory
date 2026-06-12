@@ -35,10 +35,14 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
     MESSAGE_FIELD,
     MISSING_FIELDS_FIELD,
+    APPROVAL_FIELD,
     PENDING_APPROVAL_ROUTE,
     REVIEW_FIELD,
+    REQUIRED_ROLE_FIELD,
+    RISK_ASSESSMENT_FIELD,
     ROUTE_CONFIDENCE_FIELD,
     ROUTE_REASON_FIELD,
+    STATUS_FIELD,
     SYNTHESIZE_REVIEW_TASK_ID,
     InvestmentDocumentReviewAction,
     InvestmentDocumentReviewFlow,
@@ -1865,6 +1869,18 @@ def test_build_final_result_preserves_route_metadata_for_synthesized_review() ->
             document_type=InvestmentDocumentType.ETF_FACTSHEET,
             route_reason="The excerpt clearly matches an ETF factsheet.",
             route_confidence=0.91,
+            risk_assessment={
+                "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
+                "risk_reason": "Structured findings do not block automatic release.",
+                "critical_issues": [],
+                "approval_status": (
+                    InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+                ),
+                "required_role": None,
+                "auto_proceed": True,
+            },
+            approval_status=InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value,
+            approval_required_role=None,
             output=TaskResult(
                 ok=True,
                 task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
@@ -1882,6 +1898,99 @@ def test_build_final_result_preserves_route_metadata_for_synthesized_review() ->
             ROUTE_REASON_FIELD: "The excerpt clearly matches an ETF factsheet.",
             ROUTE_CONFIDENCE_FIELD: 0.91,
             REVIEW_FIELD: synthesized_review,
+            RISK_ASSESSMENT_FIELD: {
+                "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
+                "risk_reason": "Structured findings do not block automatic release.",
+                "critical_issues": [],
+                "approval_status": (
+                    InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+                ),
+                "required_role": None,
+                "auto_proceed": True,
+            },
+            APPROVAL_FIELD: {
+                STATUS_FIELD: InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value,
+                REQUIRED_ROLE_FIELD: None,
+            },
+        },
+    )
+
+
+def test_build_pending_approval_result_returns_pending_action_and_approval_fields() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    synthesized_review = {
+        "document_type": InvestmentDocumentType.ETF_FACTSHEET.value,
+        "extracted_facts": ["Management fee is 0.10%."],
+        "risk_findings": ["Benchmark methodology disclosure is missing."],
+        "information_gaps": ["No benchmark methodology is provided."],
+        "boundary_notes": ["This review does not provide investment advice."],
+        "summary": "The factsheet omits benchmark methodology details.",
+    }
+
+    update = flow.build_pending_approval_result(
+        InvestmentDocumentReviewState(
+            input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            route_reason="The excerpt clearly matches an ETF factsheet.",
+            route_confidence=0.91,
+            risk_assessment={
+                "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+                "risk_reason": "Missing disclosures require manual review.",
+                "critical_issues": ["No benchmark methodology is provided."],
+                "approval_status": (
+                    InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+                ),
+                "required_role": COMPLIANCE_REVIEWER_ROLE,
+                "auto_proceed": False,
+            },
+            approval_status=(
+                InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+            ),
+            approval_required_role=COMPLIANCE_REVIEWER_ROLE,
+            output=TaskResult(
+                ok=True,
+                task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+                result=synthesized_review,
+            ),
+        )
+    )
+
+    assert update["output"] == TaskResult(
+        ok=True,
+        task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
+        result={
+            ACTION_FIELD: (
+                InvestmentDocumentReviewAction.PENDING_HUMAN_APPROVAL.value
+            ),
+            DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET.value,
+            ROUTE_REASON_FIELD: "The excerpt clearly matches an ETF factsheet.",
+            ROUTE_CONFIDENCE_FIELD: 0.91,
+            REVIEW_FIELD: synthesized_review,
+            RISK_ASSESSMENT_FIELD: {
+                "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+                "risk_reason": "Missing disclosures require manual review.",
+                "critical_issues": ["No benchmark methodology is provided."],
+                "approval_status": (
+                    InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+                ),
+                "required_role": COMPLIANCE_REVIEWER_ROLE,
+                "auto_proceed": False,
+            },
+            APPROVAL_FIELD: {
+                STATUS_FIELD: (
+                    InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+                ),
+                REQUIRED_ROLE_FIELD: COMPLIANCE_REVIEWER_ROLE,
+            },
         },
     )
 

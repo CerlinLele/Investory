@@ -10,14 +10,22 @@ from investory.agent_core.contracts.investment_document_review_state import (
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
 from investory.agent_core.runtime.flow.investment_document_review.document_review_flow import (
     ACTION_FIELD,
+    APPROVAL_FIELD,
     DOCUMENT_TYPE_FIELD,
     INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
     MESSAGE_FIELD,
     MISSING_FIELDS_FIELD,
     REVIEW_FIELD,
+    REQUIRED_ROLE_FIELD,
+    RISK_ASSESSMENT_FIELD,
     ROUTE_CONFIDENCE_FIELD,
     ROUTE_REASON_FIELD,
+    STATUS_FIELD,
     InvestmentDocumentReviewFlow,
+)
+from investory.agent_core.task_models.investment_document_review import (
+    InvestmentDocumentReviewApprovalStatus,
+    InvestmentDocumentReviewRiskLevel,
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
     DOCUMENT_ROUTER_MAX_CHARS,
@@ -48,6 +56,21 @@ class FakeExecutor:
 
     def run(self, spec, payload: dict) -> TaskResult:
         self.calls.append((spec.name, payload))
+        if spec.name == "investment_document_risk_assessment":
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result={
+                    "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
+                    "risk_reason": "Structured findings do not block automatic release.",
+                    "critical_issues": [],
+                    "approval_status": (
+                        InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+                    ),
+                    "required_role": None,
+                    "auto_proceed": True,
+                },
+            )
         return TaskResult(
             ok=True,
             task_name=spec.name,
@@ -150,11 +173,28 @@ def test_investment_document_review_endpoint_runs_complete_review_through_execut
         ROUTE_REASON_FIELD: "The excerpt clearly matches an ETF factsheet.",
         ROUTE_CONFIDENCE_FIELD: 0.91,
         REVIEW_FIELD: {"handled_by": "investment_document_synthesize"},
+        RISK_ASSESSMENT_FIELD: {
+            "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
+            "risk_reason": "Structured findings do not block automatic release.",
+            "critical_issues": [],
+            "approval_status": (
+                InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+            ),
+            "required_role": None,
+            "auto_proceed": True,
+        },
+        APPROVAL_FIELD: {
+            STATUS_FIELD: InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value,
+            REQUIRED_ROLE_FIELD: None,
+        },
     }
     call_names = [name for name, _ in executor.calls]
     assert call_names.count("investment_document_extract") == 2
     assert call_names.count("investment_document_analyze") >= 1
-    assert call_names[-1] == "investment_document_synthesize"
+    assert call_names[-2:] == [
+        "investment_document_synthesize",
+        "investment_document_risk_assessment",
+    ]
 
 
 def test_investment_document_review_endpoint_preserves_refusal_branch():

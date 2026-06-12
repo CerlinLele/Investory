@@ -142,3 +142,52 @@
 - Phase 3 completed.
 - Both the single-pass and To-Do review paths now pass through a shared `assess_review_risk` node before final result handling.
 - The risk-assessment payload stays audit-friendly by consuming structured review outputs and task status summaries rather than re-reading raw document text.
+
+## Phase 4
+
+- Timestamp: `2026-06-12 20:56:12 +10:00`
+- Plan: [13-Investory_参考v2加风险审批可借鉴点.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\plans\13-Investory_参考v2加风险审批可借鉴点.md)
+- Scope: `Phase 4 - 把审查结果和审批状态分开输出`
+
+### Actions
+
+1. Expanded the outward result shape in [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:85) by adding stable response-field constants:
+   - `RISK_ASSESSMENT_FIELD`
+   - `APPROVAL_FIELD`
+   - `STATUS_FIELD`
+   - `REQUIRED_ROLE_FIELD`
+2. Updated [build_final_result()](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:1394) so successful auto-approved results now return:
+   - the existing user-readable `review`
+   - a separate `risk_assessment`
+   - a separate `approval` block
+3. Implemented [build_pending_approval_result()](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:1423) so high-risk reviews are no longer exposed as plain `complete`:
+   - `action` is now `pending_human_approval`
+   - `review` remains present
+   - `risk_assessment` remains present
+   - `approval.status` and `approval.required_role` are explicit
+4. Added Phase 4 flow assertions in [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1841):
+   - final auto-approved results now include `risk_assessment` and `approval`
+   - pending-approval results now expose `pending_human_approval` plus the minimal approval fields
+5. Updated gateway coverage in [test_investment_document_review_gateway_api.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_gateway_api.py:118):
+   - complete review responses now include `risk_assessment` and `approval`
+   - the gateway executor stub now returns a valid risk-assessment payload
+   - executor call order now includes the post-synthesis `investment_document_risk_assessment` step
+
+### Files Touched
+
+- [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:1)
+- [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1)
+- [test_investment_document_review_gateway_api.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_gateway_api.py:1)
+
+### Verification
+
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - Result: `35 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - Result: `7 passed`
+
+### Result
+
+- Phase 4 completed.
+- User-readable review output remains intact while approval-oriented data is now exposed in separate `risk_assessment` and `approval` fields.
+- High-risk results are no longer mislabeled as ordinary `complete`; they surface an explicit `pending_human_approval` action and approval status.

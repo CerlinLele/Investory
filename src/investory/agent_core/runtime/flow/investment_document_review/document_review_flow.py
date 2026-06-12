@@ -86,6 +86,10 @@ ACTION_FIELD = "action"
 MESSAGE_FIELD = "message"
 DOCUMENT_TYPE_FIELD = "document_type"
 REVIEW_FIELD = "review"
+RISK_ASSESSMENT_FIELD = "risk_assessment"
+APPROVAL_FIELD = "approval"
+STATUS_FIELD = "status"
+REQUIRED_ROLE_FIELD = "required_role"
 MISSING_FIELDS_FIELD = "missing_fields"
 ROUTE_REASON_FIELD = "route_reason"
 ROUTE_CONFIDENCE_FIELD = "route_confidence"
@@ -128,6 +132,7 @@ class InvestmentDocumentReviewAction(str, Enum):
     ASK_FOR_MISSING_INPUT = "ask_for_missing_input"
     REFUSE_AND_REDIRECT = "refuse_and_redirect"
     COMPLETE = "complete"
+    PENDING_HUMAN_APPROVAL = "pending_human_approval"
 
 
 class InvestmentDocumentReviewNode(str, Enum):
@@ -1407,6 +1412,15 @@ class InvestmentDocumentReviewFlow:
                 "Document review flow finished without a classified document type."
             )
 
+        if state.risk_assessment is None:
+            raise RuntimeError(
+                "Document review flow finished without a risk assessment result."
+            )
+        if state.approval_status is None:
+            raise RuntimeError(
+                "Document review flow finished without an approval status."
+            )
+
         result = TaskResult(
             ok=True,
             task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
@@ -1416,6 +1430,11 @@ class InvestmentDocumentReviewFlow:
                 ROUTE_REASON_FIELD: state.route_reason,
                 ROUTE_CONFIDENCE_FIELD: state.route_confidence,
                 REVIEW_FIELD: state.output.result,
+                RISK_ASSESSMENT_FIELD: state.risk_assessment,
+                APPROVAL_FIELD: {
+                    STATUS_FIELD: state.approval_status,
+                    REQUIRED_ROLE_FIELD: state.approval_required_role,
+                },
             },
         )
         return {"output": result}
@@ -1424,7 +1443,46 @@ class InvestmentDocumentReviewFlow:
         self,
         state: InvestmentDocumentReviewState,
     ) -> dict[str, Any]:
-        return self.build_final_result(state)
+        if state.output is None:
+            raise RuntimeError("Document review flow has no review result to finalize.")
+
+        if not state.output.ok:
+            return {"output": state.output}
+
+        document_type = state.document_type
+        if document_type is None:
+            raise RuntimeError(
+                "Document review flow finished without a classified document type."
+            )
+
+        if state.risk_assessment is None:
+            raise RuntimeError(
+                "Document review flow finished without a risk assessment result."
+            )
+        if state.approval_status is None:
+            raise RuntimeError(
+                "Document review flow finished without an approval status."
+            )
+
+        result = TaskResult(
+            ok=True,
+            task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
+            result={
+                ACTION_FIELD: (
+                    InvestmentDocumentReviewAction.PENDING_HUMAN_APPROVAL.value
+                ),
+                DOCUMENT_TYPE_FIELD: document_type.value,
+                ROUTE_REASON_FIELD: state.route_reason,
+                ROUTE_CONFIDENCE_FIELD: state.route_confidence,
+                REVIEW_FIELD: state.output.result,
+                RISK_ASSESSMENT_FIELD: state.risk_assessment,
+                APPROVAL_FIELD: {
+                    STATUS_FIELD: state.approval_status,
+                    REQUIRED_ROLE_FIELD: state.approval_required_role,
+                },
+            },
+        )
+        return {"output": result}
 
     def build_missing_input_result(
         self,
