@@ -399,6 +399,88 @@ def test_document_review_flow_executes_known_document_review_task() -> None:
     ]
 
 
+def test_document_review_flow_keeps_medium_risk_single_pass_reviews_complete() -> None:
+    class MediumRiskExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "document_type": InvestmentDocumentType.ETF_FACTSHEET.value,
+                        "extracted_facts": ["Management fee is 0.03%."],
+                        "risk_findings": ["Fee disclosure is concise but not dated."],
+                        "information_gaps": ["No source date is shown for the fee table."],
+                        "boundary_notes": [
+                            "The review does not assess live market conditions."
+                        ],
+                        "summary": "The factsheet discloses a 0.03% management fee.",
+                    },
+                )
+            if spec.name == INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "overall_risk": InvestmentDocumentReviewRiskLevel.MEDIUM.value,
+                        "risk_reason": "A minor disclosure gap exists but does not block release.",
+                        "critical_issues": [],
+                        "approval_status": (
+                            InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+                        ),
+                        "required_role": None,
+                        "auto_proceed": True,
+                    },
+                )
+            raise AssertionError(f"Unexpected task {spec.name}")
+
+    executor = MediumRiskExecutor()
+    router = FakeDocumentReviewRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.91,
+            reason="The excerpt clearly matches an ETF factsheet.",
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+
+    result = flow.run(
+        {
+            DOCUMENT_TEXT_FIELD: "The ETF tracks the S&P 500 and charges 0.03%.",
+            REVIEW_GOAL_FIELD: "Check major fees and risks",
+        }
+    )
+
+    assert result.ok is True
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == InvestmentDocumentReviewAction.COMPLETE.value
+    assert result.result[REVIEW_FIELD]["summary"] == (
+        "The factsheet discloses a 0.03% management fee."
+    )
+    assert result.result[RISK_ASSESSMENT_FIELD] == {
+        "overall_risk": InvestmentDocumentReviewRiskLevel.MEDIUM.value,
+        "risk_reason": "A minor disclosure gap exists but does not block release.",
+        "critical_issues": [],
+        "approval_status": (
+            InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+        ),
+        "required_role": None,
+        "auto_proceed": True,
+    }
+    assert result.result[APPROVAL_FIELD] == {
+        STATUS_FIELD: InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value,
+        REQUIRED_ROLE_FIELD: None,
+    }
+    assert [name for name, _ in executor.calls] == [
+        INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+        INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
+    ]
+
+
 def test_document_review_flow_routes_only_multi_chunk_documents_to_chunk_review() -> None:
     flow = InvestmentDocumentReviewFlow(
         executor=FakeExecutor(),
@@ -470,6 +552,164 @@ def test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document() ->
         INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
         INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
     ]
+
+
+def test_document_review_flow_keeps_medium_risk_chunk_reviews_complete() -> None:
+    class MediumRiskChunkExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            if spec.name == INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "overall_risk": InvestmentDocumentReviewRiskLevel.MEDIUM.value,
+                        "risk_reason": "The chunk review found limited disclosure gaps only.",
+                        "critical_issues": [],
+                        "approval_status": (
+                            InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+                        ),
+                        "required_role": None,
+                        "auto_proceed": True,
+                    },
+                )
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result={"handled_by": spec.name},
+            )
+
+    executor = MediumRiskChunkExecutor()
+    router = FakeDocumentReviewRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.91,
+            reason="The excerpt clearly matches an ETF factsheet.",
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+
+    long_document = "\n\n".join(
+        [
+            (
+                f"Section {idx}: The ETF factsheet describes fees, holdings, "
+                "index exposure, risk disclosures, performance limits, and "
+                "important investor notices. "
+            )
+            * 3
+            for idx in range(8)
+        ]
+    )
+
+    result = flow.run(
+        {
+            DOCUMENT_TEXT_FIELD: long_document,
+            REVIEW_GOAL_FIELD: "Check major fees and risks",
+        }
+    )
+
+    assert result.ok is True
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == InvestmentDocumentReviewAction.COMPLETE.value
+    assert result.result[REVIEW_FIELD] == {
+        "handled_by": INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name
+    }
+    assert result.result[RISK_ASSESSMENT_FIELD]["overall_risk"] == (
+        InvestmentDocumentReviewRiskLevel.MEDIUM.value
+    )
+    assert result.result[APPROVAL_FIELD] == {
+        STATUS_FIELD: InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value,
+        REQUIRED_ROLE_FIELD: None,
+    }
+    assert [name for name, _ in executor.calls][-2:] == [
+        INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+        INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
+    ]
+
+
+def test_document_review_flow_routes_high_risk_reviews_to_pending_human_approval() -> None:
+    class HighRiskExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "document_type": InvestmentDocumentType.ETF_FACTSHEET.value,
+                        "extracted_facts": ["Management fee is 0.03%."],
+                        "risk_findings": ["Benchmark methodology is not disclosed."],
+                        "information_gaps": ["No benchmark methodology is provided."],
+                        "boundary_notes": [
+                            "The review does not assess live market conditions."
+                        ],
+                        "summary": "The factsheet omits benchmark methodology details.",
+                    },
+                )
+            if spec.name == INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+                        "risk_reason": "A material disclosure gap requires manual approval.",
+                        "critical_issues": ["No benchmark methodology is provided."],
+                        "approval_status": (
+                            InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+                        ),
+                        "required_role": COMPLIANCE_REVIEWER_ROLE,
+                        "auto_proceed": False,
+                    },
+                )
+            raise AssertionError(f"Unexpected task {spec.name}")
+
+    executor = HighRiskExecutor()
+    router = FakeDocumentReviewRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.91,
+            reason="The excerpt clearly matches an ETF factsheet.",
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+
+    result = flow.run(
+        {
+            DOCUMENT_TEXT_FIELD: "The ETF factsheet lists fees but omits benchmark details.",
+            REVIEW_GOAL_FIELD: "Check major fees and risks",
+        }
+    )
+
+    assert result.ok is True
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == (
+        InvestmentDocumentReviewAction.PENDING_HUMAN_APPROVAL.value
+    )
+    assert result.result[REVIEW_FIELD]["summary"] == (
+        "The factsheet omits benchmark methodology details."
+    )
+    assert result.result[RISK_ASSESSMENT_FIELD] == {
+        "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+        "risk_reason": "A material disclosure gap requires manual approval.",
+        "critical_issues": ["No benchmark methodology is provided."],
+        "approval_status": (
+            InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+        ),
+        "required_role": COMPLIANCE_REVIEWER_ROLE,
+        "auto_proceed": False,
+    }
+    assert result.result[APPROVAL_FIELD] == {
+        STATUS_FIELD: (
+            InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+        ),
+        REQUIRED_ROLE_FIELD: COMPLIANCE_REVIEWER_ROLE,
+    }
 
 
 def test_generate_review_todo_plan_node_builds_plan_without_executing_tasks() -> None:

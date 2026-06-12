@@ -24,11 +24,16 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     InvestmentDocumentReviewFlow,
 )
 from investory.agent_core.task_models.investment_document_review import (
+    COMPLIANCE_REVIEWER_ROLE,
     InvestmentDocumentReviewApprovalStatus,
     InvestmentDocumentReviewRiskLevel,
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
     DOCUMENT_ROUTER_MAX_CHARS,
+)
+from investory.agent_core.tasks import (
+    INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
 )
 from investory.gateway.api import (
     INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR,
@@ -195,6 +200,109 @@ def test_investment_document_review_endpoint_runs_complete_review_through_execut
         "investment_document_synthesize",
         "investment_document_risk_assessment",
     ]
+
+
+def test_investment_document_review_endpoint_returns_pending_approval_for_high_risk_review():
+    class HighRiskExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            if spec.name == INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+                        "risk_reason": "A material disclosure gap requires manual approval.",
+                        "critical_issues": ["No benchmark methodology is provided."],
+                        "approval_status": (
+                            InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+                        ),
+                        "required_role": COMPLIANCE_REVIEWER_ROLE,
+                        "auto_proceed": False,
+                    },
+                )
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "document_type": "etf_factsheet",
+                        "extracted_facts": ["Management fee is 0.03%."],
+                        "risk_findings": ["Benchmark methodology is not disclosed."],
+                        "information_gaps": ["No benchmark methodology is provided."],
+                        "boundary_notes": [
+                            "The review does not assess live market conditions."
+                        ],
+                        "summary": "The factsheet omits benchmark methodology details.",
+                    },
+                )
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result={"handled_by": spec.name},
+            )
+
+    payload = {
+        "document_text": "The ETF factsheet lists fees but omits benchmark details.",
+        "document_type_hint": "etf_factsheet",
+    }
+    router = FakeRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.91,
+            reason="The excerpt clearly matches an ETF factsheet.",
+        )
+    )
+    client = _client_with_flow(
+        InvestmentDocumentReviewFlow(executor=HighRiskExecutor(), llm_router=router)
+    )
+
+    response = client.post(
+        INVESTMENT_DOCUMENT_REVIEW_ROUTE,
+        json={"payload": payload, "session_id": "session-high-risk"},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["task_name"] == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
+    assert body["session_id"] == "session-high-risk"
+    assert body["error"] is None
+    assert body["result"] == {
+        ACTION_FIELD: "pending_human_approval",
+        DOCUMENT_TYPE_FIELD: "etf_factsheet",
+        ROUTE_REASON_FIELD: "The excerpt clearly matches an ETF factsheet.",
+        ROUTE_CONFIDENCE_FIELD: 0.91,
+        REVIEW_FIELD: {
+            "document_type": "etf_factsheet",
+            "extracted_facts": ["Management fee is 0.03%."],
+            "risk_findings": ["Benchmark methodology is not disclosed."],
+            "information_gaps": ["No benchmark methodology is provided."],
+            "boundary_notes": [
+                "The review does not assess live market conditions."
+            ],
+            "summary": "The factsheet omits benchmark methodology details.",
+        },
+        RISK_ASSESSMENT_FIELD: {
+            "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+            "risk_reason": "A material disclosure gap requires manual approval.",
+            "critical_issues": ["No benchmark methodology is provided."],
+            "approval_status": (
+                InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+            ),
+            "required_role": COMPLIANCE_REVIEWER_ROLE,
+            "auto_proceed": False,
+        },
+        APPROVAL_FIELD: {
+            STATUS_FIELD: (
+                InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+            ),
+            REQUIRED_ROLE_FIELD: COMPLIANCE_REVIEWER_ROLE,
+        },
+    }
 
 
 def test_investment_document_review_endpoint_preserves_refusal_branch():

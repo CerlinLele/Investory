@@ -232,3 +232,54 @@
 - Phase 5 completed.
 - The state model now has explicit fields for future approval decisions without changing current gateway output or To-Do resume storage contracts.
 - The extension point is intentionally shaped so future approval resume can continue from a completed review and risk assessment instead of rerunning extract / analyze / synthesize.
+
+## Phase 6
+
+- Timestamp: `2026-06-12 21:21:03 +10:00`
+- Plan: [13-Investory_参考v2加风险审批可借鉴点.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\plans\13-Investory_参考v2加风险审批可借鉴点.md)
+- Scope: `Phase 6 - 补测试、兼容性与执行记录`
+
+### Actions
+
+1. Expanded end-to-end flow coverage in [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:402):
+   - added a single-pass `medium` risk path that still returns `action=complete`
+   - added a chunked To-Do `medium` risk path that still returns `action=complete`
+   - added a `high` risk path that returns `action=pending_human_approval`
+2. Expanded gateway compatibility coverage in [test_investment_document_review_gateway_api.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_gateway_api.py:205):
+   - verified the HTTP response preserves `review`
+   - verified `risk_assessment` is present for pending-approval responses
+   - verified `approval.status` and `approval.required_role` are present and correct for high-risk reviews
+3. Rechecked the earlier Phase 1 and Phase 2 contract/task coverage to keep Phase 6 evidence complete:
+   - [test_investment_document_review_task_model.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_task_model.py:47)
+   - [test_tasks.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_tasks.py:144)
+   - [test_gateway_routing.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_gateway_routing.py:69)
+   - [test_investment_document_review_todo_prompts.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_todo_prompts.py:131)
+
+### Files Touched
+
+- [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1)
+- [test_investment_document_review_gateway_api.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_gateway_api.py:1)
+- [13-investory_risk_approval_execution_worklog.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\worklog\13-investory_risk_approval_execution_worklog.md:1)
+
+### Verification
+
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - First result: `39 passed`
+  - Failure cause: none; the new Phase 6 flow coverage passed on the first run.
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - First result: `8 passed`
+  - Failure cause: none; the pending-approval gateway compatibility coverage passed on the first run.
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_task_model.py`
+  - Result: `6 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_tasks.py`
+  - Result: `10 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_gateway_routing.py`
+  - Result: `7 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py`
+  - Result: `5 passed`
+
+### Result
+
+- Phase 6 completed.
+- The test suite now explicitly proves that `low` / `medium` reviews can auto-complete while `high` risk reviews stop at `pending_human_approval`.
+- Final response compatibility is covered for both the internal flow result and the HTTP gateway response without widening business scope beyond tests and execution records.
