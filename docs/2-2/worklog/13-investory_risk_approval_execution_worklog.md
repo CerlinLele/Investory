@@ -89,3 +89,56 @@
 - Phase 2 completed.
 - `investment_document_risk_assessment` can now be resolved as a standalone task with its own prompt and structured IO contracts.
 - Flow integration, payload building, and response-shape changes remain intentionally deferred to later phases.
+
+## Phase 3
+
+- Timestamp: `2026-06-12 20:45:42 +10:00`
+- Plan: [13-Investory_参考v2加风险审批可借鉴点.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\plans\13-Investory_参考v2加风险审批可借鉴点.md)
+- Scope: `Phase 3 - 在 flow 中插入 assess_review_risk 节点`
+
+### Actions
+
+1. Extended review flow state in [investment_document_review_state.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\contracts\investment_document_review_state.py:41):
+   - `risk_assessment`
+   - `approval_status`
+   - `approval_required_role`
+2. Inserted a dedicated risk-assessment hop into [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:570):
+   - added `ASSESS_REVIEW_RISK` and `BUILD_PENDING_APPROVAL_RESULT` nodes
+   - routed both `run_single_pass_review` and `execute_review_todo_plan` through `assess_review_risk`
+   - added `route_after_risk_assessment` with `complete` and `pending_approval` branches
+3. Added `_build_review_risk_assessment_payload()` and `_build_review_task_status_summary()` in [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:266) so the risk task consumes only:
+   - synthesized single-pass findings
+   - To-Do review summary aggregates
+   - task completion status summaries
+   - route confidence and document type
+4. Added focused flow coverage in [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1633) for:
+   - risk payload building from completed To-Do results
+   - single-pass risk assessment payloads that do not forward raw `document_text`
+   - pending-approval routing
+5. Updated existing flow expectations in [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:338) so the tests now expect the additional `investment_document_risk_assessment` executor call after review generation.
+
+### Files Touched
+
+- [investment_document_review_state.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\contracts\investment_document_review_state.py:1)
+- [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:1)
+- [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1)
+
+### Verification
+
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - First result: `2 failed, 32 passed`
+  - Failure cause:
+    - `test_document_review_flow_executes_known_document_review_task` still expected the old single executor call and did not account for the new `investment_document_risk_assessment` hop.
+    - `test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document` still expected the old tail call order and did not include the new post-synthesis risk assessment call.
+  - Fix:
+    - updated the two tests to expect the new risk-assessment executor call and adjusted the chunk-path tail sequence assertion
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - Final result: `34 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_rules.py`
+  - Result: `23 passed`
+
+### Result
+
+- Phase 3 completed.
+- Both the single-pass and To-Do review paths now pass through a shared `assess_review_risk` node before final result handling.
+- The risk-assessment payload stays audit-friendly by consuming structured review outputs and task status summaries rather than re-reading raw document text.

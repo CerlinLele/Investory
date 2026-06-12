@@ -380,7 +380,18 @@ def test_document_review_flow_executes_known_document_review_task() -> None:
                 ANALYZE_FOCUS_FIELD: framework.analyze_focus if framework else [],
                 REVIEW_GOAL_FIELD: payload[REVIEW_GOAL_FIELD],
             },
-        )
+        ),
+        (
+            INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
+            {
+                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+                ROUTE_CONFIDENCE_FIELD: 0.91,
+                "risk_findings": [],
+                "information_gaps": [],
+                "boundary_notes": [],
+                "task_status_summary": ["single_pass_review | succeeded"],
+            },
+        ),
     ]
 
 
@@ -450,9 +461,10 @@ def test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document() ->
     }
     called_task_names = [call[0] for call in executor.calls]
     assert called_task_names.count(INVESTMENT_DOCUMENT_EXTRACT_TASK.name) > 1
+    assert INVESTMENT_DOCUMENT_ANALYZE_TASK.name in called_task_names
     assert called_task_names[-2:] == [
-        INVESTMENT_DOCUMENT_ANALYZE_TASK.name,
         INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+        INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
     ]
 
 
