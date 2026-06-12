@@ -50,6 +50,9 @@ class InvestmentDocumentReviewState(BaseModel):
     document_chunks: list[str] = Field(default_factory=list)
     todo_plan: TodoExecutionPlan | None = None
     todo_results: list[TodoTaskResult] = Field(default_factory=list)
+    risk_assessment: dict[str, Any] | None = None
+    approval_status: str | None = None
+    approval_required_role: str | None = None
     output: TaskResult | None = None
 
 

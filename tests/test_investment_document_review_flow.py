@@ -35,6 +35,7 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
     INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
     MESSAGE_FIELD,
     MISSING_FIELDS_FIELD,
+    PENDING_APPROVAL_ROUTE,
     REVIEW_FIELD,
     ROUTE_CONFIDENCE_FIELD,
     ROUTE_REASON_FIELD,
@@ -46,9 +47,15 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
 from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
     get_review_framework,
 )
+from investory.agent_core.task_models.investment_document_review import (
+    COMPLIANCE_REVIEWER_ROLE,
+    InvestmentDocumentReviewApprovalStatus,
+    InvestmentDocumentReviewRiskLevel,
+)
 from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_ANALYZE_TASK,
     INVESTMENT_DOCUMENT_EXTRACT_TASK,
+    INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
     INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
@@ -62,6 +69,21 @@ class FakeExecutor:
 
     def run(self, spec, payload: dict) -> TaskResult:
         self.calls.append((spec.name, payload))
+        if self.result is None and spec.name == INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name:
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result={
+                    "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
+                    "risk_reason": "Structured review findings do not block automatic release.",
+                    "critical_issues": [],
+                    "approval_status": (
+                        InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+                    ),
+                    "required_role": None,
+                    "auto_proceed": True,
+                },
+            )
         return self.result or TaskResult(
             ok=True,
             task_name=spec.name,
@@ -1630,6 +1652,180 @@ def test_build_review_todo_synthesize_payload_uses_only_completed_todo_results()
     }
 
 
+def test_build_review_risk_assessment_payload_uses_completed_review_summary_only() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    todo_plan = TodoExecutionPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "extract_fees",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+                    "title": "Extract fees",
+                    "description": "Extract fee facts from the document.",
+                    "payload": {"extract_focus": ["fees"]},
+                    "depends_on": [],
+                    "completion_criteria": ["Fees are listed with source citations."],
+                },
+                {
+                    "id": "analyze_fee_disclosure",
+                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
+                    "title": "Analyze fee disclosure",
+                    "description": "Assess fee disclosure from extracted facts.",
+                    "payload": {"analyze_focus": ["fee disclosure"]},
+                    "depends_on": ["extract_fees"],
+                    "completion_criteria": ["Findings cite upstream facts."],
+                },
+            ],
+            "summary": "Extract fees before analysis.",
+        }
+    )
+    extract_result = TodoTaskResult(
+        id="extract_fees",
+        status=TodoTaskStatus.SUCCEEDED,
+        result={
+            "extracted_facts": ["Management fee is 0.10%."],
+            "information_gaps": ["No source date found."],
+            "boundary_notes": ["Facts are limited to the supplied excerpt."],
+            "summary": "Fee facts extracted.",
+        },
+    )
+    analyze_result = TodoTaskResult(
+        id="analyze_fee_disclosure",
+        status=TodoTaskStatus.FAILED,
+        error={"message": "Fee disclosure analysis failed."},
+    )
+
+    payload = flow._build_review_risk_assessment_payload(
+        state=InvestmentDocumentReviewState(
+            input_payload={DOCUMENT_TEXT_FIELD: "This should not be used directly."},
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            route_confidence=0.91,
+            todo_plan=todo_plan,
+            todo_results=[extract_result, analyze_result],
+            output=TaskResult(
+                ok=True,
+                task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+                result={
+                    "summary": "Synthesis already completed.",
+                    "risk_findings": ["This stale field should be ignored for To-Do risk payloads."],
+                },
+            ),
+        )
+    )
+
+    assert payload == {
+        "document_type": InvestmentDocumentType.ETF_FACTSHEET,
+        "route_confidence": 0.91,
+        "risk_findings": [],
+        "information_gaps": [
+            "No source date found.",
+            (
+                "Analyze fee disclosure (analyze_fee_disclosure) did not complete: "
+                "Fee disclosure analysis failed."
+            ),
+        ],
+        "boundary_notes": ["Facts are limited to the supplied excerpt."],
+        "task_status_summary": [
+            "extract_fees | succeeded | Fee facts extracted.",
+            "analyze_fee_disclosure | failed | Fee disclosure analysis failed.",
+        ],
+    }
+
+
+def test_assess_review_risk_uses_single_pass_review_output_without_document_text() -> None:
+    executor = FakeExecutor(
+        result=TaskResult(
+            ok=True,
+            task_name=INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
+            result={
+                "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+                "risk_reason": "Missing disclosures require manual review.",
+                "critical_issues": ["No benchmark methodology is provided."],
+                "approval_status": (
+                    InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+                ),
+                "required_role": COMPLIANCE_REVIEWER_ROLE,
+                "auto_proceed": False,
+            },
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+
+    update = flow.assess_review_risk(
+        InvestmentDocumentReviewState(
+            input_payload={DOCUMENT_TEXT_FIELD: "Raw document text should not be forwarded."},
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            route_confidence=0.91,
+            output=TaskResult(
+                ok=True,
+                task_name=INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+                result={
+                    "document_type": InvestmentDocumentType.ETF_FACTSHEET.value,
+                    "extracted_facts": ["Management fee is 0.10%."],
+                    "risk_findings": ["Fee disclosure is incomplete."],
+                    "information_gaps": ["No benchmark methodology is provided."],
+                    "boundary_notes": [
+                        "This review does not assess live market conditions."
+                    ],
+                    "summary": "The review found a fee disclosure gap.",
+                },
+            ),
+        )
+    )
+
+    assert executor.calls == [
+        (
+            INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
+            {
+                "document_type": InvestmentDocumentType.ETF_FACTSHEET,
+                "route_confidence": 0.91,
+                "risk_findings": ["Fee disclosure is incomplete."],
+                "information_gaps": ["No benchmark methodology is provided."],
+                "boundary_notes": [
+                    "This review does not assess live market conditions."
+                ],
+                "task_status_summary": [
+                    "single_pass_review | succeeded | The review found a fee disclosure gap."
+                ],
+            },
+        )
+    ]
+    assert update == {
+        "risk_assessment": {
+            "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+            "risk_reason": "Missing disclosures require manual review.",
+            "critical_issues": ["No benchmark methodology is provided."],
+            "approval_status": (
+                InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+            ),
+            "required_role": COMPLIANCE_REVIEWER_ROLE,
+            "auto_proceed": False,
+        },
+        "approval_status": (
+            InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+        ),
+        "approval_required_role": COMPLIANCE_REVIEWER_ROLE,
+    }
+
+
 def test_build_final_result_preserves_route_metadata_for_synthesized_review() -> None:
     flow = InvestmentDocumentReviewFlow(
         executor=FakeExecutor(),
@@ -1676,6 +1872,35 @@ def test_build_final_result_preserves_route_metadata_for_synthesized_review() ->
             REVIEW_FIELD: synthesized_review,
         },
     )
+
+
+def test_route_after_risk_assessment_returns_pending_route_for_manual_review() -> None:
+    flow = InvestmentDocumentReviewFlow(
+        executor=FakeExecutor(),
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+
+    route = flow.route_after_risk_assessment(
+        InvestmentDocumentReviewState(
+            input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
+            output=TaskResult(
+                ok=True,
+                task_name=INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+                result={"summary": "Review completed."},
+            ),
+            approval_status=(
+                InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+            ),
+        )
+    )
+
+    assert route == PENDING_APPROVAL_ROUTE
 
 
 def test_build_review_todo_analyze_payload_includes_dependency_results() -> None:

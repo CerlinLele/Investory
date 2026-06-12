@@ -47,6 +47,11 @@ from investory.agent_core.task_models.investment_document_review_todo_tasks impo
     InvestmentDocumentReviewTodoSummary,
     InvestmentDocumentReviewTodoTaskSummary,
 )
+from investory.agent_core.task_models.investment_document_review import (
+    InvestmentDocumentReviewApprovalStatus,
+    InvestmentDocumentReviewRiskAssessmentInput,
+    InvestmentDocumentReviewRiskAssessmentResult,
+)
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.agent_core.runtime.todo_core.plan_validator import (
     TodoPlanValidationException,
@@ -64,6 +69,7 @@ from investory.agent_core.runtime.todo_core.runner import (
 from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_ANALYZE_TASK,
     INVESTMENT_DOCUMENT_EXTRACT_TASK,
+    INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
     INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
@@ -101,6 +107,7 @@ REFUSAL_MESSAGE = (
 MISSING_ROUTE = "missing"
 REFUSAL_ROUTE = "refusal"
 COMPLETE_ROUTE = "complete"
+PENDING_APPROVAL_ROUTE = "pending_approval"
 CHUNK_INDEX_FIELD = "chunk_index"
 CHUNK_COUNT_FIELD = "chunk_count"
 CHUNK_REVIEW_SCOPE_FIELD = "review_scope"
@@ -130,7 +137,9 @@ class InvestmentDocumentReviewNode(str, Enum):
     GENERATE_REVIEW_TODO_PLAN = "generate_review_todo_plan"
     EXECUTE_REVIEW_TODO_PLAN = "execute_review_todo_plan"
     RUN_SINGLE_PASS_REVIEW = "run_single_pass_review"
+    ASSESS_REVIEW_RISK = "assess_review_risk"
     BUILD_FINAL_RESULT = "build_final_result"
+    BUILD_PENDING_APPROVAL_RESULT = "build_pending_approval_result"
     BUILD_MISSING_INPUT_RESULT = "build_missing_input_result"
     BUILD_REFUSAL_RESULT = "build_refusal_result"
 
@@ -255,6 +264,19 @@ def _build_review_todo_summary(
         boundary_notes=boundary_notes,
         task_summaries=task_summaries,
     )
+
+
+def _build_review_task_status_summary(
+    *,
+    review_summary: InvestmentDocumentReviewTodoSummary,
+) -> list[str]:
+    status_summaries: list[str] = []
+    for summary in review_summary.task_summaries:
+        parts = [summary.task_id, summary.status.value]
+        if summary.summary:
+            parts.append(summary.summary)
+        status_summaries.append(" | ".join(parts))
+    return status_summaries
 
 
 def _log_review_todo_plan_generated(
@@ -595,8 +617,16 @@ class InvestmentDocumentReviewFlow:
             self.run_single_pass_review,
         )
         graph.add_node(
+            InvestmentDocumentReviewNode.ASSESS_REVIEW_RISK.value,
+            self.assess_review_risk,
+        )
+        graph.add_node(
             InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value,
             self.build_final_result,
+        )
+        graph.add_node(
+            InvestmentDocumentReviewNode.BUILD_PENDING_APPROVAL_RESULT.value,
+            self.build_pending_approval_result,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.BUILD_MISSING_INPUT_RESULT.value,
@@ -639,13 +669,27 @@ class InvestmentDocumentReviewFlow:
         )
         graph.add_edge(
             InvestmentDocumentReviewNode.EXECUTE_REVIEW_TODO_PLAN.value,
-            InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value,
+            InvestmentDocumentReviewNode.ASSESS_REVIEW_RISK.value,
         )
         graph.add_edge(
             InvestmentDocumentReviewNode.RUN_SINGLE_PASS_REVIEW.value,
-            InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value,
+            InvestmentDocumentReviewNode.ASSESS_REVIEW_RISK.value,
+        )
+        graph.add_conditional_edges(
+            InvestmentDocumentReviewNode.ASSESS_REVIEW_RISK.value,
+            self.route_after_risk_assessment,
+            {
+                COMPLETE_ROUTE: InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value,
+                PENDING_APPROVAL_ROUTE: (
+                    InvestmentDocumentReviewNode.BUILD_PENDING_APPROVAL_RESULT.value
+                ),
+            },
         )
         graph.add_edge(InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value, END)
+        graph.add_edge(
+            InvestmentDocumentReviewNode.BUILD_PENDING_APPROVAL_RESULT.value,
+            END,
+        )
         graph.add_edge(InvestmentDocumentReviewNode.BUILD_MISSING_INPUT_RESULT.value, END)
         graph.add_edge(InvestmentDocumentReviewNode.BUILD_REFUSAL_RESULT.value, END)
 
@@ -743,6 +787,63 @@ class InvestmentDocumentReviewFlow:
             state.review_payload or state.input_payload,
         )
         return {"output": result}
+
+    def assess_review_risk(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> dict[str, Any]:
+        if state.output is None:
+            raise RuntimeError("Document review flow has no review result to assess.")
+
+        if not state.output.ok:
+            return {}
+
+        try:
+            payload = self._build_review_risk_assessment_payload(state=state)
+        except RuntimeError as exc:
+            return {
+                "output": TaskResult(
+                    ok=False,
+                    task_name=INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
+                    error=normalize_task_error(exc, stage="output_validation"),
+                )
+            }
+
+        result = self.executor.run(INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK, payload)
+        if not result.ok:
+            return {"output": result}
+
+        try:
+            risk_assessment = InvestmentDocumentReviewRiskAssessmentResult.model_validate(
+                result.result
+            )
+        except ValidationError as exc:
+            return {
+                "output": TaskResult(
+                    ok=False,
+                    task_name=INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
+                    error=normalize_task_error(exc, stage="output_validation"),
+                )
+            }
+
+        return {
+            "risk_assessment": risk_assessment.model_dump(mode="json"),
+            "approval_status": risk_assessment.approval_status.value,
+            "approval_required_role": risk_assessment.required_role,
+        }
+
+    def route_after_risk_assessment(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> str:
+        if state.output is None or not state.output.ok:
+            return COMPLETE_ROUTE
+        if (
+            state.approval_status
+            == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+        ):
+            return PENDING_APPROVAL_ROUTE
+        return COMPLETE_ROUTE
 
     def generate_review_todo_plan(
         self,
@@ -1225,6 +1326,56 @@ class InvestmentDocumentReviewFlow:
             }
         ).model_dump()
 
+    def _build_review_risk_assessment_payload(
+        self,
+        *,
+        state: InvestmentDocumentReviewState,
+    ) -> dict[str, Any]:
+        if state.document_type is None:
+            raise RuntimeError("Document review flow has no classified document type.")
+
+        if state.output is None or not state.output.ok:
+            raise RuntimeError("Document review flow has no successful review result.")
+
+        task_status_summary: list[str]
+        risk_findings: list[str]
+        information_gaps: list[str]
+        boundary_notes: list[str]
+
+        if state.todo_plan is not None and state.todo_results:
+            review_summary = _build_review_todo_summary(
+                todo_plan=state.todo_plan,
+                completed_results=state.todo_results,
+            )
+            risk_findings = review_summary.risk_findings
+            information_gaps = review_summary.information_gaps
+            boundary_notes = review_summary.boundary_notes
+            task_status_summary = _build_review_task_status_summary(
+                review_summary=review_summary
+            )
+        else:
+            result_payload = state.output.result or {}
+            risk_findings = _string_list_from_result(result_payload, "risk_findings")
+            information_gaps = _string_list_from_result(result_payload, "information_gaps")
+            boundary_notes = _string_list_from_result(result_payload, "boundary_notes")
+            review_summary = _string_from_result(result_payload, "summary")
+            task_status_summary = ["single_pass_review | succeeded"]
+            if review_summary:
+                task_status_summary[0] = (
+                    f"single_pass_review | succeeded | {review_summary}"
+                )
+
+        return InvestmentDocumentReviewRiskAssessmentInput.model_validate(
+            {
+                DOCUMENT_TYPE_FIELD: state.document_type,
+                ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
+                "risk_findings": risk_findings,
+                "information_gaps": information_gaps,
+                "boundary_notes": boundary_notes,
+                "task_status_summary": task_status_summary,
+            }
+        ).model_dump()
+
     def build_review_todo_plan_payload(
         self,
         state: InvestmentDocumentReviewState,
@@ -1268,6 +1419,12 @@ class InvestmentDocumentReviewFlow:
             },
         )
         return {"output": result}
+
+    def build_pending_approval_result(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> dict[str, Any]:
+        return self.build_final_result(state)
 
     def build_missing_input_result(
         self,
