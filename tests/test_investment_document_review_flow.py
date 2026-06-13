@@ -793,6 +793,241 @@ def test_document_review_flow_routes_high_risk_reviews_to_pending_human_approval
     }
 
 
+def test_document_review_flow_uses_revised_review_for_risk_and_final_result() -> None:
+    original_review = _review_result(
+        risk_findings=["Original risk finding should be replaced."],
+        information_gaps=["Original gap should be replaced."],
+        boundary_notes=["Original boundary should be replaced."],
+        summary="Original summary should be replaced.",
+    )
+    revised_review = _review_result(
+        risk_findings=["Reflected fee disclosure risk."],
+        information_gaps=["Reflected source-date gap."],
+        boundary_notes=["Reflected non-advisory boundary."],
+        summary="Reflection revised the review before risk assessment.",
+    )
+
+    class RevisedReviewExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=original_review,
+                )
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=_reflection_result(revised_review),
+                )
+            if spec.name == INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name:
+                assert payload["risk_findings"] == ["Reflected fee disclosure risk."]
+                assert payload["information_gaps"] == ["Reflected source-date gap."]
+                assert payload["boundary_notes"] == [
+                    "Reflected non-advisory boundary."
+                ]
+                assert payload["task_status_summary"] == [
+                    (
+                        "single_pass_review | succeeded | "
+                        "Reflection revised the review before risk assessment."
+                    )
+                ]
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
+                        "risk_reason": "The reflected review has no blocking issue.",
+                        "critical_issues": [],
+                        "approval_status": (
+                            InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+                        ),
+                        "required_role": None,
+                        "auto_proceed": True,
+                    },
+                )
+            raise AssertionError(f"Unexpected task {spec.name}")
+
+    executor = RevisedReviewExecutor()
+    router = FakeDocumentReviewRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.91,
+            reason="The excerpt clearly matches an ETF factsheet.",
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+
+    result = flow.run(
+        {
+            DOCUMENT_TEXT_FIELD: "The ETF factsheet lists fees and benchmark details.",
+            REVIEW_GOAL_FIELD: "Review major fees and risks",
+        }
+    )
+
+    assert result.ok is True
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == InvestmentDocumentReviewAction.COMPLETE.value
+    assert result.result[REVIEW_FIELD] == {
+        **revised_review,
+        "learning_next_steps": None,
+    }
+    assert result.result[RISK_ASSESSMENT_FIELD]["risk_reason"] == (
+        "The reflected review has no blocking issue."
+    )
+    assert [name for name, _ in executor.calls] == [
+        INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+        INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
+        INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
+    ]
+
+
+def test_document_review_flow_keeps_pending_approval_after_reflection() -> None:
+    reflected_high_risk_review = _review_result(
+        risk_findings=["Reflection found unsupported benchmark methodology."],
+        information_gaps=["No benchmark methodology is provided."],
+        boundary_notes=["This review does not provide investment advice."],
+        summary="Reflection found a material benchmark disclosure gap.",
+    )
+
+    class ReflectedHighRiskExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=_review_result(
+                        risk_findings=[],
+                        information_gaps=[],
+                        summary="Initial review did not identify the benchmark gap.",
+                    ),
+                )
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=_reflection_result(reflected_high_risk_review),
+                )
+            if spec.name == INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name:
+                assert payload["risk_findings"] == [
+                    "Reflection found unsupported benchmark methodology."
+                ]
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result={
+                        "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+                        "risk_reason": "The reflected review requires manual approval.",
+                        "critical_issues": ["No benchmark methodology is provided."],
+                        "approval_status": (
+                            InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+                        ),
+                        "required_role": COMPLIANCE_REVIEWER_ROLE,
+                        "auto_proceed": False,
+                    },
+                )
+            raise AssertionError(f"Unexpected task {spec.name}")
+
+    executor = ReflectedHighRiskExecutor()
+    router = FakeDocumentReviewRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.91,
+            reason="The excerpt clearly matches an ETF factsheet.",
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+
+    result = flow.run(
+        {
+            DOCUMENT_TEXT_FIELD: "The ETF factsheet lists fees but omits benchmark details.",
+            REVIEW_GOAL_FIELD: "Check major fees and risks",
+        }
+    )
+
+    assert result.ok is True
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == (
+        InvestmentDocumentReviewAction.PENDING_HUMAN_APPROVAL.value
+    )
+    assert result.result[REVIEW_FIELD] == {
+        **reflected_high_risk_review,
+        "learning_next_steps": None,
+    }
+    assert result.result[RISK_ASSESSMENT_FIELD]["approval_status"] == (
+        InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+    )
+    assert result.result[APPROVAL_FIELD] == {
+        STATUS_FIELD: (
+            InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+        ),
+        REQUIRED_ROLE_FIELD: COMPLIANCE_REVIEWER_ROLE,
+    }
+
+
+def test_document_review_flow_returns_reflection_failure_without_risk_assessment() -> None:
+    class FailedReflectionFlowExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=_review_result(),
+                )
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name:
+                return TaskResult(
+                    ok=False,
+                    task_name=spec.name,
+                    error=TaskError(
+                        error_type="structured_output_failed",
+                        stage="output_validation",
+                        user_safe_message="Reflection output could not be parsed.",
+                    ),
+                )
+            if spec.name == INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name:
+                raise AssertionError("Risk assessment should not run after reflection fails.")
+            raise AssertionError(f"Unexpected task {spec.name}")
+
+    executor = FailedReflectionFlowExecutor()
+    router = FakeDocumentReviewRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.91,
+            reason="The excerpt clearly matches an ETF factsheet.",
+        )
+    )
+    flow = InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+
+    result = flow.run(
+        {
+            DOCUMENT_TEXT_FIELD: "The ETF factsheet lists fees and benchmark details.",
+            REVIEW_GOAL_FIELD: "Review major fees and risks",
+        }
+    )
+
+    assert result.ok is False
+    assert result.task_name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name
+    assert result.error is not None
+    assert result.error.error_type == "structured_output_failed"
+    assert [name for name, _ in executor.calls] == [
+        INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+        INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
+    ]
+
+
 def test_generate_review_todo_plan_node_builds_plan_without_executing_tasks() -> None:
     plan_payload = {
         "tasks": [

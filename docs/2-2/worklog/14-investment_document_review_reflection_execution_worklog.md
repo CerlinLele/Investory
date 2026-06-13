@@ -145,3 +145,33 @@
 - Step 3 completed.
 - Reflection metadata is now observable in flow state.
 - Reflection lifecycle logs now record started/completed/failed events with session and metadata counts, without exposing source document text.
+
+## Step 4
+
+- Timestamp: `2026-06-13 21:31:50 +10:00`
+- Plan: [14-Investory_参考v3加反思优化实施计划.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\plans\14-Investory_参考v3加反思优化实施计划.md)
+- Scope: `Step 4 - 补充端到端行为测试`
+
+### Actions
+
+1. Added a full-flow success test in [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:796) proving that a revised reflection review is used by both risk assessment and the final response.
+2. Added a pending-approval compatibility test in [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:890) proving that a high-risk reflected review still returns `pending_human_approval`.
+3. Added a reflection-failure test in [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:977) proving that reflection task failure returns the reflection error and does not continue to risk assessment.
+
+### Files Touched
+
+- [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1)
+- [14-investment_document_review_reflection_execution_worklog.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\worklog\14-investment_document_review_reflection_execution_worklog.md:1)
+
+### Verification
+
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - Result: `44 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_task_model.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_todo_prompts.py tests\test_investment_document_review_rules.py tests\test_investment_document_review_router.py tests\test_investory_policy_gate.py`
+  - Result: `119 passed`
+
+### Result
+
+- Step 4 completed.
+- End-to-end coverage now proves the reflected review is the review used downstream.
+- The tests also prove high-risk reflected reviews still stop at pending approval, and reflection failures are not swallowed.
