@@ -46,3 +46,53 @@
 - Step 1 completed.
 - The repository now has a registered `investment_document_review_reflection` task contract with prompt and focused validation coverage.
 - No flow wiring, state metadata, or logging behavior was changed in this step.
+
+## Step 2
+
+- Timestamp: `2026-06-13 19:02:00 +10:00`
+- Plan: [14-Investory_参考v3加反思优化实施计划.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\plans\14-Investory_参考v3加反思优化实施计划.md)
+- Scope: `Step 2 - 接入 LangGraph flow`
+
+### Actions
+
+1. Added the `reflect_review_output` LangGraph node in [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:148):
+   - added `InvestmentDocumentReviewNode.REFLECT_REVIEW_OUTPUT`
+   - inserted the node between review generation and risk assessment
+   - wired both single-pass and To-Do paths through reflection before risk assessment
+2. Added `_build_review_reflection_payload()` in [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:1315):
+   - reuses the structured review result from `state.output`
+   - passes deterministic reflection criteria and bounded `max_rounds`
+   - includes To-Do plan, results, and summary when present
+3. Updated `assess_review_risk()` in [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:1467) to read the reflected review result before building the risk payload, while preserving the task-status summary for audit context.
+4. Adjusted flow and gateway tests to prove the new path:
+   - [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:354) now verifies `review -> reflection -> risk` for single-pass and chunked review flows.
+   - [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1911) now verifies risk assessment consumes the reflected review plus the To-Do status summary.
+   - [test_investment_document_review_gateway_api.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_gateway_api.py:128) now verifies the HTTP contract still returns the reflected review result and risk assessment payload.
+
+### Files Touched
+
+- [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:1)
+- [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1)
+- [test_investment_document_review_gateway_api.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_gateway_api.py:1)
+- [14-investment_document_review_reflection_execution_worklog.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\worklog\14-investment_document_review_reflection_execution_worklog.md:1)
+
+### Verification
+
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - First result: `6 failed, 33 passed`
+  - Failure cause: the new reflection node needed task fakes and flow expectations updated to include `investment_document_review_reflection`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - Result after fixes: `39 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - First result: `2 failed, 6 passed`
+  - Failure cause: gateway assertions still expected pre-reflection nested review shapes
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - Result after fixes: `8 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_task_model.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_todo_prompts.py tests\test_investment_document_review_rules.py tests\test_investment_document_review_router.py tests\test_investory_policy_gate.py`
+  - Result after fixes: `114 passed`
+
+### Result
+
+- Step 2 completed.
+- The investment document review flow now inserts a reflection quality gate before risk assessment on both single-pass and To-Do paths.
+- The API contract still returns the same top-level review response shape, but it now reflects the revised review output from the reflection step.

@@ -33,7 +33,9 @@ from investory.agent_core.runtime.flow.investment_document_review.document_revie
 )
 from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
+    INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
 )
 from investory.gateway.api import (
     INVESTMENT_DOCUMENT_REVIEW_FLOW_STATE_ATTR,
@@ -53,6 +55,30 @@ class FakeFlow:
     def run(self, payload: dict, *, session_id: str | None = None) -> TaskResult:
         self.calls.append((payload, session_id))
         return self.result
+
+
+def _review_result(*, summary: str = "The review is grounded in the document.") -> dict:
+    return {
+        "document_type": "etf_factsheet",
+        "extracted_facts": ["Management fee is 0.10%."],
+        "risk_findings": ["Fee disclosure is present."],
+        "information_gaps": [],
+        "boundary_notes": ["This review does not provide investment advice."],
+        "summary": summary,
+        "learning_next_steps": None,
+    }
+
+
+def _reflection_result(review_result: dict) -> dict:
+    return {
+        "review_result": review_result,
+        "passed": True,
+        "score": 0.95,
+        "issues": [],
+        "suggestions": [],
+        "safety_flags": [],
+        "rounds": 1,
+    }
 
 
 class FakeExecutor:
@@ -75,6 +101,21 @@ class FakeExecutor:
                     "required_role": None,
                     "auto_proceed": True,
                 },
+            )
+        if spec.name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name:
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result=_reflection_result(payload["review_result"]),
+            )
+        if spec.name in {
+            INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+            INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+        }:
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result=_review_result(summary=f"Handled by {spec.name}."),
             )
         return TaskResult(
             ok=True,
@@ -172,32 +213,35 @@ def test_investment_document_review_endpoint_runs_complete_review_through_execut
     assert body["task_name"] == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
     assert body["session_id"] == "session-1"
     assert body["error"] is None
-    assert body["result"] == {
-        ACTION_FIELD: "complete",
-        DOCUMENT_TYPE_FIELD: "etf_factsheet",
-        ROUTE_REASON_FIELD: "The excerpt clearly matches an ETF factsheet.",
-        ROUTE_CONFIDENCE_FIELD: 0.91,
-        REVIEW_FIELD: {"handled_by": "investment_document_synthesize"},
-        RISK_ASSESSMENT_FIELD: {
-            "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
-            "risk_reason": "Structured findings do not block automatic release.",
-            "critical_issues": [],
-            "approval_status": (
-                InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
-            ),
-            "required_role": None,
-            "auto_proceed": True,
-        },
-        APPROVAL_FIELD: {
-            STATUS_FIELD: InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value,
-            REQUIRED_ROLE_FIELD: None,
-        },
+    assert body["result"][ACTION_FIELD] == "complete"
+    assert body["result"][DOCUMENT_TYPE_FIELD] == "etf_factsheet"
+    assert body["result"][ROUTE_REASON_FIELD] == (
+        "The excerpt clearly matches an ETF factsheet."
+    )
+    assert body["result"][ROUTE_CONFIDENCE_FIELD] == 0.91
+    assert body["result"][REVIEW_FIELD] == _review_result(
+        summary=f"Handled by {INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name}."
+    )
+    assert body["result"][RISK_ASSESSMENT_FIELD] == {
+        "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
+        "risk_reason": "Structured findings do not block automatic release.",
+        "critical_issues": [],
+        "approval_status": (
+            InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value
+        ),
+        "required_role": None,
+        "auto_proceed": True,
+    }
+    assert body["result"][APPROVAL_FIELD] == {
+        STATUS_FIELD: InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value,
+        REQUIRED_ROLE_FIELD: None,
     }
     call_names = [name for name, _ in executor.calls]
     assert call_names.count("investment_document_extract") == 2
     assert call_names.count("investment_document_analyze") >= 1
-    assert call_names[-2:] == [
+    assert call_names[-3:] == [
         "investment_document_synthesize",
+        "investment_document_review_reflection",
         "investment_document_risk_assessment",
     ]
 
@@ -239,6 +283,12 @@ def test_investment_document_review_endpoint_returns_pending_approval_for_high_r
                         "summary": "The factsheet omits benchmark methodology details.",
                     },
                 )
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=_reflection_result(payload["review_result"]),
+                )
             return TaskResult(
                 ok=True,
                 task_name=spec.name,
@@ -271,37 +321,38 @@ def test_investment_document_review_endpoint_returns_pending_approval_for_high_r
     assert body["task_name"] == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
     assert body["session_id"] == "session-high-risk"
     assert body["error"] is None
-    assert body["result"] == {
-        ACTION_FIELD: "pending_human_approval",
-        DOCUMENT_TYPE_FIELD: "etf_factsheet",
-        ROUTE_REASON_FIELD: "The excerpt clearly matches an ETF factsheet.",
-        ROUTE_CONFIDENCE_FIELD: 0.91,
-        REVIEW_FIELD: {
-            "document_type": "etf_factsheet",
-            "extracted_facts": ["Management fee is 0.03%."],
-            "risk_findings": ["Benchmark methodology is not disclosed."],
-            "information_gaps": ["No benchmark methodology is provided."],
-            "boundary_notes": [
-                "The review does not assess live market conditions."
-            ],
-            "summary": "The factsheet omits benchmark methodology details.",
-        },
-        RISK_ASSESSMENT_FIELD: {
-            "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
-            "risk_reason": "A material disclosure gap requires manual approval.",
-            "critical_issues": ["No benchmark methodology is provided."],
-            "approval_status": (
-                InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
-            ),
-            "required_role": COMPLIANCE_REVIEWER_ROLE,
-            "auto_proceed": False,
-        },
-        APPROVAL_FIELD: {
-            STATUS_FIELD: (
-                InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
-            ),
-            REQUIRED_ROLE_FIELD: COMPLIANCE_REVIEWER_ROLE,
-        },
+    assert body["result"][ACTION_FIELD] == "pending_human_approval"
+    assert body["result"][DOCUMENT_TYPE_FIELD] == "etf_factsheet"
+    assert body["result"][ROUTE_REASON_FIELD] == (
+        "The excerpt clearly matches an ETF factsheet."
+    )
+    assert body["result"][ROUTE_CONFIDENCE_FIELD] == 0.91
+    assert body["result"][REVIEW_FIELD] == {
+        "document_type": "etf_factsheet",
+        "extracted_facts": ["Management fee is 0.03%."],
+        "risk_findings": ["Benchmark methodology is not disclosed."],
+        "information_gaps": ["No benchmark methodology is provided."],
+        "boundary_notes": [
+            "The review does not assess live market conditions."
+        ],
+        "summary": "The factsheet omits benchmark methodology details.",
+        "learning_next_steps": None,
+    }
+    assert body["result"][RISK_ASSESSMENT_FIELD] == {
+        "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH.value,
+        "risk_reason": "A material disclosure gap requires manual approval.",
+        "critical_issues": ["No benchmark methodology is provided."],
+        "approval_status": (
+            InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+        ),
+        "required_role": COMPLIANCE_REVIEWER_ROLE,
+        "auto_proceed": False,
+    }
+    assert body["result"][APPROVAL_FIELD] == {
+        STATUS_FIELD: (
+            InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
+        ),
+        REQUIRED_ROLE_FIELD: COMPLIANCE_REVIEWER_ROLE,
     }
 
 

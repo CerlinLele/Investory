@@ -60,10 +60,44 @@ from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_ANALYZE_TASK,
     INVESTMENT_DOCUMENT_EXTRACT_TASK,
     INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK,
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
     INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
 )
+
+
+def _review_result(
+    *,
+    document_type: InvestmentDocumentType = InvestmentDocumentType.ETF_FACTSHEET,
+    extracted_facts: list[str] | None = None,
+    risk_findings: list[str] | None = None,
+    information_gaps: list[str] | None = None,
+    boundary_notes: list[str] | None = None,
+    summary: str = "The review is grounded in the provided document.",
+) -> dict:
+    return {
+        "document_type": document_type.value,
+        "extracted_facts": extracted_facts or ["Management fee is 0.10%."],
+        "risk_findings": risk_findings or ["Fee disclosure is present."],
+        "information_gaps": information_gaps or [],
+        "boundary_notes": boundary_notes or [
+            "This review does not provide investment advice."
+        ],
+        "summary": summary,
+    }
+
+
+def _reflection_result(review_result: dict) -> dict:
+    return {
+        "review_result": review_result,
+        "passed": True,
+        "score": 0.95,
+        "issues": [],
+        "suggestions": [],
+        "safety_flags": [],
+        "rounds": 1,
+    }
 
 
 class FakeExecutor:
@@ -87,6 +121,21 @@ class FakeExecutor:
                     "required_role": None,
                     "auto_proceed": True,
                 },
+            )
+        if self.result is None and spec.name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name:
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result=_reflection_result(payload["review_result"]),
+            )
+        if self.result is None and spec.name in {
+            INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+            INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+        }:
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result=_review_result(summary=f"Handled by {spec.name}."),
             )
         return self.result or TaskResult(
             ok=True,
@@ -371,32 +420,37 @@ def test_document_review_flow_executes_known_document_review_task() -> None:
         == "The excerpt clearly matches an ETF factsheet."
     )
     assert result.result[ROUTE_CONFIDENCE_FIELD] == 0.91
-    assert result.result[REVIEW_FIELD] == {
-        "handled_by": INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name
-    }
-    assert executor.calls == [
-        (
-            INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
-            {
-                DOCUMENT_TEXT_FIELD: payload[DOCUMENT_TEXT_FIELD],
-                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
-                EXTRACT_FOCUS_FIELD: framework.extract_focus if framework else [],
-                ANALYZE_FOCUS_FIELD: framework.analyze_focus if framework else [],
-                REVIEW_GOAL_FIELD: payload[REVIEW_GOAL_FIELD],
-            },
-        ),
-        (
-            INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
-            {
-                DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
-                ROUTE_CONFIDENCE_FIELD: 0.91,
-                "risk_findings": [],
-                "information_gaps": [],
-                "boundary_notes": [],
-                "task_status_summary": ["single_pass_review | succeeded"],
-            },
-        ),
+    assert result.result[REVIEW_FIELD]["summary"] == (
+        f"Handled by {INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name}."
+    )
+    assert [name for name, _ in executor.calls] == [
+        INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+        INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
+        INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
     ]
+    assert executor.calls[0][1] == {
+        DOCUMENT_TEXT_FIELD: payload[DOCUMENT_TEXT_FIELD],
+        DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+        EXTRACT_FOCUS_FIELD: framework.extract_focus if framework else [],
+        ANALYZE_FOCUS_FIELD: framework.analyze_focus if framework else [],
+        REVIEW_GOAL_FIELD: payload[REVIEW_GOAL_FIELD],
+    }
+    assert executor.calls[1][1]["review_result"]["summary"] == (
+        f"Handled by {INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name}."
+    )
+    assert executor.calls[2][1] == {
+        DOCUMENT_TYPE_FIELD: InvestmentDocumentType.ETF_FACTSHEET,
+        ROUTE_CONFIDENCE_FIELD: 0.91,
+        "risk_findings": ["Fee disclosure is present."],
+        "information_gaps": [],
+        "boundary_notes": ["This review does not provide investment advice."],
+        "task_status_summary": [
+            (
+                "single_pass_review | succeeded | "
+                f"Handled by {INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name}."
+            )
+        ],
+    }
 
 
 def test_document_review_flow_keeps_medium_risk_single_pass_reviews_complete() -> None:
@@ -435,6 +489,12 @@ def test_document_review_flow_keeps_medium_risk_single_pass_reviews_complete() -
                         "required_role": None,
                         "auto_proceed": True,
                     },
+                )
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=_reflection_result(payload["review_result"]),
                 )
             raise AssertionError(f"Unexpected task {spec.name}")
 
@@ -477,6 +537,7 @@ def test_document_review_flow_keeps_medium_risk_single_pass_reviews_complete() -
     }
     assert [name for name, _ in executor.calls] == [
         INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+        INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
         INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
     ]
 
@@ -542,14 +603,15 @@ def test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document() ->
     assert result.task_name == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
     assert result.result is not None
     assert result.result[ACTION_FIELD] == InvestmentDocumentReviewAction.COMPLETE.value
-    assert result.result[REVIEW_FIELD] == {
-        "handled_by": INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name
-    }
+    assert result.result[REVIEW_FIELD]["summary"] == (
+        f"Handled by {INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name}."
+    )
     called_task_names = [call[0] for call in executor.calls]
     assert called_task_names.count(INVESTMENT_DOCUMENT_EXTRACT_TASK.name) > 1
     assert INVESTMENT_DOCUMENT_ANALYZE_TASK.name in called_task_names
-    assert called_task_names[-2:] == [
+    assert called_task_names[-3:] == [
         INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+        INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
         INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
     ]
 
@@ -575,6 +637,18 @@ def test_document_review_flow_keeps_medium_risk_chunk_reviews_complete() -> None
                         "required_role": None,
                         "auto_proceed": True,
                     },
+                )
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=_reflection_result(payload["review_result"]),
+                )
+            if spec.name == INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=_review_result(summary=f"Handled by {spec.name}."),
                 )
             return TaskResult(
                 ok=True,
@@ -614,9 +688,9 @@ def test_document_review_flow_keeps_medium_risk_chunk_reviews_complete() -> None
     assert result.ok is True
     assert result.result is not None
     assert result.result[ACTION_FIELD] == InvestmentDocumentReviewAction.COMPLETE.value
-    assert result.result[REVIEW_FIELD] == {
-        "handled_by": INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name
-    }
+    assert result.result[REVIEW_FIELD]["summary"] == (
+        f"Handled by {INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name}."
+    )
     assert result.result[RISK_ASSESSMENT_FIELD]["overall_risk"] == (
         InvestmentDocumentReviewRiskLevel.MEDIUM.value
     )
@@ -624,8 +698,9 @@ def test_document_review_flow_keeps_medium_risk_chunk_reviews_complete() -> None
         STATUS_FIELD: InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED.value,
         REQUIRED_ROLE_FIELD: None,
     }
-    assert [name for name, _ in executor.calls][-2:] == [
+    assert [name for name, _ in executor.calls][-3:] == [
         INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+        INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
         INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
     ]
 
@@ -666,6 +741,12 @@ def test_document_review_flow_routes_high_risk_reviews_to_pending_human_approval
                         "required_role": COMPLIANCE_REVIEWER_ROLE,
                         "auto_proceed": False,
                     },
+                )
+            if spec.name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name:
+                return TaskResult(
+                    ok=True,
+                    task_name=spec.name,
+                    result=_reflection_result(payload["review_result"]),
                 )
             raise AssertionError(f"Unexpected task {spec.name}")
 
@@ -1908,7 +1989,7 @@ def test_build_review_todo_synthesize_payload_uses_only_completed_todo_results()
     }
 
 
-def test_build_review_risk_assessment_payload_uses_completed_review_summary_only() -> None:
+def test_build_review_risk_assessment_payload_uses_reflected_review_and_todo_status() -> None:
     flow = InvestmentDocumentReviewFlow(
         executor=FakeExecutor(),
         llm_router=FakeDocumentReviewRouter(
@@ -1967,29 +2048,25 @@ def test_build_review_risk_assessment_payload_uses_completed_review_summary_only
             route_confidence=0.91,
             todo_plan=todo_plan,
             todo_results=[extract_result, analyze_result],
-            output=TaskResult(
-                ok=True,
-                task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
-                result={
-                    "summary": "Synthesis already completed.",
-                    "risk_findings": ["This stale field should be ignored for To-Do risk payloads."],
-                },
-            ),
+                output=TaskResult(
+                    ok=True,
+                    task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
+                    result=_review_result(
+                        risk_findings=["Reflected fee disclosure risk."],
+                        information_gaps=["Reflected source-date gap."],
+                        boundary_notes=["Reflected non-advisory boundary."],
+                        summary="Reflection revised the review.",
+                    ),
+                ),
+            )
         )
-    )
 
     assert payload == {
         "document_type": InvestmentDocumentType.ETF_FACTSHEET,
         "route_confidence": 0.91,
-        "risk_findings": [],
-        "information_gaps": [
-            "No source date found.",
-            (
-                "Analyze fee disclosure (analyze_fee_disclosure) did not complete: "
-                "Fee disclosure analysis failed."
-            ),
-        ],
-        "boundary_notes": ["Facts are limited to the supplied excerpt."],
+        "risk_findings": ["Reflected fee disclosure risk."],
+        "information_gaps": ["Reflected source-date gap."],
+        "boundary_notes": ["Reflected non-advisory boundary."],
         "task_status_summary": [
             "extract_fees | succeeded | Fee facts extracted.",
             "analyze_fee_disclosure | failed | Fee disclosure analysis failed.",

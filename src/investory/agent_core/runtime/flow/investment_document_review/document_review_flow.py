@@ -51,6 +51,11 @@ from investory.agent_core.task_models.investment_document_review import (
     InvestmentDocumentReviewApprovalStatus,
     InvestmentDocumentReviewRiskAssessmentInput,
     InvestmentDocumentReviewRiskAssessmentResult,
+    InvestmentDocumentReviewResult,
+)
+from investory.agent_core.task_models.investment_document_review_reflection import (
+    InvestmentDocumentReviewReflectionInput,
+    InvestmentDocumentReviewReflectionResult,
 )
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.agent_core.runtime.todo_core.plan_validator import (
@@ -70,6 +75,7 @@ from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_ANALYZE_TASK,
     INVESTMENT_DOCUMENT_EXTRACT_TASK,
     INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK,
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
     INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
@@ -93,6 +99,13 @@ REQUIRED_ROLE_FIELD = "required_role"
 MISSING_FIELDS_FIELD = "missing_fields"
 ROUTE_REASON_FIELD = "route_reason"
 ROUTE_CONFIDENCE_FIELD = "route_confidence"
+REVIEW_RESULT_FIELD = "review_result"
+TODO_PLAN_FIELD = "todo_plan"
+TODO_RESULTS_FIELD = "todo_results"
+REVIEW_SUMMARY_FIELD = "review_summary"
+CRITERIA_FIELD = "criteria"
+MAX_ROUNDS_FIELD = "max_rounds"
+DEFAULT_REFLECTION_MAX_ROUNDS = 1
 
 MISSING_INPUT_MESSAGE = (
     "Please provide the missing document material or a clearer document type hint "
@@ -126,6 +139,29 @@ COMPLETED_TODO_RESULT_STATUSES = {
     TodoTaskStatus.FAILED,
     TodoTaskStatus.SKIPPED,
 }
+INVESTMENT_DOCUMENT_REVIEW_REFLECTION_CRITERIA = [
+    (
+        "Review results must be based only on the input document, To-Do plan, "
+        "To-Do results, and deterministic review summary."
+    ),
+    (
+        "Extracted facts must come from successful extract, analyze, or "
+        "synthesize results."
+    ),
+    (
+        "Risk findings must be supported by evidence and must not provide buy, "
+        "sell, hold, timing, allocation, or return-prediction advice."
+    ),
+    (
+        "Failed or skipped tasks must be reflected in information_gaps or "
+        "boundary_notes."
+    ),
+    (
+        "The summary should be concise, audit-friendly, and clear about key "
+        "risks and limitations."
+    ),
+    "The output must preserve the InvestmentDocumentReviewResult structure.",
+]
 
 
 class InvestmentDocumentReviewAction(str, Enum):
@@ -142,6 +178,7 @@ class InvestmentDocumentReviewNode(str, Enum):
     GENERATE_REVIEW_TODO_PLAN = "generate_review_todo_plan"
     EXECUTE_REVIEW_TODO_PLAN = "execute_review_todo_plan"
     RUN_SINGLE_PASS_REVIEW = "run_single_pass_review"
+    REFLECT_REVIEW_OUTPUT = "reflect_review_output"
     ASSESS_REVIEW_RISK = "assess_review_risk"
     BUILD_FINAL_RESULT = "build_final_result"
     BUILD_PENDING_APPROVAL_RESULT = "build_pending_approval_result"
@@ -624,6 +661,10 @@ class InvestmentDocumentReviewFlow:
             self.run_single_pass_review,
         )
         graph.add_node(
+            InvestmentDocumentReviewNode.REFLECT_REVIEW_OUTPUT.value,
+            self.reflect_review_output,
+        )
+        graph.add_node(
             InvestmentDocumentReviewNode.ASSESS_REVIEW_RISK.value,
             self.assess_review_risk,
         )
@@ -676,10 +717,14 @@ class InvestmentDocumentReviewFlow:
         )
         graph.add_edge(
             InvestmentDocumentReviewNode.EXECUTE_REVIEW_TODO_PLAN.value,
-            InvestmentDocumentReviewNode.ASSESS_REVIEW_RISK.value,
+            InvestmentDocumentReviewNode.REFLECT_REVIEW_OUTPUT.value,
         )
         graph.add_edge(
             InvestmentDocumentReviewNode.RUN_SINGLE_PASS_REVIEW.value,
+            InvestmentDocumentReviewNode.REFLECT_REVIEW_OUTPUT.value,
+        )
+        graph.add_edge(
+            InvestmentDocumentReviewNode.REFLECT_REVIEW_OUTPUT.value,
             InvestmentDocumentReviewNode.ASSESS_REVIEW_RISK.value,
         )
         graph.add_conditional_edges(
@@ -794,6 +839,49 @@ class InvestmentDocumentReviewFlow:
             state.review_payload or state.input_payload,
         )
         return {"output": result}
+
+    def reflect_review_output(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> dict[str, Any]:
+        if state.output is None or not state.output.ok:
+            return {}
+
+        try:
+            payload = self._build_review_reflection_payload(state=state)
+        except (RuntimeError, ValidationError) as exc:
+            return {
+                "output": TaskResult(
+                    ok=False,
+                    task_name=INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
+                    error=normalize_task_error(exc, stage="output_validation"),
+                )
+            }
+
+        result = self.executor.run(INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK, payload)
+        if not result.ok:
+            return {"output": result}
+
+        try:
+            reflection = InvestmentDocumentReviewReflectionResult.model_validate(
+                result.result
+            )
+        except ValidationError as exc:
+            return {
+                "output": TaskResult(
+                    ok=False,
+                    task_name=INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
+                    error=normalize_task_error(exc, stage="output_validation"),
+                )
+            }
+
+        return {
+            "output": TaskResult(
+                ok=True,
+                task_name=state.output.task_name,
+                result=reflection.review_result.model_dump(mode="json"),
+            )
+        }
 
     def assess_review_risk(
         self,
@@ -1333,6 +1421,47 @@ class InvestmentDocumentReviewFlow:
             }
         ).model_dump()
 
+    def _build_review_reflection_payload(
+        self,
+        *,
+        state: InvestmentDocumentReviewState,
+    ) -> dict[str, Any]:
+        if state.document_type is None:
+            raise RuntimeError("Document review flow has no classified document type.")
+
+        if state.output is None or not state.output.ok:
+            raise RuntimeError("Document review flow has no successful review result.")
+
+        payload: dict[str, Any] = {
+            DOCUMENT_TYPE_FIELD: state.document_type,
+            ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
+            REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
+            REVIEW_RESULT_FIELD: InvestmentDocumentReviewResult.model_validate(
+                state.output.result
+            ).model_dump(mode="json"),
+            CRITERIA_FIELD: INVESTMENT_DOCUMENT_REVIEW_REFLECTION_CRITERIA,
+            MAX_ROUNDS_FIELD: DEFAULT_REFLECTION_MAX_ROUNDS,
+        }
+
+        if state.todo_plan is not None and state.todo_results:
+            review_summary = _build_review_todo_summary(
+                todo_plan=state.todo_plan,
+                completed_results=state.todo_results,
+            )
+            payload.update(
+                {
+                    TODO_PLAN_FIELD: state.todo_plan.model_dump(),
+                    TODO_RESULTS_FIELD: [
+                        result.model_dump() for result in state.todo_results
+                    ],
+                    REVIEW_SUMMARY_FIELD: review_summary.model_dump(),
+                }
+            )
+
+        return InvestmentDocumentReviewReflectionInput.model_validate(
+            payload
+        ).model_dump(exclude_none=True)
+
     def _build_review_risk_assessment_payload(
         self,
         *,
@@ -1345,40 +1474,32 @@ class InvestmentDocumentReviewFlow:
             raise RuntimeError("Document review flow has no successful review result.")
 
         task_status_summary: list[str]
-        risk_findings: list[str]
-        information_gaps: list[str]
-        boundary_notes: list[str]
+        review_result = InvestmentDocumentReviewResult.model_validate(
+            state.output.result
+        )
 
         if state.todo_plan is not None and state.todo_results:
             review_summary = _build_review_todo_summary(
                 todo_plan=state.todo_plan,
                 completed_results=state.todo_results,
             )
-            risk_findings = review_summary.risk_findings
-            information_gaps = review_summary.information_gaps
-            boundary_notes = review_summary.boundary_notes
             task_status_summary = _build_review_task_status_summary(
                 review_summary=review_summary
             )
         else:
-            result_payload = state.output.result or {}
-            risk_findings = _string_list_from_result(result_payload, "risk_findings")
-            information_gaps = _string_list_from_result(result_payload, "information_gaps")
-            boundary_notes = _string_list_from_result(result_payload, "boundary_notes")
-            review_summary = _string_from_result(result_payload, "summary")
             task_status_summary = ["single_pass_review | succeeded"]
-            if review_summary:
+            if review_result.summary:
                 task_status_summary[0] = (
-                    f"single_pass_review | succeeded | {review_summary}"
+                    f"single_pass_review | succeeded | {review_result.summary}"
                 )
 
         return InvestmentDocumentReviewRiskAssessmentInput.model_validate(
             {
                 DOCUMENT_TYPE_FIELD: state.document_type,
                 ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
-                "risk_findings": risk_findings,
-                "information_gaps": information_gaps,
-                "boundary_notes": boundary_notes,
+                "risk_findings": review_result.risk_findings,
+                "information_gaps": review_result.information_gaps,
+                "boundary_notes": review_result.boundary_notes,
                 "task_status_summary": task_status_summary,
             }
         ).model_dump()
