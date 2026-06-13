@@ -5,6 +5,7 @@ from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_ANALYZE_TASK,
     INVESTMENT_DOCUMENT_EXTRACT_TASK,
     INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
@@ -68,6 +69,10 @@ def test_resolve_task_spec_returns_registered_task_spec():
     assert (
         resolve_task_spec("investment_document_risk_assessment")
         is INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK
+    )
+    assert (
+        resolve_task_spec("investment_document_review_reflection")
+        is INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK
     )
 
 

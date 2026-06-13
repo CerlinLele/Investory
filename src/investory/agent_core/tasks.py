@@ -11,6 +11,10 @@ from investory.agent_core.task_models.investment_document_review_plan import (
     InvestmentDocumentReviewPlanInput,
     InvestmentDocumentReviewPlanResult,
 )
+from investory.agent_core.task_models.investment_document_review_reflection import (
+    InvestmentDocumentReviewReflectionInput,
+    InvestmentDocumentReviewReflectionResult,
+)
 from investory.agent_core.task_models.investment_document_review_todo_tasks import (
     InvestmentDocumentReviewAnalyzeInput,
     InvestmentDocumentReviewAnalyzeResult,
@@ -42,6 +46,9 @@ INVESTMENT_DOCUMENT_REVIEW_PLAN_NAME = "investment_document_review_plan"
 INVESTMENT_DOCUMENT_EXTRACT_NAME = "investment_document_extract"
 INVESTMENT_DOCUMENT_ANALYZE_NAME = "investment_document_analyze"
 INVESTMENT_DOCUMENT_SYNTHESIZE_NAME = "investment_document_synthesize"
+INVESTMENT_DOCUMENT_REVIEW_REFLECTION_NAME = (
+    "investment_document_review_reflection"
+)
 
 
 FINANCE_QA_TASK = TaskSpec(
@@ -107,6 +114,13 @@ INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK = TaskSpec(
     output_model=InvestmentDocumentReviewRiskAssessmentResult,
 )
 
+INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK = TaskSpec(
+    name=INVESTMENT_DOCUMENT_REVIEW_REFLECTION_NAME,
+    prompt_name=INVESTMENT_DOCUMENT_REVIEW_REFLECTION_NAME,
+    input_model=InvestmentDocumentReviewReflectionInput,
+    output_model=InvestmentDocumentReviewReflectionResult,
+)
+
 TASKS = {
     FINANCE_QA_TASK.name: FINANCE_QA_TASK,
     LEARNING_MATERIAL_SUMMARY_TASK.name: LEARNING_MATERIAL_SUMMARY_TASK,
@@ -120,5 +134,8 @@ TASKS = {
     INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name: INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
     INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name: (
         INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK
+    ),
+    INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name: (
+        INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK
     ),
 }

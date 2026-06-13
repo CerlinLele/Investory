@@ -9,6 +9,10 @@ from investory.agent_core.task_models.investment_document_review_plan import (
     InvestmentDocumentReviewPlanInput,
     InvestmentDocumentReviewPlanResult,
 )
+from investory.agent_core.task_models.investment_document_review_reflection import (
+    InvestmentDocumentReviewReflectionInput,
+    InvestmentDocumentReviewReflectionResult,
+)
 from investory.agent_core.task_models.investment_document_review_todo_tasks import (
     InvestmentDocumentReviewAnalyzeInput,
     InvestmentDocumentReviewAnalyzeResult,
@@ -30,6 +34,7 @@ from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_ANALYZE_TASK,
     INVESTMENT_DOCUMENT_EXTRACT_TASK,
     INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
+    INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK,
     INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
     INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
     INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
@@ -158,6 +163,23 @@ def test_investment_document_risk_assessment_task_spec_registers_models_and_prom
     )
 
 
+def test_investment_document_review_reflection_task_spec_registers_models_and_prompt():
+    assert (
+        INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name
+        == "investment_document_review_reflection"
+    )
+    assert (
+        INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.prompt_name
+        == "investment_document_review_reflection"
+    )
+    assert INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.input_model is (
+        InvestmentDocumentReviewReflectionInput
+    )
+    assert INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.output_model is (
+        InvestmentDocumentReviewReflectionResult
+    )
+
+
 def test_tasks_registry_contains_initial_and_investment_document_review_tasks():
     assert TASKS == {
         "finance_qa": FINANCE_QA_TASK,
@@ -172,5 +194,8 @@ def test_tasks_registry_contains_initial_and_investment_document_review_tasks():
         "investment_document_synthesize": INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
         "investment_document_risk_assessment": (
             INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK
+        ),
+        "investment_document_review_reflection": (
+            INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK
         ),
     }
