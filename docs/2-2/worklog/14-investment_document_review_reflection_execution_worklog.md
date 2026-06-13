@@ -96,3 +96,52 @@
 - Step 2 completed.
 - The investment document review flow now inserts a reflection quality gate before risk assessment on both single-pass and To-Do paths.
 - The API contract still returns the same top-level review response shape, but it now reflects the revised review output from the reflection step.
+
+## Step 3
+
+- Timestamp: `2026-06-13 21:17:33 +10:00`
+- Plan: [14-Investory_参考v3加反思优化实施计划.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\plans\14-Investory_参考v3加反思优化实施计划.md)
+- Scope: `Step 3 - 补充日志和 state 可观测字段`
+
+### Actions
+
+1. Added reflection observability fields to [investment_document_review_state.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\contracts\investment_document_review_state.py:54):
+   - `reflection_result`
+   - `reflection_passed`
+   - `reflection_rounds`
+2. Added reflection lifecycle logging in [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:567):
+   - `investment_document_review.reflection.started`
+   - `investment_document_review.reflection.completed`
+   - `investment_document_review.reflection.failed`
+3. Updated `reflect_review_output()` in [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:884) to return the reflection metadata into flow state while preserving the existing final API response contract.
+4. Added focused observability tests:
+   - [test_investment_document_review_rules.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_rules.py:86) verifies reflection state fields default to `None`.
+   - [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1156) verifies successful reflection records state metadata and logs started/completed events without raw document text.
+   - [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1244) verifies reflection task failure logs the failed event without raw document text.
+
+### Files Touched
+
+- [investment_document_review_state.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\contracts\investment_document_review_state.py:1)
+- [document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py:1)
+- [test_investment_document_review_flow.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_flow.py:1)
+- [test_investment_document_review_rules.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_rules.py:1)
+- [14-investment_document_review_reflection_execution_worklog.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\worklog\14-investment_document_review_reflection_execution_worklog.md:1)
+
+### Verification
+
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - First result: `1 failed, 40 passed`
+  - Failure cause: the new failed-reflection test used invalid `TaskError` literal values (`reflection_model_failed`, `runtime`) that do not match the repository error contract.
+  - Fix: changed the fake failed reflection result to use `error_type="unknown_error"` and `stage="model_call"`.
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - Result after fix: `41 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_rules.py`
+  - Result: `24 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_task_model.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_todo_prompts.py tests\test_investment_document_review_rules.py tests\test_investment_document_review_router.py tests\test_investory_policy_gate.py`
+  - Result after fix: `116 passed`
+
+### Result
+
+- Step 3 completed.
+- Reflection metadata is now observable in flow state.
+- Reflection lifecycle logs now record started/completed/failed events with session and metadata counts, without exposing source document text.

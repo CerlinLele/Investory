@@ -83,6 +83,9 @@ def test_investment_document_review_state_defaults_to_expected_empty_values():
     assert state.route_confidence is None
     assert state.review_framework is None
     assert state.review_payload is None
+    assert state.reflection_result is None
+    assert state.reflection_passed is None
+    assert state.reflection_rounds is None
     assert state.risk_assessment is None
     assert state.approval_status is None
     assert state.approval_required_role is None

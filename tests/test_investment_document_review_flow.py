@@ -1153,6 +1153,163 @@ def test_generate_review_todo_plan_logs_plan_summary_and_tasks(caplog) -> None:
     assert all("ETF factsheet review excerpt." not in record.message for record in caplog.records)
 
 
+def test_reflect_review_output_records_metadata_and_logs_completion(caplog) -> None:
+    class ReflectionMetadataExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            return TaskResult(
+                ok=True,
+                task_name=spec.name,
+                result={
+                    "review_result": payload["review_result"],
+                    "passed": False,
+                    "score": 0.72,
+                    "issues": ["Skipped task disclosure is incomplete."],
+                    "suggestions": ["Add the skipped task to boundary notes."],
+                    "safety_flags": ["incomplete_task_disclosure"],
+                    "rounds": 1,
+                },
+            )
+
+    executor = ReflectionMetadataExecutor()
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+    review_result = _review_result(summary="Reflection should preserve this summary.")
+
+    with caplog.at_level(
+        logging.INFO,
+        logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow",
+    ):
+        update = flow.reflect_review_output(
+            InvestmentDocumentReviewState(
+                session_id="session-reflection-log",
+                input_payload={
+                    DOCUMENT_TEXT_FIELD: "ETF factsheet text should not be logged.",
+                    REVIEW_GOAL_FIELD: "Review missing disclosures.",
+                },
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                route_confidence=0.91,
+                output=TaskResult(
+                    ok=True,
+                    task_name=INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+                    result=review_result,
+                ),
+            )
+        )
+
+    assert executor.calls[0][0] == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name
+    assert update["output"] == TaskResult(
+        ok=True,
+        task_name=INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+        result={**review_result, "learning_next_steps": None},
+    )
+    assert update["reflection_passed"] is False
+    assert update["reflection_rounds"] == 1
+    assert update["reflection_result"]["score"] == 0.72
+    assert update["reflection_result"]["issues"] == [
+        "Skipped task disclosure is incomplete."
+    ]
+    assert any(
+        "investment_document_review.reflection.started" in record.message
+        and "session-reflection-log" in record.message
+        for record in caplog.records
+    )
+    assert any(
+        "investment_document_review.reflection.completed" in record.message
+        and "session-reflection-log" in record.message
+        and "passed=false" in record.message
+        and "score=0.72" in record.message
+        and "rounds=1" in record.message
+        and "issue_count=1" in record.message
+        and "safety_flag_count=1" in record.message
+        for record in caplog.records
+    )
+    assert all(
+        "ETF factsheet text should not be logged." not in record.message
+        for record in caplog.records
+    )
+
+
+def test_reflect_review_output_logs_failed_reflection_task(caplog) -> None:
+    class FailedReflectionExecutor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def run(self, spec, payload: dict) -> TaskResult:
+            self.calls.append((spec.name, payload))
+            return TaskResult(
+                ok=False,
+                task_name=spec.name,
+                    error=TaskError(
+                        error_type="unknown_error",
+                        stage="model_call",
+                        user_safe_message="Reflection could not complete.",
+                    ),
+                )
+
+    executor = FailedReflectionExecutor()
+    flow = InvestmentDocumentReviewFlow(
+        executor=executor,
+        llm_router=FakeDocumentReviewRouter(
+            InvestmentDocumentReviewRouteDecision(
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                confidence=0.91,
+                reason="unused",
+            )
+        ),
+    )
+
+    with caplog.at_level(
+        logging.INFO,
+        logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow",
+    ):
+        update = flow.reflect_review_output(
+            InvestmentDocumentReviewState(
+                session_id="session-reflection-failed",
+                input_payload={DOCUMENT_TEXT_FIELD: "Failure text should not leak."},
+                document_type=InvestmentDocumentType.ETF_FACTSHEET,
+                route_confidence=0.91,
+                output=TaskResult(
+                    ok=True,
+                    task_name=INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name,
+                    result=_review_result(),
+                ),
+            )
+        )
+
+    assert update["output"].ok is False
+    assert update["output"].task_name == INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name
+    assert update["output"].error is not None
+    assert update["output"].error.error_type == "unknown_error"
+    assert any(
+        "investment_document_review.reflection.started" in record.message
+        and "session-reflection-failed" in record.message
+        for record in caplog.records
+    )
+    assert any(
+        "investment_document_review.reflection.failed" in record.message
+        and "session-reflection-failed" in record.message
+        and "stage=model_call" in record.message
+        and "error_type=unknown_error" in record.message
+        for record in caplog.records
+    )
+    assert all(
+        "Failure text should not leak." not in record.message
+        for record in caplog.records
+    )
+
+
 def test_generate_review_todo_plan_requires_review_payload() -> None:
     flow = InvestmentDocumentReviewFlow(
         executor=FakeExecutor(),

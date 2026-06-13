@@ -564,6 +564,48 @@ def _log_review_todo_execution_completed(
     )
 
 
+def _log_review_reflection_started(
+    *,
+    session_id: str | None,
+) -> None:
+    logger.info(
+        "investment_document_review.reflection.started session_id=%s",
+        session_id,
+    )
+
+
+def _log_review_reflection_completed(
+    *,
+    session_id: str | None,
+    reflection: InvestmentDocumentReviewReflectionResult,
+) -> None:
+    logger.info(
+        "investment_document_review.reflection.completed session_id=%s "
+        "passed=%s score=%s rounds=%s issue_count=%s safety_flag_count=%s",
+        session_id,
+        str(reflection.passed).lower(),
+        reflection.score,
+        reflection.rounds,
+        len(reflection.issues),
+        len(reflection.safety_flags),
+    )
+
+
+def _log_review_reflection_failed(
+    *,
+    session_id: str | None,
+    stage: str,
+    error_type: str | None,
+) -> None:
+    logger.warning(
+        "investment_document_review.reflection.failed session_id=%s stage=%s "
+        "error_type=%s",
+        session_id,
+        stage,
+        error_type,
+    )
+
+
 def _string_list_from_result(result_payload: dict[str, Any], key: str) -> list[str]:
     value = result_payload.get(key)
     if not isinstance(value, list):
@@ -850,16 +892,30 @@ class InvestmentDocumentReviewFlow:
         try:
             payload = self._build_review_reflection_payload(state=state)
         except (RuntimeError, ValidationError) as exc:
+            task_error = normalize_task_error(exc, stage="output_validation")
+            _log_review_reflection_failed(
+                session_id=state.session_id,
+                stage=task_error.stage,
+                error_type=task_error.error_type,
+            )
             return {
                 "output": TaskResult(
                     ok=False,
                     task_name=INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
-                    error=normalize_task_error(exc, stage="output_validation"),
+                    error=task_error,
                 )
             }
 
+        _log_review_reflection_started(session_id=state.session_id)
         result = self.executor.run(INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK, payload)
         if not result.ok:
+            _log_review_reflection_failed(
+                session_id=state.session_id,
+                stage=result.error.stage if result.error is not None else "unknown",
+                error_type=(
+                    result.error.error_type if result.error is not None else None
+                ),
+            )
             return {"output": result}
 
         try:
@@ -867,20 +923,33 @@ class InvestmentDocumentReviewFlow:
                 result.result
             )
         except ValidationError as exc:
+            task_error = normalize_task_error(exc, stage="output_validation")
+            _log_review_reflection_failed(
+                session_id=state.session_id,
+                stage=task_error.stage,
+                error_type=task_error.error_type,
+            )
             return {
                 "output": TaskResult(
                     ok=False,
                     task_name=INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
-                    error=normalize_task_error(exc, stage="output_validation"),
+                    error=task_error,
                 )
             }
 
+        _log_review_reflection_completed(
+            session_id=state.session_id,
+            reflection=reflection,
+        )
         return {
             "output": TaskResult(
                 ok=True,
                 task_name=state.output.task_name,
                 result=reflection.review_result.model_dump(mode="json"),
-            )
+            ),
+            "reflection_result": reflection.model_dump(mode="json"),
+            "reflection_passed": reflection.passed,
+            "reflection_rounds": reflection.rounds,
         }
 
     def assess_review_risk(
