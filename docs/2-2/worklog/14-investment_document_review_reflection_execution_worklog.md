@@ -175,3 +175,45 @@
 - Step 4 completed.
 - End-to-end coverage now proves the reflected review is the review used downstream.
 - The tests also prove high-risk reflected reviews still stop at pending approval, and reflection failures are not swallowed.
+
+## Step 5
+
+- Timestamp: `2026-06-13 21:46:55 +10:00`
+- Plan: [14-Investory_参考v3加反思优化实施计划.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\plans\14-Investory_参考v3加反思优化实施计划.md)
+- Scope: `Step 5 - 视情况外置 review framework`
+
+### Actions
+
+1. Added YAML-backed review framework configuration in [review_frameworks.yaml](C:\Users\hy120\Downloads\AI project\Investory\config\review_frameworks.yaml:1) for every known `InvestmentDocumentType`, preserving the existing `extract_focus` and `analyze_focus` values.
+2. Replaced the inline Python framework constant in [document_review_rules.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_rules.py:1) with a typed loader:
+   - `REVIEW_FRAMEWORK_CONFIG_PATH`
+   - `KNOWN_REVIEW_FRAMEWORK_DOCUMENT_TYPES`
+   - `_load_review_frameworks()`
+   - `DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE = _load_review_frameworks()`
+3. Kept the public `get_review_framework()` contract unchanged so the document review flow and tests continue to read typed `DocumentReviewFramework` values without changing call sites.
+4. Added focused loader tests in [test_investment_document_review_rules.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_rules.py:1):
+   - known types iterate from `KNOWN_REVIEW_FRAMEWORK_DOCUMENT_TYPES`
+   - YAML file existence and successful typed load
+   - rejection of unknown document type keys in temporary config
+5. Added explicit `PyYAML==6.0.3` to [pyproject.toml](C:\Users\hy120\Downloads\AI project\Investory\pyproject.toml:1) so the runtime dependency is declared in project metadata instead of relying only on the current virtualenv state.
+
+### Files Touched
+
+- [review_frameworks.yaml](C:\Users\hy120\Downloads\AI project\Investory\config\review_frameworks.yaml:1)
+- [document_review_rules.py](C:\Users\hy120\Downloads\AI project\Investory\src\investory\agent_core\runtime\flow\investment_document_review\document_review_rules.py:1)
+- [test_investment_document_review_rules.py](C:\Users\hy120\Downloads\AI project\Investory\tests\test_investment_document_review_rules.py:1)
+- [pyproject.toml](C:\Users\hy120\Downloads\AI project\Investory\pyproject.toml:1)
+- [14-investment_document_review_reflection_execution_worklog.md](C:\Users\hy120\Downloads\AI project\Investory\docs\2-2\worklog\14-investment_document_review_reflection_execution_worklog.md:1)
+
+### Verification
+
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_rules.py`
+  - Result: `26 passed`
+- Command: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py`
+  - Result: `70 passed`
+
+### Result
+
+- Step 5 completed.
+- Review framework selection is now sourced from YAML while still returning typed `DocumentReviewFramework` objects.
+- The document review flow kept its existing wiring and behavior, and the new config path is covered by loader and flow-adjacent tests.

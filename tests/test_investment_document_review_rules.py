@@ -15,7 +15,10 @@ from investory.agent_core.contracts import (
 from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
     DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE,
     DOCUMENT_ROUTER_MAX_CHARS,
+    KNOWN_REVIEW_FRAMEWORK_DOCUMENT_TYPES,
+    REVIEW_FRAMEWORK_CONFIG_PATH,
     UNKNOWN_DOCUMENT_MISSING_FIELDS,
+    _load_review_frameworks,
     build_document_excerpt,
     detect_missing_fields,
     get_review_framework,
@@ -185,18 +188,32 @@ def test_build_document_excerpt_truncates_to_max_chars():
 
 
 def test_each_known_document_type_has_review_framework():
-    for document_type in (
-        InvestmentDocumentType.ETF_FACTSHEET,
-        InvestmentDocumentType.FUND_PROSPECTUS,
-        InvestmentDocumentType.PRODUCT_BROCHURE,
-        InvestmentDocumentType.EARNINGS_REPORT,
-        InvestmentDocumentType.LEARNING_MATERIAL,
-    ):
+    for document_type in KNOWN_REVIEW_FRAMEWORK_DOCUMENT_TYPES:
         framework = get_review_framework(document_type)
         assert framework is not None
         assert framework == DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE[document_type]
         assert framework.extract_focus
         assert framework.analyze_focus
+
+
+def test_review_frameworks_load_from_yaml_config():
+    assert REVIEW_FRAMEWORK_CONFIG_PATH.is_file()
+    assert _load_review_frameworks() == DOCUMENT_REVIEW_FRAMEWORK_BY_TYPE
+
+
+def test_review_framework_loader_rejects_unknown_document_type(tmp_path):
+    config_path = tmp_path / "review_frameworks.yaml"
+    config_path.write_text(
+        "unknown_type:\n"
+        "  extract_focus:\n"
+        "    - fees\n"
+        "  analyze_focus:\n"
+        "    - risks\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Unknown document type"):
+        _load_review_frameworks(config_path)
 
 
 def test_unknown_document_type_does_not_resolve_framework():
