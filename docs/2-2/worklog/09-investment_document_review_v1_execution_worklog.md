@@ -1,0 +1,1290 @@
+# Investment Document Review v1 Execution Worklog
+
+## 2026-06-06T23:35:09.1806100+10:00 Step 1
+
+- Step: Phase 1 Step 1 - inventory current TodoExecution contract and InvestmentDocumentReview task model for reusable fields.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Date -Format o`
+  - `rg -n "class Todo|TodoTaskKind|TodoExecutionPlan|TodoTaskSpec|TodoTaskResult|TodoFailurePolicy|TodoTaskStatus" src\investory\agent_core\contracts\todo_execution.py`
+  - `rg -n "InvestmentDocumentReview|document_review|TaskSpec|Input|Result|Review" src\investory\agent_core\task_models\investment_document_review.py src\investory\agent_core\contracts\investment_document_review_state.py src\investory\agent_core\tasks.py`
+  - `Get-Content` on the todo contract, investment document review task model, review state contract, task registry, gateway routing, and prior todo worklog.
+  - `rg -n` checks for field-level and flow handoff anchors.
+- Files touched:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/contracts/todo_execution.py`
+  - `src/investory/agent_core/task_models/investment_document_review.py`
+  - `src/investory/agent_core/contracts/investment_document_review_state.py`
+  - `src/investory/agent_core/tasks.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `src/investory/gateway/routing.py`
+- Result:
+  - `TodoExecutionPlan` is reusable as the plan output shape because it already contains ordered `tasks`, `summary`, and a default `RETRY_THEN_FAIL` failure policy.
+  - `TodoTaskSpec` is reusable for v1 plan tasks because it already contains `id`, `kind`, `title`, `description`, `payload`, `depends_on`, and `completion_criteria`.
+  - `TodoTaskResult` is reusable for subtask execution results because it already stores `id`, `status`, optional structured `result`, and optional structured `error`.
+  - `TodoTaskKind` currently lacks investment document review-specific kinds. Step 2 should add constants and enum values for extract/analyze/synthesize rather than using raw strings.
+  - `InvestmentDocumentReviewInput` already has the core plan-generation and single-pass inputs: `document_text`, routed `document_type`, `extract_focus`, `analyze_focus`, and optional `review_goal`.
+  - `InvestmentDocumentReviewResult` already provides the final synthesis target buckets: `extracted_facts`, `risk_findings`, `information_gaps`, `boundary_notes`, `summary`, and optional `learning_next_steps`.
+  - `InvestmentDocumentReviewState` already carries route and framework state, but does not yet have `todo_plan`, `todo_results`, or `review_synthesis_payload`.
+  - `tasks.py` currently registers only `investment_document_review_single_pass`; new plan/extract/analyze/synthesize TaskSpecs will need new module-level name constants and registry entries.
+  - Gateway task resolution uses `TASKS` through `resolve_task_spec()`, so new internal task specs can be discoverable without adding public aliases unless product routing requires them.
+  - Worktree already had unrelated changes before this step: staged `docs/2-2/worklog/08-v0_route_migration_execution_worklog.md`, untracked `AGENTS.md`, and untracked `docs/11-1/`.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/todo_execution.py:7`
+  - `src/investory/agent_core/contracts/todo_execution.py:25`
+  - `src/investory/agent_core/contracts/todo_execution.py:46`
+  - `src/investory/agent_core/contracts/todo_execution.py:56`
+  - `src/investory/agent_core/contracts/todo_execution.py:62`
+  - `src/investory/agent_core/task_models/investment_document_review.py:8`
+  - `src/investory/agent_core/task_models/investment_document_review.py:27`
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:30`
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:35`
+  - `src/investory/agent_core/tasks.py:23`
+  - `src/investory/agent_core/tasks.py:49`
+  - `src/investory/agent_core/tasks.py:56`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:70`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:223`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:248`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:258`
+  - `src/investory/gateway/routing.py:34`
+
+## 2026-06-06T23:40:30.5929326+10:00 Step 2
+
+- Step: Phase 1 Step 2 - add investment document review-specific `TodoTaskKind` constants and enum values.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "TodoTaskKind|TASK_KIND|todo_execution" tests src\investory`
+  - `rg --files tests`
+  - `Get-Content src\investory\agent_core\contracts\todo_execution.py`
+  - `Get-Content tests\test_tasks.py`
+  - `Get-Content tests\test_investment_document_review_task_model.py`
+  - `rg -n "INVESTMENT_DOCUMENT|class TodoTaskKind" src\investory\agent_core\contracts\todo_execution.py tests\test_todo_execution_contracts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/todo_execution.py`
+  - `tests/test_todo_execution_contracts.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added module-level constants:
+    - `INVESTMENT_DOCUMENT_EXTRACT_TASK_KIND = "investment_document_extract"`
+    - `INVESTMENT_DOCUMENT_ANALYZE_TASK_KIND = "investment_document_analyze"`
+    - `INVESTMENT_DOCUMENT_SYNTHESIZE_TASK_KIND = "investment_document_synthesize"`
+  - Added matching `TodoTaskKind` enum members:
+    - `INVESTMENT_DOCUMENT_EXTRACT`
+    - `INVESTMENT_DOCUMENT_ANALYZE`
+    - `INVESTMENT_DOCUMENT_SYNTHESIZE`
+  - Added focused test coverage for the new constants and enum values.
+  - First focused pytest attempt hit a Windows sandbox spawn error before test execution. The same `.venv` command was rerun with escalation and passed.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/todo_execution.py:11`
+  - `src/investory/agent_core/contracts/todo_execution.py:12`
+  - `src/investory/agent_core/contracts/todo_execution.py:13`
+  - `src/investory/agent_core/contracts/todo_execution.py:28`
+  - `src/investory/agent_core/contracts/todo_execution.py:33`
+  - `src/investory/agent_core/contracts/todo_execution.py:34`
+  - `src/investory/agent_core/contracts/todo_execution.py:35`
+  - `tests/test_todo_execution_contracts.py:11`
+  - `tests/test_todo_execution_contracts.py:23`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py` (1 passed)
+
+## 2026-06-06T23:45:32.1078253+10:00 Step 3
+
+- Step: Phase 1 Step 3 - add plan / extract / analyze / synthesize input-output models.
+- Commands/actions:
+  - `git status --short`
+  - `Get-ChildItem -LiteralPath src\investory\agent_core\task_models`
+  - `Get-Content` on existing task model files and relevant contracts.
+  - `rg -n "TodoExecutionPlan|TodoTaskResult|TodoTaskSpec" tests src\investory`
+  - `rg -n "InvestmentDocumentReviewPlanInput|InvestmentDocumentReviewPlanResult|InvestmentDocumentReviewExtractInput|InvestmentDocumentReviewExtractResult|InvestmentDocumentReviewAnalyzeInput|InvestmentDocumentReviewAnalyzeResult|InvestmentDocumentReviewSynthesizeInput|InvestmentDocumentReviewSynthesizeResult" src\investory\agent_core\task_models tests\test_investment_document_review_todo_task_models.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/task_models/investment_document_review_plan.py`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py`
+  - `tests/test_investment_document_review_todo_task_models.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `InvestmentDocumentReviewPlanInput` by reusing the existing single-pass review input fields.
+  - Made plan output explicit by aliasing `InvestmentDocumentReviewPlanResult` to the existing `TodoExecutionPlan` contract.
+  - Added extract task input/result models for factual extraction, citations, information gaps, boundary notes, and summary.
+  - Added analyze task input/result models that carry upstream `TodoTaskResult` dependency results and produce supported risk findings, evidence, gaps, boundary notes, and summary.
+  - Added synthesize input model containing document type, route metadata, optional review goal, validated To-Do plan, and ordered To-Do results.
+  - Made synthesis output explicit by aliasing `InvestmentDocumentReviewSynthesizeResult` to the existing `InvestmentDocumentReviewResult`.
+  - Added focused Pydantic validation tests for plan, extract, analyze, and synthesize models.
+- Evidence anchors:
+  - `src/investory/agent_core/task_models/investment_document_review_plan.py:7`
+  - `src/investory/agent_core/task_models/investment_document_review_plan.py:11`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:15`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:31`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:40`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:56`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:68`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:84`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:106`
+  - `tests/test_investment_document_review_todo_task_models.py:56`
+  - `tests/test_investment_document_review_todo_task_models.py:71`
+  - `tests/test_investment_document_review_todo_task_models.py:78`
+  - `tests/test_investment_document_review_todo_task_models.py:105`
+  - `tests/test_investment_document_review_todo_task_models.py:132`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py` (6 passed)
+
+## 2026-06-07T00:05:06.8345746+10:00 Step 4
+
+- Step: Phase 1 Step 4 - update `tasks.py` TaskSpec registration for plan / extract / analyze / synthesize tasks.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content src\investory\agent_core\tasks.py`
+  - `Get-Content tests\test_tasks.py`
+  - `Get-Content tests\test_gateway_routing.py`
+  - `rg -n "INVESTMENT_DOCUMENT_REVIEW_PLAN|INVESTMENT_DOCUMENT_EXTRACT|INVESTMENT_DOCUMENT_ANALYZE|INVESTMENT_DOCUMENT_SYNTHESIZE|investment_document_review_plan|investment_document_extract|investment_document_analyze|investment_document_synthesize" src\investory\agent_core\tasks.py tests\test_tasks.py tests\test_gateway_routing.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/tasks.py`
+  - `tests/test_tasks.py`
+  - `tests/test_gateway_routing.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added module-level task name constants for:
+    - `investment_document_review_plan`
+    - `investment_document_extract`
+    - `investment_document_analyze`
+    - `investment_document_synthesize`
+  - Registered new `TaskSpec`s:
+    - `INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK`
+    - `INVESTMENT_DOCUMENT_EXTRACT_TASK`
+    - `INVESTMENT_DOCUMENT_ANALYZE_TASK`
+    - `INVESTMENT_DOCUMENT_SYNTHESIZE_TASK`
+  - Added the new internal tasks to `TASKS` so `resolve_task_spec()` can find them by internal task name.
+  - Kept public aliases unchanged.
+  - Updated task registry tests for model/prompt wiring and registry contents.
+  - Updated gateway routing tests to verify all new internal task names resolve to the registered `TaskSpec`s.
+- Evidence anchors:
+  - `src/investory/agent_core/tasks.py:38`
+  - `src/investory/agent_core/tasks.py:39`
+  - `src/investory/agent_core/tasks.py:40`
+  - `src/investory/agent_core/tasks.py:41`
+  - `src/investory/agent_core/tasks.py:72`
+  - `src/investory/agent_core/tasks.py:79`
+  - `src/investory/agent_core/tasks.py:86`
+  - `src/investory/agent_core/tasks.py:93`
+  - `src/investory/agent_core/tasks.py:107`
+  - `tests/test_tasks.py:79`
+  - `tests/test_tasks.py:93`
+  - `tests/test_tasks.py:104`
+  - `tests/test_tasks.py:115`
+  - `tests/test_gateway_routing.py:52`
+  - `tests/test_gateway_routing.py:56`
+  - `tests/test_gateway_routing.py:60`
+  - `tests/test_gateway_routing.py:64`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py` (22 passed)
+
+## 2026-06-07T00:24:17.3809208+10:00 Step 5
+
+- Step: Phase 1 Step 5 - add prompt files and fix their filenames/responsibilities.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-ChildItem -LiteralPath src\investory\agent_core\prompts\tasks`
+  - `Get-Content src\investory\agent_core\prompts\tasks\investment_document_review_single_pass.md`
+  - `Get-Content tests\test_prompt_loader.py`
+  - `Get-Content src\investory\agent_core\runtime\message_builder.py`
+  - `Get-Content` on existing prompt-related tests and base prompt snippets.
+  - `rg -n "Task:|investment_document_extract|investment_document_analyze|failed or were skipped|structured To-Do plan|upstream extraction results" src\investory\agent_core\prompts\tasks\investment_document_review_plan.md src\investory\agent_core\prompts\tasks\investment_document_extract.md src\investory\agent_core\prompts\tasks\investment_document_analyze.md src\investory\agent_core\prompts\tasks\investment_document_synthesize.md tests\test_investment_document_review_todo_prompts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md`
+  - `src/investory/agent_core/prompts/tasks/investment_document_extract.md`
+  - `src/investory/agent_core/prompts/tasks/investment_document_analyze.md`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md`
+  - `tests/test_investment_document_review_todo_prompts.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `investment_document_review_plan.md` to generate bounded `TodoExecutionPlan` tasks after routing/framework construction.
+  - Added `investment_document_extract.md` for fact-only extraction with citations, gaps, boundary notes, and factual summary.
+  - Added `investment_document_analyze.md` for dependency-result-grounded analysis of risks, gaps, inconsistencies, and disclosure quality.
+  - Added `investment_document_synthesize.md` for final review synthesis from route metadata, validated plan, and ordered task results.
+  - Kept prompt filenames aligned with Step 4 `TaskSpec.prompt_name` values.
+  - Added prompt build tests that verify all four new task specs can load their prompt files and render messages with representative payloads.
+- Evidence anchors:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:1`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:10`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:12`
+  - `src/investory/agent_core/prompts/tasks/investment_document_extract.md:1`
+  - `src/investory/agent_core/prompts/tasks/investment_document_analyze.md:1`
+  - `src/investory/agent_core/prompts/tasks/investment_document_analyze.md:2`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md:1`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md:9`
+  - `tests/test_investment_document_review_todo_prompts.py:60`
+  - `tests/test_investment_document_review_todo_prompts.py:65`
+  - `tests/test_investment_document_review_todo_prompts.py:85`
+  - `tests/test_investment_document_review_todo_prompts.py:121`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_investment_document_review_todo_task_models.py tests\test_todo_execution_contracts.py` (26 passed)
+
+## 2026-06-07T00:44:14.9407716+10:00 Step 6
+
+- Step: Phase 1 Step 6 - validate the new models with a minimal Pydantic sample.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content tests\test_investment_document_review_todo_task_models.py`
+  - `Get-Content tests\test_investment_document_review_todo_prompts.py`
+  - `rg -n "minimal_investment_document_review_v1|InvestmentDocumentReviewPlanInput|InvestmentDocumentReviewSynthesizeInput|final_result|depends_on" tests\test_investment_document_review_v1_minimal_validation.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `tests/test_investment_document_review_v1_minimal_validation.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added a minimal Pydantic validation sample that walks the Phase 1 model chain:
+    - plan input validation
+    - `TodoExecutionPlan` plan result validation
+    - extract input/result validation
+    - analyze input/result validation with upstream `TodoTaskResult`
+    - synthesize input validation with ordered task results
+    - final `InvestmentDocumentReviewResult` validation through the synthesize alias
+  - Verified the sample includes an analyze task depending on `extract_fees`.
+  - Verified the analyze input carries the upstream extract task result.
+  - Verified the synthesize input carries both ordered task results.
+- Evidence anchors:
+  - `tests/test_investment_document_review_v1_minimal_validation.py:24`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:25`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:52`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:119`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:129`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:141`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:144`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (27 passed)
+
+## 2026-06-07T00:54:08.8734682+10:00 Phase 2 Step 1
+
+- Step: Phase 2 Step 1 - design `generate_review_todo_plan` as an independent flow node without wiring it into the executor path.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\task_executor.py`
+  - `Get-Content src\investory\agent_core\contracts\investment_document_review_state.py`
+  - `rg -n "todo_plan|GENERATE_REVIEW_TODO_PLAN|generate_review_todo_plan|INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK|test_generate_review_todo_plan" src\investory\agent_core\contracts\investment_document_review_state.py src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `todo_plan: TodoExecutionPlan | None` to `InvestmentDocumentReviewState`.
+  - Added `GENERATE_REVIEW_TODO_PLAN = "generate_review_todo_plan"` to `InvestmentDocumentReviewNode`.
+  - Added `generate_review_todo_plan()` as a callable flow node method that runs `INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK`, rehydrates successful output into `TodoExecutionPlan`, and stores it as `todo_plan`.
+  - Preserved existing compiled graph wiring; the current runtime path still uses `build_review_framework -> run_single_pass_review -> build_final_result`.
+  - Added a focused test proving the node builds a plan and does not execute child To-Do tasks.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:45`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:74`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:263`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:268`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:274`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:275`
+  - `tests/test_investment_document_review_flow.py:215`
+  - `tests/test_investment_document_review_flow.py:264`
+  - `tests/test_investment_document_review_flow.py:271`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (30 passed)
+
+## 2026-06-07T01:26:08.0066261+10:00 Phase 2 Step 2
+
+- Step: Phase 2 Step 2 - make plan-generation input explicit.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `rg -n "generate_review_todo_plan|review_payload|DOCUMENT_TEXT_FIELD|DOCUMENT_TYPE_FIELD|extract_focus|analyze_focus|REVIEW_GOAL_FIELD" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `rg -n "EXTRACT_FOCUS_FIELD|ANALYZE_FOCUS_FIELD|build_review_todo_plan_payload|unexpected_field|requires_review_payload" src\investory\agent_core\contracts\investment_document_review_state.py src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `EXTRACT_FOCUS_FIELD` and `ANALYZE_FOCUS_FIELD` constants so review payload focus fields are no longer raw strings.
+  - Updated `build_review_framework()` to populate the focus fields through the new constants.
+  - Added `build_review_todo_plan_payload()` to produce the exact plan-generation input shape:
+    - `document_text`
+    - `document_type`
+    - `extract_focus`
+    - `analyze_focus`
+    - `review_goal`
+  - Updated `generate_review_todo_plan()` to call the explicit payload builder instead of passing `state.review_payload or state.input_payload`.
+  - Added focused tests proving extra review payload fields are not passed to the plan task and missing `review_payload` raises a clear runtime error.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:13`
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:14`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:246`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:247`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:269`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:280`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:290`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:291`
+  - `tests/test_investment_document_review_flow.py:264`
+  - `tests/test_investment_document_review_flow.py:282`
+  - `tests/test_investment_document_review_flow.py:290`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_v1_minimal_validation.py tests\test_investment_document_review_todo_task_models.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (31 passed)
+
+## 2026-06-07T01:36:46.8789688+10:00 Phase 2 Step 3
+
+- Step: Phase 2 Step 3 - strengthen plan prompt constraints for extract/analyze responsibility boundaries.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content src\investory\agent_core\prompts\tasks\investment_document_review_plan.md`
+  - `Get-Content tests\test_investment_document_review_todo_prompts.py`
+  - `rg -n "Extract tasks must|Analyze tasks must|must not invent raw facts|upstream fact areas|depends_on=\[\]" src\investory\agent_core\prompts\tasks\investment_document_review_plan.md tests\test_investment_document_review_todo_prompts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py`
+- Files touched:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md`
+  - `tests/test_investment_document_review_todo_prompts.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Strengthened extract-task constraints so plan generation must keep extract tasks limited to document-grounded facts, citations, and missing source details.
+  - Made extract-task exclusions explicit: no risk, quality, suitability, performance, consistency, or disclosure-adequacy judgments.
+  - Kept extract tasks dependency-free with `depends_on=[]`.
+  - Strengthened analyze-task constraints so analysis must depend on extract tasks, judge only from upstream extracted facts, and avoid inventing raw facts independently.
+  - Clarified allowed analyze responsibilities: risks, disclosure quality, information gaps, inconsistencies, and source limitations.
+  - Required analyze task payloads to identify relevant `analyze_focus` and upstream fact areas.
+  - Updated prompt rendering tests to assert the key prompt guardrails are present.
+- Evidence anchors:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:11`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:12`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:13`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:15`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:16`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:18`
+  - `tests/test_investment_document_review_todo_prompts.py:62`
+  - `tests/test_investment_document_review_todo_prompts.py:63`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py` (20 passed)
+
+## 2026-06-07T01:42:47.8120520+10:00 Phase 2 Step 4
+
+- Step: Phase 2 Step 4 - add `depends_on`, `completion_criteria`, and task id rules into the plan output requirements.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content src\investory\agent_core\prompts\tasks\investment_document_review_plan.md`
+  - `Get-Content tests\test_investment_document_review_todo_prompts.py`
+  - `rg -n "lowercase snake_case|unique|must reference an existing task id exactly|specific and checkable|one to three|must not contain cycles|dependencies must flow" src\investory\agent_core\prompts\tasks\investment_document_review_plan.md tests\test_investment_document_review_todo_prompts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py`
+- Files touched:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md`
+  - `tests/test_investment_document_review_todo_prompts.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Required stable short task ids in lowercase snake_case.
+  - Required task ids to be unique and stable across retries for the same document/focus.
+  - Required every `depends_on` entry to reference an existing task id exactly.
+  - Prohibited unknown dependency ids and self-dependencies.
+  - Required specific, checkable `completion_criteria` rather than generic wording.
+  - Limited completion criteria to one to three items per task.
+  - Required acyclic dependencies flowing from extract tasks to analyze tasks.
+  - Updated prompt rendering tests to assert the task id, dependency, and completion criteria guardrails are present.
+- Evidence anchors:
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:8`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:9`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:20`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:22`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:23`
+  - `src/investory/agent_core/prompts/tasks/investment_document_review_plan.md:24`
+  - `tests/test_investment_document_review_todo_prompts.py:64`
+  - `tests/test_investment_document_review_todo_prompts.py:65`
+  - `tests/test_investment_document_review_todo_prompts.py:66`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py` (20 passed)
+
+## 2026-06-07T02:07:54.9995657+10:00 Phase 2 Step 5
+
+- Step: Phase 2 Step 5 - validate generated To-Do plans with `ensure_valid_todo_plan()` after model output rehydration.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content` on the plan workflow skill, implementation plan, worklog, review flow, todo plan validator, flow tests, task execution pipeline, and todo runner.
+  - `rg -n "ensure_valid_todo_plan|TodoPlanValidationException|normalize_task_error|returns_error_for_invalid_plan|unknown_dependency" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added secondary plan validation in `generate_review_todo_plan()` by calling `ensure_valid_todo_plan()` immediately after `TodoExecutionPlan.model_validate()`.
+  - Converted Pydantic output validation failures and `TodoPlanValidationException` into structured `TaskResult(ok=False)` errors for the plan task with `stage="output_validation"`.
+  - Added a focused flow-node test proving an unknown dependency does not populate `todo_plan` and instead returns a structured `structured_output_failed` error whose debug message includes `unknown_dependency`.
+  - Existing missing-input, refusal, single-pass, prompt, task registry, gateway routing, and todo contract tests remain passing.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:16`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:30`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:31`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:284`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:285`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:290`
+  - `tests/test_investment_document_review_flow.py:314`
+  - `tests/test_investment_document_review_flow.py:368`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (30 passed)
+
+## 2026-06-07T02:13:52.4809860+10:00 Phase 2 Step 6
+
+- Step: Phase 2 Step 6 - run plan generation for one or two document types before expanding coverage.
+- Commands/actions:
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_rules.py`
+  - `rg -n "DocumentTypePlanExecutor|accepts_supported_document_type_frameworks|extract_document facts|FUND_PROSPECTUS" tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added a deterministic plan-task fake executor that returns a valid extract/analyze dependency plan based on the requested document type.
+  - Added a positive flow-node test that runs `build_review_framework()` and `generate_review_todo_plan()` for:
+    - `InvestmentDocumentType.ETF_FACTSHEET`
+    - `InvestmentDocumentType.FUND_PROSPECTUS`
+  - Verified each generated plan enters the success path with `todo_plan`, not `output`.
+  - Verified extract tasks remain dependency-free and analyze tasks depend on the generated extract task.
+  - Verified the plan task receives the document-type-specific `extract_focus` and `analyze_focus` from the review framework.
+- Evidence anchors:
+  - `tests/test_investment_document_review_flow.py:51`
+  - `tests/test_investment_document_review_flow.py:336`
+  - `tests/test_investment_document_review_flow.py:350`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_todo_prompts.py tests\test_tasks.py tests\test_gateway_routing.py tests\test_todo_execution_contracts.py` (31 passed)
+
+## 2026-06-07T04:04:38.2538424+10:00 Phase 3 Step 1
+
+- Step: Phase 3 Step 1 - treat `TodoExecutionRunner` as the single execution entrypoint for review To-Do execution instead of assembling ad hoc execution logic in the flow.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "TodoExecutionRunner|execute_review_todo_plan|_execute_review_todo_task|todo_results|GENERATE_REVIEW_TODO_PLAN|SYNTHESIZE_REVIEW_RESULT|run_single_pass_review" src\investory\agent_core tests`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `rg -n "todo_results:|TodoExecutionRunner|EXECUTE_REVIEW_TODO_PLAN|def execute_review_todo_plan|def _build_todo_execution_runner|def _execute_review_todo_task|todo_task_payload_not_supported" src\investory\agent_core\contracts\investment_document_review_state.py src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `rg -n "test_execute_review_todo_plan_uses_todo_execution_runner|test_execute_review_todo_plan_requires_todo_plan|test_execute_review_todo_plan_dispatches_extract_tasks_through_executor|test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_without_dependency_results|RunnerBackedReviewFlow|RecordingTodoRunner" tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `todo_results` state storage so review To-Do execution can return ordered `TodoTaskResult` entries through flow state.
+  - Added `EXECUTE_REVIEW_TODO_PLAN` to `InvestmentDocumentReviewNode`.
+  - Added `execute_review_todo_plan()` as the review To-Do execution node and delegated execution to `TodoExecutionRunner`.
+  - Added `_build_todo_execution_runner()` so the flow constructs a runner around a single task-dispatch callback rather than embedding dependency scheduling logic in the flow itself.
+  - Added `_execute_review_todo_task()` and `_build_review_todo_task_execution()` to map review To-Do tasks into internal TaskSpecs and payloads.
+  - Extract tasks now dispatch through the existing task executor and return structured `TodoTaskResult` success/failure records.
+  - Analyze tasks are intentionally still blocked at this phase with a structured failure until dependency-results payload support is added in the next step.
+  - The compiled graph still keeps the existing single-pass runtime path; this step only established the runner-backed execution entrypoint and focused node-level coverage.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/investment_document_review_state.py:51`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:39`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:92`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:301`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:312`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:320`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:328`
+  - `tests/test_investment_document_review_flow.py:109`
+  - `tests/test_investment_document_review_flow.py:125`
+  - `tests/test_investment_document_review_flow.py:508`
+  - `tests/test_investment_document_review_flow.py:565`
+  - `tests/test_investment_document_review_flow.py:583`
+  - `tests/test_investment_document_review_flow.py:665`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (14 passed)
+
+## 2026-06-07T04:14:19.1262797+10:00 Phase 3 Step 2
+
+- Step: Phase 3 Step 2 - design the `task.kind` to concrete `TaskSpec` dispatch rules for review To-Do execution.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `rg -n "INVESTMENT_DOCUMENT_EXTRACT_TASK|INVESTMENT_DOCUMENT_ANALYZE_TASK|INVESTMENT_DOCUMENT_SYNTHESIZE_TASK|_build_review_todo_task_execution|TodoTaskKind.INVESTMENT_DOCUMENT" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py src\investory\agent_core\tasks.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\task_models\investment_document_review_todo_tasks.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Date -Format o`
+  - `rg -n "dispatches_synthesize_tasks_through_executor|INVESTMENT_DOCUMENT_SYNTHESIZE_TASK|synthesize_review" tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Confirmed `_build_review_todo_task_execution()` is the dispatch boundary from review `task.kind` values to internal TaskSpecs.
+  - Confirmed extract tasks dispatch to `INVESTMENT_DOCUMENT_EXTRACT_TASK`.
+  - Confirmed synthesize tasks dispatch to `INVESTMENT_DOCUMENT_SYNTHESIZE_TASK`.
+  - Kept analyze tasks explicitly gated for the next step, where dependency-results payload support will be added before dispatching to `INVESTMENT_DOCUMENT_ANALYZE_TASK`.
+  - Added focused coverage proving synthesize To-Do tasks dispatch through the executor with the expected synthesize payload built from route metadata, `todo_plan`, and prior `todo_results`.
+- Evidence anchors:
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:363`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:381`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:391`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:404`
+  - `src/investory/agent_core\tasks.py:79`
+  - `src/investory/agent_core\tasks.py:86`
+  - `src/investory/agent_core\tasks.py:93`
+  - `tests/test_investment_document_review_flow.py:583`
+  - `tests/test_investment_document_review_flow.py:666`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (15 passed)
+
+## 2026-06-07T04:20:58.5163296+10:00 Phase 3 Step 3
+
+- Step: Phase 3 Step 3 - prepare concrete payload structures for extract / analyze / synthesize review To-Do tasks.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\task_models\investment_document_review_todo_tasks.py`
+  - `Get-Date -Format o`
+  - `rg -n "_build_review_todo_extract_payload|_build_review_todo_analyze_payload|_build_review_todo_synthesize_payload|includes_dependency_results" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added dedicated payload builder helpers for review To-Do execution:
+    - `_build_review_todo_extract_payload()`
+    - `_build_review_todo_analyze_payload()`
+    - `_build_review_todo_synthesize_payload()`
+  - Switched extract and synthesize dispatch to use validated task-model payload builders instead of ad hoc dictionaries.
+  - Reused `InvestmentDocumentReviewExtractInput`, `InvestmentDocumentReviewAnalyzeInput`, and `InvestmentDocumentReviewSynthesizeInput` to validate payload structure before executor dispatch.
+  - Prepared the analyze payload shape, including explicit `dependency_results`, without yet wiring analyze tasks into runtime execution; dependency-result sourcing remains the next step.
+  - Added focused test coverage proving the analyze payload builder includes the expected dependency result records.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:380`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:386`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:411`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:425`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:441`
+  - `tests/test_investment_document_review_flow.py:766`
+  - `tests/test_investment_document_review_flow.py:807`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (16 passed)
+
+## 2026-06-07T04:42:13.3051920+10:00 Phase 3 Step 4
+
+- Step: Phase 3 Step 4 - source upstream dependency results at runtime and pass them into analyze review To-Do tasks.
+- Commands/actions:
+  - `git diff -- src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `rg -n -C 30 "test_build_review_todo_analyze_payload_includes_dependency_results|test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_without_dependency_results" tests\test_investment_document_review_flow.py`
+  - `rg -n -A 35 -B 0 "update = flow.execute_review_todo_plan\(" tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Updated the review To-Do runner callback so completed task results accumulate by `task.id` during execution instead of relying only on the initial `state.todo_results`.
+  - Enabled runtime dispatch for `TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE` by building validated analyze payloads from succeeded upstream task results.
+  - Added `_build_review_todo_dependency_results()` to enforce three runtime guards for analyze tasks:
+    - at least one declared dependency,
+    - every dependency result must exist,
+    - every dependency result must have `SUCCEEDED` status.
+  - Updated synthesize payload construction to use the live executed-result map, so later tasks can see outputs produced earlier in the same runner pass.
+  - Replaced the old analyze-placeholder failure test with the new no-dependencies guard expectation.
+  - Added positive runtime coverage proving an extract task result is forwarded into the analyze task payload as `dependency_results`.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:321`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:397`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:474`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:509`
+  - `tests/test_investment_document_review_flow.py:834`
+  - `tests/test_investment_document_review_flow.py:887`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (17 passed)
+
+## 2026-06-07T04:54:16.4432985+10:00 Phase 3 Step 5
+
+- Step: Phase 3 Step 5 - keep review To-Do execution scoped to a single request and do not introduce resume semantics yet.
+- Commands/actions:
+  - `rg -n -C 4 "resume|resume_state|previous_results|todo_results|TodoExecutionRunner\(|execute_review_todo_plan|_build_todo_execution_runner" src\investory\agent_core\runtime\todo_core\runner.py src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py tests\test_todo_execution_contracts.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Confirmed the current flow still calls `TodoExecutionRunner.run()` with only `state.todo_plan`, without any `resume_state` or cross-request recovery input.
+  - Added boundary coverage proving prior `state.todo_results` with the same task id are treated only as in-request context seeds and are not used to skip execution.
+  - Verified a stale upstream extract result is overwritten by the fresh extract result from the current request before the downstream analyze payload is built.
+  - Kept resume support explicitly out of scope for this phase; no new resume contract or runner API was introduced.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:313`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:321`
+  - `tests/test_investment_document_review_flow.py:511`
+  - `tests/test_investment_document_review_flow.py:1031`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (18 passed)
+
+## 2026-06-07T04:58:56.4054331+10:00 Phase 3 Step 6
+
+- Step: Phase 3 Step 6 - add failure-task and dependency-task boundary coverage so skip and retry behavior stays stable.
+- Commands/actions:
+  - `rg -n -C 3 "retry|skipped|skip|TodoExecutionRunner|failure_policy|attempt|result.id" tests src\investory\agent_core\runtime\todo_core\runner.py src\investory\agent_core\contracts\todo_execution.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py`
+- Files touched:
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added direct `TodoExecutionRunner` unit coverage instead of relying only on flow-level integration tests.
+  - Verified `RETRY_THEN_FAIL` retries a failed task up to the configured attempt budget and returns success when a later attempt succeeds.
+  - Verified a task that still fails after retry exhaustion causes its dependent task to be returned as `skipped` with `dependency_failed`, and that the dependent executor is never called.
+  - Kept the scope inside Phase 3: no resume contract, persistence, or flow-graph expansion was introduced.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/runner.py:47`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:65`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:126`
+  - `tests/test_todo_execution_runner.py:13`
+  - `tests/test_todo_execution_runner.py:64`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (2 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py` (20 passed)
+
+## 2026-06-07T16:34:27.9156127+10:00 Phase 4 Step 1
+
+- Step: Phase 4 Step 1 - define the resume data boundary so persistence stores only recovery information, not runtime objects.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 4 "阶段 4|Step:|resume_state|TodoExecutionResumeState|results_by_id|attempts_by_id" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md src\investory\agent_core\contracts\todo_execution.py tests`
+  - `Get-Content src\investory\agent_core\contracts\todo_execution.py`
+  - `rg -n "class TodoExecutionResumeState|test_todo_execution_resume_state_persists_only_recovery_boundary|test_todo_execution_resume_state_rejects_runtime_objects" src\investory\agent_core\contracts\todo_execution.py tests\test_todo_execution_resume.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/todo_execution.py`
+  - `tests/test_todo_execution_resume.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `TodoExecutionResumeState` as the persisted resume boundary.
+  - Limited the boundary to recovery data: `run_id`, optional `session_id`, `plan`, `results_by_id`, `attempts_by_id`, and `updated_at`.
+  - Configured the resume state to reject extra fields, so runtime objects such as an executor cannot be persisted into the contract.
+  - Added contract tests for accepted recovery data and rejected runtime-only data.
+  - Did not change `TodoExecutionRunner.run()` or introduce resume execution behavior in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/todo_execution.py:76`
+  - `tests/test_todo_execution_resume.py:36`
+  - `tests/test_todo_execution_resume.py:66`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py` (2 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py` (5 passed)
+
+## 2026-06-07T16:38:17.9710461+10:00 Phase 4 Step 2
+
+- Step: Phase 4 Step 2 - fix the `results_by_id` and `attempts_by_id` resume structures with explicit validation rules.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content src\investory\agent_core\contracts\todo_execution.py`
+  - `Get-Content tests\test_todo_execution_resume.py`
+  - `rg -n "validate_resume_maps|unknown_result_ids|unknown_attempt_ids|negative_attempt_ids|rejects_unknown_result|requires_result_key|rejects_unknown_attempt|rejects_negative" src\investory\agent_core\contracts\todo_execution.py tests\test_todo_execution_resume.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py`
+- Files touched:
+  - `src/investory/agent_core/contracts/todo_execution.py`
+  - `tests/test_todo_execution_resume.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `TodoExecutionResumeState.validate_resume_maps()` to validate resume map structure against the embedded plan.
+  - Enforced that `results_by_id` keys must be known task ids from the plan.
+  - Enforced that each `results_by_id` key must match its `TodoTaskResult.id`.
+  - Enforced that `attempts_by_id` keys must be known task ids from the plan.
+  - Enforced that `attempts_by_id` values must be zero or greater.
+  - Added focused tests for unknown result ids, mismatched result ids, unknown attempt ids, and negative attempt counts.
+  - Did not change `TodoExecutionRunner.run()` or introduce resume execution behavior in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/contracts/todo_execution.py:87`
+  - `tests/test_todo_execution_resume.py:82`
+  - `tests/test_todo_execution_resume.py:103`
+  - `tests/test_todo_execution_resume.py:124`
+  - `tests/test_todo_execution_resume.py:139`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_resume.py` (6 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py` (9 passed)
+
+## 2026-06-07T16:59:26.7183336+10:00 Phase 4 Step 3
+
+- Step: Phase 4 Step 3 - add a `resume_state` parameter to `TodoExecutionRunner.run()`.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `Get-Content tests\test_todo_execution_runner.py`
+  - `rg -n "async def run|resume_state: TodoExecutionResumeState|_ensure_resume_state_matches_plan|accepts_matching_resume_state|rejects_resume_state_for_different_plan" src\investory\agent_core\runtime\todo_core\runner.py tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/todo_core/runner.py`
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Extended `TodoExecutionRunner.run()` to accept keyword-only `resume_state: TodoExecutionResumeState | None = None`.
+  - Added a guard that rejects a resume state whose embedded `plan` does not match the plan being run.
+  - Added runner tests for accepting a matching resume state and rejecting a mismatched resume state.
+  - Preserved existing behavior for all current callers that invoke `run(plan)`.
+  - Did not implement completed-task skipping or attempts restoration in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/runner.py:55`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:217`
+  - `tests/test_todo_execution_runner.py:134`
+  - `tests/test_todo_execution_runner.py:182`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (4 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (29 passed)
+
+## 2026-06-07T17:05:42.2373841+10:00 Phase 4 Step 4
+
+- Step: Phase 4 Step 4 - implement completed-task skipping so succeeded tasks do not call the executor again.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `Get-Content tests\test_todo_execution_runner.py`
+  - `git diff -- src\investory\agent_core\runtime\todo_core\runner.py tests\test_todo_execution_runner.py`
+  - `rg -n "result_by_id = _build_succeeded_resume_results_by_id|if task\.id in result_by_id|def _build_succeeded_resume_results_by_id" src\investory\agent_core\runtime\todo_core\runner.py`
+  - `rg -n "test_todo_execution_runner_skips_succeeded_resume_tasks|assert calls == \[\]" tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/todo_core/runner.py`
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Initialized runner execution state from `resume_state.results_by_id` entries whose status is `SUCCEEDED`.
+  - Skipped tasks whose ids are already present in the completed result map, so completed resume tasks are not submitted to the executor again.
+  - Kept failed and skipped resume results out of the completed result map in this step, so only succeeded tasks are treated as already done.
+  - Added focused runner coverage proving a succeeded resume task is returned from the resume state and the executor is not called.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/runner.py:67`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:75`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:229`
+  - `tests/test_todo_execution_runner.py:182`
+  - `tests/test_todo_execution_runner.py:224`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (5 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (30 passed)
+
+## 2026-06-07T17:17:44.6705757+10:00 Phase 4 Step 5
+
+- Step: Phase 4 Step 5 - implement dependency rebuild and re-layering during resume.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 4 "Phase 4 Step 5|阶段 4|Step 5|依赖|resume" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content src\investory\agent_core\runtime\todo_core\runner.py`
+  - `Get-Content tests\test_todo_execution_runner.py`
+  - `rg -n "_build_resume_result_by_id|_build_resume_attempts_by_id|_has_attempts_remaining|_should_stop_after_resume_failure|previous_attempts|test_todo_execution_runner_continues_after_succeeded_resume_dependency|test_todo_execution_runner_retries_only_remaining_resume_attempts|test_todo_execution_runner_skips_dependency_after_exhausted_resume_failure" src\investory\agent_core\runtime\todo_core\runner.py tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/todo_core/runner.py`
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Rebuilt runner resume state from persisted results and attempts before walking dependency layers.
+  - Preserved succeeded resume results so dependent unfinished tasks can continue once dependencies are satisfied.
+  - Preserved exhausted failed resume results so downstream tasks still follow the existing `dependency_failed` skipped semantics.
+  - Used `attempts_by_id` to run only the remaining retry budget instead of resetting retries on resume.
+  - Carried exhausted resumed failures into `FAIL_FAST` stop handling.
+  - Added runner tests for resumed successful dependency continuation, remaining retry attempts, and exhausted failed dependency skip behavior.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/todo_core/runner.py:71`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:76`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:77`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:108`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:169`
+  - `src/investory/agent_core/runtime/todo_core/runner.py:257`
+  - `tests/test_todo_execution_runner.py:227`
+  - `tests/test_todo_execution_runner.py:295`
+  - `tests/test_todo_execution_runner.py:363`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (8 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (33 passed)
+
+## 2026-06-07T18:21:26.5048708+10:00 Phase 4 Step 6
+
+- Step: Phase 4 Step 6 - leave load / save persistence slots in the flow layer.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 4 "Phase 4 Step 6|阶段 4|Step 6|load persisted resume_state|persist new task results|持久化" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `rg -n "InvestmentDocumentReviewTodoResumeStore|todo_resume_store|_load_todo_resume_state|_save_todo_resume_state|resume_state=resume_state|test_execute_review_todo_plan_loads_and_saves_resume_state_slot|RecordingTodoResumeStore" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `InvestmentDocumentReviewTodoResumeStore` as a small flow-layer protocol for loading and saving To-Do resume state.
+  - Added optional `todo_resume_store` injection to `InvestmentDocumentReviewFlow` and `build_investment_document_review_flow()`.
+  - Updated `execute_review_todo_plan()` to load persisted resume state before calling the runner and save task results after runner completion.
+  - Kept the default behavior unchanged when no resume store or no `session_id` is available.
+  - Added flow coverage proving the resume state is loaded, passed to `TodoExecutionRunner.run(..., resume_state=...)`, and saved with the resulting To-Do results.
+  - Did not bind the slot to any database, file store, or LangGraph checkpointer in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:105`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:130`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:335`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:346`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:364`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:685`
+  - `tests/test_investment_document_review_flow.py:136`
+  - `tests/test_investment_document_review_flow.py:618`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (19 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (34 passed)
+
+## 2026-06-07T18:40:42.0992424+10:00 Phase 4 Step 7
+
+- Step: Phase 4 Step 7 - validate resume behavior with partial success, partial failure, and dependency failure scenarios.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 5 "Phase 4 Step 7|部分成功|依赖失败|running task treated as retry candidate|partial success resume|failed dependency resume" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `Get-Content tests\test_todo_execution_runner.py`
+  - `Get-Content tests\test_todo_execution_resume.py`
+  - `rg -n "test_todo_execution_runner_keeps_plan_order_for_partial_success_resume|test_todo_execution_runner_treats_running_resume_task_as_retry_candidate|test_todo_execution_runner_skips_dependency_after_exhausted_resume_failure|test_todo_execution_runner_retries_only_remaining_resume_attempts" tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `tests/test_todo_execution_runner.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added partial-success resume coverage proving resumed completed tasks can coexist with newly executed tasks while final results still follow the original plan order.
+  - Added running-task resume coverage proving `status=running` is treated as a retry candidate and gets re-executed instead of being treated as completed.
+  - Reused the existing remaining-attempts and exhausted-dependency resume scenarios as the partial-failure and dependency-failure validations for this step.
+  - Kept the implementation unchanged in this step; only scenario coverage and worklog evidence were added.
+- Evidence anchors:
+  - `tests/test_todo_execution_runner.py:295`
+  - `tests/test_todo_execution_runner.py:383`
+  - `tests/test_todo_execution_runner.py:451`
+  - `tests/test_todo_execution_runner.py:510`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_runner.py` (10 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (36 passed)
+
+## 2026-06-07T18:56:20.1253919+10:00 Phase 5 Step 1
+
+- Step: Phase 5 Step 1 - clarify that synthesize input comes only from completed task results, not raw model outputs.
+- Commands/actions:
+  - `rg -n -C 30 "_build_review_todo_synthesize_payload|def _build_completed_todo_results|def build_final_result|def build_review_todo_plan_payload" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `rg -n -C 25 "test_execute_review_todo_plan_dispatches_synthesize_tasks_through_executor|TodoTaskStatus|TodoTaskResult" tests\test_investment_document_review_flow.py`
+  - `rg -n "COMPLETED_TODO_RESULT_STATUSES|def _build_completed_todo_results|def _build_review_todo_synthesize_payload|test_build_review_todo_synthesize_payload_uses_only_completed_todo_results" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `COMPLETED_TODO_RESULT_STATUSES` to define which terminal To-Do statuses may feed the synthesize task.
+  - Added `_build_completed_todo_results()` so synthesize receives serialized `TodoTaskResult` objects from completed tasks only.
+  - Updated `_build_review_todo_synthesize_payload()` to exclude `PENDING` and `RUNNING` task results from the synthesize payload.
+  - Added focused flow coverage proving succeeded, failed, and skipped results are included while pending and running results are filtered out.
+  - Kept synthesize insulated from raw model outputs by continuing to pass validated `TodoTaskResult.model_dump()` payloads.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:85`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:128`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:598`
+  - `tests/test_investment_document_review_flow.py:882`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (20 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (37 passed)
+
+## 2026-06-07T19:03:43.2194031+10:00 Phase 5 Step 2
+
+- Step: Phase 5 Step 2 - design how `todo_plan`, `todo_results`, and review summary are aggregated for synthesis.
+- Commands/actions:
+  - `git status --short`
+  - `rg --text -n -C 6 "Phase 5|阶段 5|Step 2|synthesize|模型原始输出|completed task" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `rg -n -C 12 "class InvestmentDocumentReviewSynthesizeInput|class InvestmentDocumentReviewExtractResult|class InvestmentDocumentReviewAnalyzeResult|class InvestmentDocumentReviewResult" src\investory\agent_core\task_models\investment_document_review_todo_tasks.py src\investory\agent_core\task_models\investment_document_review.py`
+  - `rg -n -C 20 "def _build_review_todo_synthesize_payload|def _build_review_todo_analyze_payload|def _build_review_todo_extract_payload|def _execute_review_todo_task" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `InvestmentDocumentReviewTodoSummary` and `InvestmentDocumentReviewTodoTaskSummary` as the structured aggregation contract for synthesis.
+  - Added deterministic aggregation in the flow layer: plan summary, planned/completed counts, succeeded/failed/skipped task ids, consolidated facts, risk findings, information gaps, boundary notes, and ordered per-task summaries.
+  - Made completed synthesize results follow validated plan order, while still preserving unexpected extra completed results after planned tasks.
+  - Updated synthesize input and prompt so `review_summary` is the aggregation guide and `todo_results` remains the traceable task-level detail source.
+  - Updated flow tests to assert the new `review_summary` shape and its status/result aggregation behavior.
+- Evidence anchors:
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:86`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:103`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:159`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:130`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:153`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:716`
+  - `src/investory/agent_core/prompts/tasks/investment_document_synthesize.md:6`
+  - `tests/test_investment_document_review_flow.py:877`
+  - `tests/test_investment_document_review_flow.py:903`
+  - `tests/test_investment_document_review_flow.py:1012`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (20 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (37 passed)
+
+## 2026-06-07T22:38:09.3488286+10:00 Phase 5 Step 3
+
+- Step: Phase 5 Step 3 - confirm how `route_reason`, `route_confidence`, and `document_type` enter the final review result.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "route_reason|route_confidence|document_type|build_final_result|synthesize_review_result|review_result|final result|complete" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py src\investory\agent_core\task_models\investment_document_review.py src\investory\agent_core\task_models\investment_document_review_todo_tasks.py`
+  - `rg -n "build_final_result|test_.*final_result|test_.*synthesize|route_reason|route_confidence" tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Confirmed the v1 synthesize payload already carries `document_type`, `route_reason`, and `route_confidence` through `InvestmentDocumentReviewSynthesizeInput`, so no flow logic change was required in this step.
+  - Confirmed `build_final_result()` already wraps the downstream synthesized review with top-level `document_type`, `route_reason`, and `route_confidence` while keeping the final `review` body unchanged.
+  - Added a focused flow test that exercises the v1 synthesized-review path and proves the final outward result preserves all three route/document metadata fields.
+  - Re-ran the focused flow suite and the related To-Do/resume regression suite from the repository `.venv`; both passed without additional code changes.
+- Evidence anchors:
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:140`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:143`
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py:144`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:710`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:711`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:712`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:738`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:759`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:760`
+  - `src/investory/agent_core\runtime\flow\investment_document_review\document_review_flow.py:761`
+  - `tests/test_investment_document_review_flow.py:1049`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (21 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (38 passed)
+
+## 2026-06-07T22:54:10.8466874+10:00 Phase 5 Step 4
+
+- Step: Phase 5 Step 4 - make summary expose failed or skipped tasks as explicit `information_gaps` or `boundary_notes`.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "Phase 5 Step 3|Phase 5 Step 4|failed|skipped|information_gaps|boundary_notes|_build_review_todo_summary|review_summary" docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `rg -n "_todo_incomplete_review_note|information_gaps.append|boundary_notes.append|test_build_review_todo_synthesize_payload_uses_only_completed_todo_results|Phase 5 Step 3" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added deterministic conversion for failed task results into `review_summary.information_gaps`, using the task title/id and structured error message when available.
+  - Added deterministic conversion for skipped task results into `review_summary.boundary_notes`, using the task title/id and structured error message when available.
+  - Added `_todo_incomplete_review_note()` so incomplete task messages share one stable format and fallback safely when an error message is absent.
+  - Updated the existing synthesize payload test to prove failed/skipped tasks are not only tracked by status ids and per-task summaries, but also surfaced as final-review incompleteness signals.
+  - Re-ran the focused flow suite and the related To-Do/resume regression suite from the repository `.venv`; both passed.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:183`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:192`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:247`
+  - `tests/test_investment_document_review_flow.py:1012`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (21 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (38 passed)
+
+## 2026-06-07T23:16:00+10:00 Phase 5 Step 5
+
+- Step: Phase 5 Step 5 - validate that resumed completed results are not recomputed during synthesis.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "Phase 5 Step 5|resume|review_summary|completed results|duplicate|recompute|todo_resume_store|load_resume_state|save_resume_state|synthesize" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py tests\test_todo_execution_resume.py tests\test_todo_execution_runner.py`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+  - `Get-Content tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Updated `execute_review_todo_plan()` so the To-Do execution runner is built with the loaded `resume_state`, not just the pre-existing `state.todo_results`.
+  - Updated `_build_todo_execution_runner()` to seed its `executed_results_by_id` map from `resume_state.results_by_id` before task execution, so synthesize can see resumed successful results without rerunning them.
+  - Added focused flow coverage proving a resumed succeeded extract result is included exactly once in the synthesize payload and final ordered To-Do results, while the executor is called only for the remaining synthesize task.
+  - Re-ran the focused flow suite and the related To-Do/resume regression suite from the repository `.venv`; both passed.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:470`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:523`
+  - `tests/test_investment_document_review_flow.py:192`
+  - `tests/test_investment_document_review_flow.py:681`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` (22 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_todo_execution_contracts.py tests\test_todo_execution_runner.py tests\test_todo_execution_resume.py tests\test_investment_document_review_flow.py` (39 passed)
+
+## 2026-06-08T01:08:28+10:00 Phase 6
+
+- Step: Phase 6 - gateway and compatibility testing.
+- Commands/actions:
+  - `git status --short`
+  - `rg -n "阶段 6|Phase 6|网关|兼容性|gateway|compat" docs\2-2\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `Get-Content tests\test_investment_document_review_gateway_api.py`
+  - `Get-Content src\investory\gateway\api.py`
+  - `Get-Content src\investory\gateway\schemas.py`
+  - `rg -n "UNKNOWN_DOCUMENT_MISSING_FIELDS|missing_fields = decision.missing_fields|preserves_unknown_type_branch|runs_complete_review_through_executor|_sample_review_summary|review_summary" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_v1_minimal_validation.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_v1_minimal_validation.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py`
+  - `.venv\Scripts\python.exe -m pytest tests`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_gateway_api.py`
+  - `tests/test_investment_document_review_todo_task_models.py`
+  - `tests/test_investment_document_review_v1_minimal_validation.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added gateway compatibility coverage for the public `/investment-document-review` endpoint success path, including the stable outer `TaskResponse` keys and the final complete review payload with `action`, `document_type`, route metadata, and `review`.
+  - Added gateway regression coverage for the refusal branch so investment-advice requests still return `refuse_and_redirect` before router or executor calls.
+  - Added gateway regression coverage for unknown document type so the endpoint returns `ask_for_missing_input` with `document_type_hint` and does not execute review tasks.
+  - Updated `classify_document_type()` so an `unknown` router decision with no explicit missing fields falls back to `UNKNOWN_DOCUMENT_MISSING_FIELDS`, keeping the public missing-input response actionable.
+  - Updated legacy synthesize model validation tests to include the Phase 5 `review_summary` field required by `InvestmentDocumentReviewSynthesizeInput`.
+  - Ran the full repository test suite from `.venv`; all tests passed.
+  - Phase 10 status note: this Phase 6 entry should now be read as the original gateway-compatibility baseline for Phases 1-6, not as the final closeout of the later chunk-routing and dimension-fan-out corrections that continued through Phases 7-10.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:30`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:384`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:386`
+  - `tests/test_investment_document_review_gateway_api.py:115`
+  - `tests/test_investment_document_review_gateway_api.py:191`
+  - `tests/test_investment_document_review_todo_task_models.py:55`
+  - `tests/test_investment_document_review_todo_task_models.py:164`
+  - `tests/test_investment_document_review_v1_minimal_validation.py:127`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py` (6 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py` (44 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_todo_task_models.py tests\test_investment_document_review_v1_minimal_validation.py` (6 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py` (50 passed)
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests` (253 passed, 44 warnings)
+
+## 2026-06-11T16:40:17.3917859+10:00 Phase 7 Step 1
+
+- Step: Phase 7 Step 1 - record the plan correction and current chunk-routing gap before changing the routing boundary.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md | Select-Object -Last 80`
+  - `rg -n "Phase 6|chunk|single-pass|route_after_review_framework|split_into_chunks|extract_chunk_0001|analyze_aggregated_chunk_evidence" docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+- Files touched:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+- Result:
+  - Confirmed the original worklog closes at Phase 6 and does not separately record the later plan correction that inserted chunk-routing follow-up work.
+  - Confirmed the current flow already builds chunk review plans locally through `_build_chunk_review_todo_plan()` and uses `extract_chunk_0001`-style task ids plus `analyze_aggregated_chunk_evidence` for the long-document path.
+  - Confirmed the current route boundary is broader than the corrected plan: `route_after_review_framework()` routes to chunk review whenever `state.document_chunks` is non-empty, and `build_review_framework()` populates `document_chunks` from `split_into_chunks(document_text)`.
+  - Confirmed existing flow coverage already reflects this broadened behavior: the main complete-review test asserts a single short document still executes the chunk extract/analyze/synthesize path with `chunk_count == 1`.
+  - Recorded the Phase 7 starting assumption for the next step: the routing rule should be narrowed so single-chunk documents stay on `run_single_pass_review`, while multi-chunk documents continue to use the chunk To-Do path.
+- Evidence anchors:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md:1015`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:650`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:658`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:659`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:677`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:715`
+  - `tests/test_investment_document_review_flow.py:353`
+  - `tests/test_investment_document_review_flow.py:362`
+  - `tests/test_investment_document_review_flow.py:367`
+
+## 2026-06-11T16:46:40.1997384+10:00 Phase 7 Step 2
+
+- Step: Phase 7 Step 2 - narrow the chunk review route so single-chunk documents stay on the single-pass path.
+- Commands/actions:
+  - `git status --short`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py | Select-Object -First 880`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_chunker.py`
+  - `Get-Content tests\test_investment_document_review_flow.py | Select-Object -First 430`
+  - `Get-Content tests\test_investment_document_review_flow.py | Select-Object -Last 160`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `Get-Date -Format o`
+  - `rg -n "def should_use_chunk_review|route_after_review_framework|generate_review_todo_plan|elif should_use_chunk_review|test_document_review_flow_executes_known_document_review_task|test_document_review_flow_routes_only_multi_chunk_documents_to_chunk_review|test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document|test_document_review_flow_returns_chunk_synthesis_error_when_extract_never_succeeds" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py`
+  - `git diff --stat`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Added `should_use_chunk_review()` as the explicit route-boundary helper and made chunk review require more than one document chunk.
+  - Updated `route_after_review_framework()` and `generate_review_todo_plan()` to use the narrowed helper instead of treating any non-empty chunk list as chunk-review eligible.
+  - Updated the chunk-specific synthesis-error fallback so it only applies to states that are actually eligible for chunk review.
+  - Updated the known-document short review test so a single-chunk document now verifies the `investment_document_review_single_pass` path and payload.
+  - Added focused route-boundary coverage proving one chunk routes to `full_document` and multiple chunks route to `document_chunk`.
+  - Added a multi-chunk flow test proving a long document still executes multiple extract tasks followed by analyze and synthesize.
+  - First focused test run failed with 2 failures:
+    - The new route-boundary test built `InvestmentDocumentReviewState` without the required `input_payload`.
+    - The existing chunk synthesis-error test still used a short document and now correctly reached `investment_document_review_single_pass` instead of chunk synthesis.
+  - Fixed the test setup by adding `input_payload={}` to manual states and changing the synthesis-error test to use a multi-chunk long document.
+  - Re-ran the focused flow suite from `.venv`; all tests passed.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:292`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:662`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:677`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:848`
+  - `tests/test_investment_document_review_flow.py:309`
+  - `tests/test_investment_document_review_flow.py:358`
+  - `tests/test_investment_document_review_flow.py:385`
+  - `tests/test_investment_document_review_flow.py:1994`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` first run failed with 2 failures.
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` rerun passed with 27 passed.
+
+## 2026-06-11T16:52:10.1011135+10:00 Phase 7 Step 3
+
+- Step: Phase 7 Step 3 - run broader regression checks for the chunk-route boundary change.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `git status --short`
+  - `git diff --cached --stat`
+  - `rg -n "def should_use_chunk_review|route_after_review_framework|test_document_review_flow_routes_only_multi_chunk_documents_to_chunk_review|test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document|test_investment_document_review" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_gateway_api.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md | Select-Object -Last 80`
+  - `rg -n "Phase 7 Step 2|Phase 7 Step 3|should_use_chunk_review|test_document_review_flow_routes_only_multi_chunk_documents_to_chunk_review|test_investment_document_review_endpoint_runs_complete_review_through_executor" docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_gateway_api.py`
+- Files touched:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `tests/test_investment_document_review_gateway_api.py`
+- Result:
+  - Confirmed the route-boundary helper and focused flow tests remain in place after the Phase 7 Step 2 change.
+  - Ran the broader compatibility regression set covering the public investment document review gateway, the investment document review flow, and document review rules.
+  - Verified gateway compatibility remains intact after narrowing chunk review to multi-chunk documents.
+  - No implementation changes were needed in this step.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:292`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:663`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:681`
+  - `tests/test_investment_document_review_flow.py:358`
+  - `tests/test_investment_document_review_gateway_api.py:118`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py tests\test_investment_document_review_flow.py tests\test_investment_document_review_rules.py` passed with 57 passed.
+
+## 2026-06-11T17:13:42.0443228+10:00 Phase 8 Step 1
+
+- Step: Phase 8 Step 1 - reshape the chunk review plan builder so analyze tasks fan out by review dimension.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `Get-Content src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py | Select-Object -Skip 700 -First 140`
+  - `Get-Content src\investory\agent_core\task_models\investment_document_review_todo_tasks.py | Select-Object -First 220`
+  - `git diff --stat`
+  - `Get-Date -Format o`
+  - `git status --short`
+  - `rg -n "ANALYZE_TASK_ID_PREFIX|_normalize_todo_task_id_fragment|_build_chunk_review_analyze_tasks|analyze_task_ids|AGGREGATE_ANALYZE_TASK_ID|SYNTHESIZE_REVIEW_TASK_ID" src\investory\agent_core\runtime\flow\investment_document_review\document_review_flow.py`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/task_models/investment_document_review_todo_tasks.py`
+- Result:
+  - Kept the existing chunk extract task generation path unchanged so Layer 1 still emits one extract task per chunk with `depends_on=[]`.
+  - Added `ANALYZE_TASK_ID_PREFIX` plus `_normalize_todo_task_id_fragment()` and `_build_chunk_review_analyze_tasks()` to generate stable analyze task ids from `analyze_focus`.
+  - Updated the chunk review plan builder so each non-empty analyze focus now produces its own `investment_document_analyze` task with `depends_on=extract_task_ids`.
+  - Added duplicate-id protection by normalizing each focus into snake_case and appending a stable numeric suffix when the same normalized id appears more than once.
+  - Added a fallback path that still emits `AGGREGATE_ANALYZE_TASK_ID` when `analyze_focus` is empty after cleaning, so the plan does not collapse into extract-plus-synthesize only.
+  - Updated the synthesize task to depend on all generated analyze task ids rather than a single aggregate analyze task by default.
+  - Updated the chunk plan summary text so it now describes “analyze the evidence by review dimension” instead of a single aggregate analysis pass.
+  - This step intentionally stopped at plan-shape implementation. No tests were run yet because Phase 9 covers the test expansion for the new fan-out structure.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:110`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:298`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:303`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:803`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:807`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:848`
+
+## 2026-06-11T17:22:18.7508254+10:00 Phase 8 Step 2
+
+- Step: Phase 8 Step 2 - add focused flow coverage for the new dimension-analyze fan-out plan shape.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `rg -n "chunk_review|AGGREGATE_ANALYZE_TASK_ID|analyze_focus|synthesize|extract_chunk|analyze_" src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `rg -n "chunk|AGGREGATE_ANALYZE_TASK_ID|analyze_focus|synthesize|extract_chunk|analyze_" tests/test_investment_document_review_flow.py`
+  - `Get-Content tests/test_investment_document_review_flow.py | Select-Object -Skip 380 -First 360`
+  - `Get-Content src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py | Select-Object -Skip 780 -First 95`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py`
+  - `rg -n 'test_generate_review_todo_plan_builds_dimension_analyze_fan_out_for_multi_chunk_documents|test_generate_review_todo_plan_uses_fallback_analyze_task_when_no_dimension_focus_survives_cleaning' tests/test_investment_document_review_flow.py`
+  - `rg -n 'AGGREGATE_ANALYZE_TASK_ID|SYNTHESIZE_REVIEW_TASK_ID|_build_chunk_review_analyze_tasks|evidence by review dimension' src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+- Files touched:
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+- Result:
+  - Added a focused multi-chunk plan-generation test that locks in the new `N extract + M analyze + 1 synthesize` shape for long-document chunk review.
+  - The new test asserts stable analyze task ids derived from `analyze_focus`, including duplicate normalized ids receiving a deterministic numeric suffix.
+  - The new test also asserts every analyze task depends on all chunk extract tasks, and the synthesize task depends on the full analyze-task set rather than a single aggregate analyze node.
+  - Added a fallback coverage test proving that when `analyze_focus` only contains blank values after cleaning, the plan still emits `AGGREGATE_ANALYZE_TASK_ID` and keeps the synthesize dependency chain intact.
+  - Confirmed the local chunk-review builder still short-circuits plan generation for multi-chunk documents without calling the LLM plan task executor.
+  - Ran the focused flow suite from the repository `.venv`; all tests passed on the first run, so no implementation follow-up was needed in this step.
+- Evidence anchors:
+  - `tests/test_investment_document_review_flow.py:561`
+  - `tests/test_investment_document_review_flow.py:631`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:111`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:112`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:303`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:803`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:840`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:861`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py` passed with 29 passed.
+
+## 2026-06-11T17:27:49.6392806+10:00 Phase 9 Step 1
+
+- Step: Phase 9 Step 1 - extend chunk-plan builder coverage and verify the real flow-generated chunk plan executes concurrently.
+- Commands/actions:
+  - `Get-Date -Format o`
+  - `rg -n "ensure_valid_todo_plan|_build_chunk_review_todo_plan|execute_review_todo_plan_runs_independent_extract_tasks_concurrently|RecordingTodoRunner|BlockingExtractExecutor|split_into_chunks|chunk_count|chunk_index" src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py tests/test_investment_document_review_flow.py tests/test_todo_execution_runner.py`
+  - `Get-Content tests/test_investment_document_review_flow.py | Select-Object -Skip 1740 -First 180`
+  - `Get-Content src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py | Select-Object -Skip 730 -First 150`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py`
+  - `rg -n "generate_review_todo_plan\(|ensure_valid_todo_plan\(todo_plan\)|test_generate_review_todo_plan_returns_error_for_invalid_chunk_plan|test_execute_review_todo_plan_runs_flow_generated_chunk_plan_concurrently|CHUNK_COUNT_FIELD|CHUNK_INDEX_FIELD|CHUNK_REVIEW_SCOPE_FIELD" src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py tests/test_investment_document_review_flow.py`
+  - `git diff --stat`
+- Files touched:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `tests/test_investment_document_review_flow.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Result:
+  - Updated the multi-chunk local plan path so it now follows the same validation discipline as the LLM plan path: chunk-review plans are passed through `ensure_valid_todo_plan()`, and validation failures are normalized into the same `investment_document_review_plan` output error shape instead of surfacing as an uncaught exception.
+  - Extended the existing dimension fan-out plan-shape test to assert chunk extract payload metadata directly, including `chunk_index`, `chunk_count`, `review_scope=document_chunk`, and `depends_on=[]`.
+  - Added an invalid local chunk-plan test by forcing duplicate analyze task ids and verifying `generate_review_todo_plan()` now returns a structured output-validation error for the chunk-review branch.
+  - Added a real-path execution test that uses `generate_review_todo_plan()` to build the chunk plan and then runs `execute_review_todo_plan()` against that generated plan, proving the extract layer still executes concurrently without relying on a hand-written plan fixture.
+  - Ran the focused regression set for the investment document review flow and shared runner behaviors from the repository `.venv`; all tests passed on the first run, so no follow-up repair loop was required.
+- Evidence anchors:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:747`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:781`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:831`
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py:875`
+  - `tests/test_investment_document_review_flow.py:578`
+  - `tests/test_investment_document_review_flow.py:687`
+  - `tests/test_investment_document_review_flow.py:2038`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_flow.py tests\test_todo_execution_runner.py` passed with 43 passed.
+
+## 2026-06-11T17:27:49.6392806+10:00 Phase 10
+
+- Step: Phase 10 - compatibility closeout and worklog repair for the chunk-concurrency corrections.
+- Commands/actions:
+  - `rg -n "10\.5|Phase 10|阶段 10|Phase 6|v1 全部完成|已完成|兼容性" docs\2-2\plans\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+  - `rg -n "Phase 6|v1 全部完成|已完成|兼容性|Phase 10|阶段 10" docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md`
+  - `Get-Content docs\2-2\worklog\09-investment_document_review_v1_execution_worklog.md | Select-Object -Skip 1008 -First 80`
+  - `Get-Content docs\2-2\plans\09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md | Select-Object -Skip 944 -First 40`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - `Get-Content tests\test_investment_document_review_gateway_api.py | Select-Object -Skip 110 -First 70`
+  - `rg -n "runs_complete_review_through_executor|investment_document_extract|investment_document_analyze|investment_document_synthesize|handled_by" tests\test_investment_document_review_gateway_api.py`
+  - `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py`
+  - `.venv\Scripts\python.exe -m pytest tests`
+- Files touched:
+  - `tests/test_investment_document_review_gateway_api.py`
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md`
+- Implementation files inspected, not modified:
+  - `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`
+  - `docs/2-2/plans/09-Investory_投资文档审查助手v1任务清单可行性与实施计划.md`
+- Result:
+  - Updated the Phase 6 compatibility wording so it no longer reads like the final closeout of the entire investment document review v1 effort; it now explicitly serves as the pre-correction baseline before the Phase 7-10 chunk-concurrency follow-up work.
+  - The first Phase 10 gateway compatibility run failed in `test_investment_document_review_endpoint_runs_complete_review_through_executor` because the assertion still expected the old long-document shape with a single analyze task between extract and synthesize.
+  - The public endpoint behavior itself remained compatible: the response still returned `task_name=investment_document_review`, `action=complete`, `document_type`, `route_reason`, `route_confidence`, and a final `review` payload handled by synthesize.
+  - Repaired the gateway test so it now asserts the compatibility boundary that still matters after the fan-out change: two extract calls for the long input, one or more analyze calls, and synthesize as the final internal task.
+  - Re-ran the gateway compatibility suite from `.venv`; all gateway tests passed after the assertion update.
+  - Re-ran the full repository test suite from `.venv`; the whole test suite passed after the Phase 7-10 chunk review corrections and Phase 10 compatibility cleanup.
+- Evidence anchors:
+  - `docs/2-2/worklog/09-investment_document_review_v1_execution_worklog.md:1029`
+  - `tests/test_investment_document_review_gateway_api.py:118`
+  - `tests/test_investment_document_review_gateway_api.py:154`
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py` first run failed with 1 failure in `test_investment_document_review_endpoint_runs_complete_review_through_executor`.
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests\test_investment_document_review_gateway_api.py` rerun passed with 7 passed.
+  - Command evidence: `.venv\Scripts\python.exe -m pytest tests` passed with 268 passed and 44 warnings.

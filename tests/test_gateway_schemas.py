@@ -3,6 +3,8 @@ from pydantic import ValidationError
 
 from investory.gateway.schemas import (
     HealthResponse,
+    InvestmentDocumentReviewRequest,
+    LearningEntryRequest,
     TaskErrorResponse,
     TaskRequest,
     TaskResponse,
@@ -37,6 +39,32 @@ def test_task_request_requires_task_type_and_payload():
 def test_task_request_rejects_blank_task_type():
     with pytest.raises(ValidationError):
         TaskRequest.model_validate({"task_type": "  ", "payload": {}})
+
+
+def test_investment_document_review_request_accepts_minimal_required_fields():
+    request = InvestmentDocumentReviewRequest.model_validate(
+        {
+            "payload": {
+                "document_text": "ETF factsheet summary.",
+            }
+        }
+    )
+
+    assert request.session_id is None
+    assert request.payload["document_text"] == "ETF factsheet summary."
+
+
+def test_learning_entry_request_accepts_minimal_required_fields():
+    request = LearningEntryRequest.model_validate(
+        {
+            "payload": {
+                "question": "What is an ETF?",
+            }
+        }
+    )
+
+    assert request.session_id is None
+    assert request.payload["question"] == "What is an ETF?"
 
 
 def test_health_response_shape():

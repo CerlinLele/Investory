@@ -3,7 +3,7 @@ import pytest
 from investory.agent_core.contracts.learning_entry_state import (
     LearningEntryCandidateTaskType,
 )
-from investory.agent_core.runtime.flow.learning_entry_rules import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_rules import (
     CONFIRMATION_GRANTED_FIELD,
     INSTRUMENT_NAME_OR_CODE_FIELD,
     MATERIAL_TEXT_FIELD,

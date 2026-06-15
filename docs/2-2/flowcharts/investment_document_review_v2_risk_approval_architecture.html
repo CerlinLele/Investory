@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investory v2 Risk Approval Architecture</title>
+  <style>
+    :root {
+      --bg: #f4f7f6;
+      --paper: #ffffff;
+      --ink: #17201f;
+      --muted: #5f6d69;
+      --line: #283532;
+      --lane: #f8fbfa;
+      --gate: #e9f3ff;
+      --gate-line: #2e6f9f;
+      --review: #edf7ef;
+      --review-line: #27805a;
+      --todo: #f3f0ff;
+      --todo-line: #6757b8;
+      --risk: #fff4de;
+      --risk-line: #b57316;
+      --approval: #fff0f1;
+      --approval-line: #ba3e4d;
+      --final: #eef2f8;
+      --final-line: #526277;
+      --shadow: 0 18px 42px rgba(35, 48, 45, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, rgba(46, 111, 159, 0.12), transparent 36%),
+        linear-gradient(315deg, rgba(39, 128, 90, 0.10), transparent 34%),
+        var(--bg);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    header {
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 1080px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: #edf1f2;
+      color: #24312f;
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 0.92em;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(130px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 10px 12px;
+      border: 1px solid #d8e1df;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.84);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border: 2px solid;
+      border-radius: 4px;
+      flex: 0 0 auto;
+    }
+
+    .canvas {
+      overflow: auto;
+      border: 1px solid #d6dfdd;
+      border-radius: 12px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    svg {
+      display: block;
+      min-width: 1320px;
+      width: 100%;
+      height: auto;
+    }
+
+    .lane {
+      fill: var(--lane);
+      stroke: #d9e2e0;
+      stroke-width: 1;
+      rx: 14;
+    }
+
+    .lane-title {
+      fill: #465552;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .box {
+      stroke-width: 2.1;
+      rx: 10;
+      ry: 10;
+      filter: drop-shadow(0 8px 14px rgba(27, 38, 36, 0.07));
+    }
+
+    .gate { fill: var(--gate); stroke: var(--gate-line); }
+    .review { fill: var(--review); stroke: var(--review-line); }
+    .todo { fill: var(--todo); stroke: var(--todo-line); }
+    .risk { fill: var(--risk); stroke: var(--risk-line); }
+    .approval { fill: var(--approval); stroke: var(--approval-line); }
+    .final { fill: var(--final); stroke: var(--final-line); }
+
+    .title {
+      fill: var(--ink);
+      font-size: 13.5px;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .body {
+      fill: var(--muted);
+      font-size: 11.5px;
+      font-weight: 500;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+
+    .edge-soft {
+      fill: none;
+      stroke: #667572;
+      stroke-width: 1.8;
+      stroke-dasharray: 7 6;
+      marker-end: url(#arrow-soft);
+    }
+
+    .edge-label {
+      fill: #31413d;
+      font-size: 12px;
+      font-weight: 700;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+
+    .side-label {
+      fill: #52615e;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .note {
+      padding: 16px 18px;
+      border: 1px solid #d8e1df;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 10px 24px rgba(35, 48, 45, 0.07);
+    }
+
+    .note h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    @media (max-width: 920px) {
+      main { padding: 18px; }
+      .legend, .notes { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Investory v2 风险审批架构图</h1>
+      <p class="subtitle">
+        这张图对应 <code>13-Investory_参考v2加风险审批可借鉴点.md</code> 的规划实现：现有投资文档审查先生成审查报告，再进入独立的风险评估 task，最后根据机器可读风险等级进入自动批准或人工审批等待状态。
+      </p>
+    </header>
+
+    <section class="legend" aria-label="legend">
+      <div class="legend-item"><span class="swatch" style="background: var(--gate); border-color: var(--gate-line)"></span>入口 / 安全边界</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--review); border-color: var(--review-line)"></span>审查主流程</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--todo); border-color: var(--todo-line)"></span>To-Do DAG</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--risk); border-color: var(--risk-line)"></span>风险评估</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--approval); border-color: var(--approval-line)"></span>审批状态</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--final); border-color: var(--final-line)"></span>最终响应</div>
+    </section>
+
+    <section class="canvas" aria-label="Investory v2 risk approval architecture diagram">
+      <svg viewBox="0 0 1520 1180" role="img" aria-labelledby="diagram-title diagram-desc">
+        <title id="diagram-title">Investory v2 Risk Approval Architecture</title>
+        <desc id="diagram-desc">A layered architecture diagram showing policy gate, document review execution, risk assessment, approval routing, resume extension points, and final output contracts.</desc>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#283532"></path>
+          </marker>
+          <marker id="arrow-soft" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#667572"></path>
+          </marker>
+        </defs>
+
+        <rect class="lane" x="36" y="62" width="1448" height="158"></rect>
+        <text class="lane-title" x="58" y="92">1. Policy gate and document routing</text>
+
+        <rect class="lane" x="36" y="260" width="1448" height="250"></rect>
+        <text class="lane-title" x="58" y="290">2. Review execution: existing Investory capability</text>
+
+        <rect class="lane" x="36" y="550" width="1448" height="220"></rect>
+        <text class="lane-title" x="58" y="580">3. New risk assessment layer</text>
+
+        <rect class="lane" x="36" y="810" width="1448" height="210"></rect>
+        <text class="lane-title" x="58" y="840">4. Approval routing and resume extension</text>
+
+        <rect class="lane" x="36" y="1060" width="1448" height="84"></rect>
+        <text class="lane-title" x="58" y="1090">5. Response contract</text>
+
+        <rect class="box gate" x="70" y="112" width="150" height="64"></rect>
+        <text class="title" x="145" y="136">Request</text>
+        <text class="body" x="145" y="158">document_text</text>
+
+        <rect class="box gate" x="270" y="98" width="205" height="92"></rect>
+        <text class="title" x="372.5" y="122">evaluate_policy_gate</text>
+        <text class="body" x="372.5" y="148">missing input</text>
+        <text class="body" x="372.5" y="168">advice / realtime guard</text>
+
+        <rect class="box gate" x="540" y="98" width="210" height="92"></rect>
+        <text class="title" x="645" y="122">classify_document_type</text>
+        <text class="body" x="645" y="148">InvestmentDocumentReview</text>
+        <text class="body" x="645" y="168">LLMRouter</text>
+
+        <rect class="box review" x="815" y="98" width="220" height="92"></rect>
+        <text class="title" x="925" y="122">build_review_framework</text>
+        <text class="body" x="925" y="148">get_review_framework</text>
+        <text class="body" x="925" y="168">payload + chunks</text>
+
+        <rect class="box review" x="1100" y="98" width="230" height="92"></rect>
+        <text class="title" x="1215" y="122">route_after_review_framework</text>
+        <text class="body" x="1215" y="148">single-pass</text>
+        <text class="body" x="1215" y="168">or To-Do DAG</text>
+
+        <path class="edge" d="M 220 144 H 270"></path>
+        <path class="edge" d="M 475 144 H 540"></path>
+        <path class="edge" d="M 750 144 H 815"></path>
+        <path class="edge" d="M 1035 144 H 1100"></path>
+
+        <rect class="box review" x="1050" y="340" width="230" height="90"></rect>
+        <text class="title" x="1165" y="363">run_single_pass_review</text>
+        <text class="body" x="1165" y="389">short document</text>
+        <text class="body" x="1165" y="409">low-cost fallback</text>
+
+        <rect class="box todo" x="190" y="316" width="230" height="92"></rect>
+        <text class="title" x="305" y="340">generate_review_todo_plan</text>
+        <text class="body" x="305" y="366">chunk extract</text>
+        <text class="body" x="305" y="386">dimension analyze</text>
+
+        <rect class="box todo" x="500" y="316" width="230" height="92"></rect>
+        <text class="title" x="615" y="340">execute_review_todo_plan</text>
+        <text class="body" x="615" y="366">TodoExecutionRunner</text>
+        <text class="body" x="615" y="386">dependency layers</text>
+
+        <rect class="box todo" x="805" y="316" width="230" height="92"></rect>
+        <text class="title" x="920" y="340">synthesize_review_result</text>
+        <text class="body" x="920" y="366">InvestmentDocument</text>
+        <text class="body" x="920" y="386">ReviewResult</text>
+
+        <rect class="box review" x="425" y="432" width="270" height="78"></rect>
+        <text class="title" x="560" y="454">reflect_review_output</text>
+        <text class="body" x="560" y="478">reflection quality gate</text>
+        <text class="body" x="560" y="498">revised structured review</text>
+
+        <path class="edge" d="M 1215 190 V 246 H 305 V 316"></path>
+        <rect x="650" y="228" width="95" height="22" rx="5" fill="#ffffff" stroke="#d7dfdd"></rect>
+        <text class="edge-label" x="697.5" y="243">long / chunks</text>
+        <path class="edge" d="M 420 362 H 500"></path>
+        <path class="edge" d="M 730 362 H 805"></path>
+        <path class="edge" d="M 1215 190 V 286 H 1165 V 340"></path>
+        <rect x="1205" y="268" width="60" height="22" rx="5" fill="#ffffff" stroke="#d7dfdd"></rect>
+        <text class="edge-label" x="1235" y="283">short</text>
+        <path class="edge" d="M 920 408 V 432 H 560"></path>
+        <path class="edge" d="M 1165 430 V 470 H 695"></path>
+
+        <rect class="box risk" x="175" y="610" width="270" height="96"></rect>
+        <text class="title" x="310" y="632">_build_review_risk_assessment_payload</text>
+        <text class="body" x="310" y="658">risk_findings + gaps</text>
+        <text class="body" x="310" y="678">boundary + task status</text>
+
+        <rect class="box risk" x="535" y="610" width="270" height="96"></rect>
+        <text class="title" x="670" y="632">risk_assessment task</text>
+        <text class="body" x="670" y="658">TaskSpec + prompt</text>
+        <text class="body" x="670" y="678">no full-text reread</text>
+
+        <rect class="box risk" x="900" y="610" width="275" height="96"></rect>
+        <text class="title" x="1037.5" y="632">RiskAssessmentResult</text>
+        <text class="body" x="1037.5" y="658">overall_risk</text>
+        <text class="body" x="1037.5" y="678">critical_issues + auto_proceed</text>
+
+        <rect class="box approval" x="1240" y="610" width="210" height="96"></rect>
+        <text class="title" x="1345" y="632">route_after_risk_assessment</text>
+        <text class="body" x="1345" y="658">low / medium</text>
+        <text class="body" x="1345" y="678">or high</text>
+
+        <path class="edge" d="M 560 510 V 548 H 310 V 610"></path>
+        <rect x="333" y="530" width="182" height="22" rx="5" fill="#ffffff" stroke="#d7dfdd"></rect>
+        <text class="edge-label" x="424" y="545">reflected review evidence</text>
+        <path class="edge" d="M 445 658 H 535"></path>
+        <path class="edge" d="M 805 658 H 900"></path>
+        <path class="edge" d="M 1175 658 H 1240"></path>
+
+        <rect class="box approval" x="150" y="875" width="245" height="92"></rect>
+        <text class="title" x="272.5" y="899">AUTO_APPROVED</text>
+        <text class="body" x="272.5" y="925">low / medium risk</text>
+        <text class="body" x="272.5" y="945">auto_proceed=true</text>
+
+        <rect class="box approval" x="520" y="875" width="290" height="92"></rect>
+        <text class="title" x="665" y="899">PENDING_HUMAN_APPROVAL</text>
+        <text class="body" x="665" y="925">high risk</text>
+        <text class="body" x="665" y="945">required_role=compliance_reviewer</text>
+
+        <rect class="box approval" x="920" y="875" width="230" height="92"></rect>
+        <text class="title" x="1035" y="899">future approval resume</text>
+        <text class="body" x="1035" y="925">human_approved</text>
+        <text class="body" x="1035" y="945">or cancelled</text>
+
+        <rect class="box final" x="1225" y="875" width="205" height="92"></rect>
+        <text class="title" x="1327.5" y="899">final state builder</text>
+        <text class="body" x="1327.5" y="925">build_final_result</text>
+        <text class="body" x="1327.5" y="945">or build_pending_approval_result</text>
+
+        <path class="edge" d="M 1310 706 V 794 H 272.5 V 875"></path>
+        <rect x="596" y="776" width="104" height="22" rx="5" fill="#ffffff" stroke="#d7dfdd"></rect>
+        <text class="edge-label" x="648" y="791">low / medium</text>
+        <path class="edge" d="M 1378 706 V 794 H 665 V 875"></path>
+        <rect x="995" y="776" width="54" height="22" rx="5" fill="#ffffff" stroke="#d7dfdd"></rect>
+        <text class="edge-label" x="1022" y="791">high</text>
+        <path class="edge-soft" d="M 810 921 H 920"></path>
+        <rect x="828" y="902" width="74" height="22" rx="5" fill="#ffffff" stroke="#d7dfdd"></rect>
+        <text class="edge-label" x="865" y="917">future API</text>
+        <path class="edge" d="M 395 921 V 990 H 1225 V 921"></path>
+        <path class="edge" d="M 1150 921 H 1225"></path>
+
+        <rect class="box final" x="185" y="1092" width="245" height="42"></rect>
+        <text class="title" x="307.5" y="1113">review</text>
+
+        <rect class="box final" x="540" y="1092" width="245" height="42"></rect>
+        <text class="title" x="662.5" y="1113">risk_assessment</text>
+
+        <rect class="box final" x="900" y="1092" width="245" height="42"></rect>
+        <text class="title" x="1022.5" y="1113">approval</text>
+
+        <rect class="box final" x="1250" y="1092" width="150" height="42"></rect>
+        <text class="title" x="1325" y="1113">END</text>
+
+        <path class="edge" d="M 1327.5 967 V 1045 H 307.5 V 1092"></path>
+        <path class="edge" d="M 1327.5 967 V 1045 H 662.5 V 1092"></path>
+        <path class="edge" d="M 1327.5 967 V 1045 H 1022.5 V 1092"></path>
+        <path class="edge" d="M 1145 1113 H 1250"></path>
+
+        <text class="side-label" x="87" y="736">risk payload 只读结构化审查证据</text>
+        <text class="side-label" x="91" y="997">人工审批是后续扩展点，不重新执行审查 DAG</text>
+      </svg>
+    </section>
+
+    <section class="notes">
+      <article class="note">
+        <h2>核心变化</h2>
+        <p>v2 不替换现有审查 DAG，而是在审查报告生成后追加一个独立风险评估层。它输出机器可读的 <code>overall_risk</code>、<code>critical_issues</code> 和审批建议。</p>
+      </article>
+      <article class="note">
+        <h2>可审计边界</h2>
+        <p>风险评估输入来自 analyze/synthesize 后的结构化证据，包括风险发现、信息缺口、边界说明和任务状态摘要；它不重新对全文做自由推理。</p>
+      </article>
+      <article class="note">
+        <h2>审批扩展</h2>
+        <p>第一版可先返回 <code>auto_approved</code> 或 <code>pending_human_approval</code>。后续接入 resume、webhook 或前端审批时，只恢复审批决策，不重复执行 extract/analyze/synthesize。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

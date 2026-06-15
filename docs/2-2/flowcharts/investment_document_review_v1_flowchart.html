@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investment Document Review LangGraph Flow</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #172033;
+      --muted: #5c667a;
+      --line: #263244;
+      --lane: #f9fbff;
+      --blue: #eaf4ff;
+      --blue-line: #2f6fab;
+      --green: #edf9f2;
+      --green-line: #24845e;
+      --amber: #fff6df;
+      --amber-line: #b97817;
+      --purple: #f1efff;
+      --purple-line: #6754b8;
+      --red: #fff0f0;
+      --red-line: #bb4141;
+      --final: #eef2ff;
+      --final-line: #5267bd;
+      --shadow: 0 18px 44px rgba(31, 42, 68, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(47, 111, 171, 0.11), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(103, 84, 184, 0.10), transparent 32%),
+        var(--bg);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    header { margin-bottom: 18px; }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.25;
+    }
+
+    .subtitle {
+      max-width: 980px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: #eef2f7;
+      color: #243044;
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 0.92em;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(130px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid #d9e0ea;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border: 2px solid;
+      border-radius: 4px;
+      flex: 0 0 auto;
+    }
+
+    .canvas {
+      overflow: auto;
+      border: 1px solid #d7deeb;
+      border-radius: 14px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    svg {
+      display: block;
+      min-width: 1240px;
+      width: 100%;
+      height: auto;
+    }
+
+    .lane {
+      fill: var(--lane);
+      stroke: #dbe2ed;
+      stroke-width: 1;
+      rx: 14;
+    }
+
+    .lane-title {
+      fill: #43506a;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .box {
+      stroke-width: 2.1;
+      rx: 10;
+      ry: 10;
+      filter: drop-shadow(0 8px 14px rgba(27, 38, 60, 0.07));
+    }
+
+    .start { fill: var(--blue); stroke: var(--blue-line); }
+    .node { fill: var(--green); stroke: var(--green-line); }
+    .decision { fill: var(--amber); stroke: var(--amber-line); }
+    .todo { fill: var(--purple); stroke: var(--purple-line); }
+    .terminal { fill: var(--red); stroke: var(--red-line); }
+    .final { fill: var(--final); stroke: var(--final-line); }
+
+    .title {
+      fill: var(--ink);
+      font-size: 13.5px;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .body {
+      fill: var(--muted);
+      font-size: 11.5px;
+      font-weight: 500;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+
+    .edge-soft {
+      fill: none;
+      stroke: #6f7d91;
+      stroke-width: 1.8;
+      stroke-dasharray: 7 6;
+      marker-end: url(#arrow-soft);
+    }
+
+    .edge-label {
+      fill: #334155;
+      font-size: 12px;
+      font-weight: 700;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .note {
+      padding: 16px 18px;
+      border: 1px solid #d9e0ea;
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 10px 26px rgba(31, 42, 68, 0.07);
+    }
+
+    .note h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    @media (max-width: 860px) {
+      main { padding: 18px; }
+      .legend, .notes { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Investment Document Review LangGraph Flow</h1>
+      <p class="subtitle">
+        重新排版后的当前 LangGraph：主流程横向展开，review 执行路径和提前结束路径分层放置；每条控制流使用独立通道，边标签用白底框贴在对应线段旁，避免线条和标注重叠。
+      </p>
+    </header>
+
+    <section class="legend" aria-label="legend">
+      <div class="legend-item"><span class="swatch" style="background: var(--blue); border-color: var(--blue-line)"></span>入口 / 启动</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--green); border-color: var(--green-line)"></span>普通节点</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--amber); border-color: var(--amber-line)"></span>条件路由</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--purple); border-color: var(--purple-line)"></span>To-Do / chunk 路径</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--red); border-color: var(--red-line)"></span>提前结束</div>
+    </section>
+
+    <section class="canvas" aria-label="Investment document review LangGraph diagram">
+      <svg viewBox="0 0 1500 1120" role="img" aria-labelledby="diagram-title diagram-desc">
+        <title id="diagram-title">Investment Document Review LangGraph Flow</title>
+        <desc id="diagram-desc">A no-overlap LangGraph flowchart with independent edge lanes and boxed edge labels placed beside their own lines.</desc>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#263244"></path>
+          </marker>
+          <marker id="arrow-soft" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f7d91"></path>
+          </marker>
+        </defs>
+
+        <rect class="lane" x="36" y="70" width="1428" height="180"></rect>
+        <text class="lane-title" x="58" y="100">1. Gate and classification</text>
+
+        <rect class="lane" x="36" y="295" width="1428" height="170"></rect>
+        <text class="lane-title" x="58" y="325">2. Framework and route selection</text>
+
+        <rect class="lane" x="36" y="515" width="1428" height="170"></rect>
+        <text class="lane-title" x="58" y="545">3. Review execution branch</text>
+
+        <rect class="lane" x="36" y="730" width="1428" height="140"></rect>
+        <text class="lane-title" x="58" y="760">4. Final output</text>
+
+        <rect class="lane" x="36" y="915" width="1428" height="155"></rect>
+        <text class="lane-title" x="58" y="945">5. Early exits</text>
+
+        <rect class="box start" x="60" y="124" width="145" height="64"></rect>
+        <text class="title" x="132.5" y="148">START</text>
+        <text class="body" x="132.5" y="170">initial state</text>
+
+        <rect class="box node" x="250" y="110" width="190" height="92"></rect>
+        <text class="title" x="345" y="134">evaluate_policy_gate</text>
+        <text class="body" x="345" y="160">missing fields</text>
+        <text class="body" x="345" y="180">advice / realtime guard</text>
+
+        <rect class="box decision" x="500" y="110" width="205" height="92"></rect>
+        <text class="title" x="602.5" y="134">route_after_policy_gate</text>
+        <text class="body" x="602.5" y="160">missing / refusal</text>
+        <text class="body" x="602.5" y="180">or complete</text>
+
+        <rect class="box node" x="760" y="110" width="190" height="92"></rect>
+        <text class="title" x="855" y="134">classify_document_type</text>
+        <text class="body" x="855" y="160">LLM router</text>
+        <text class="body" x="855" y="180">type + confidence</text>
+
+        <rect class="box decision" x="1030" y="110" width="205" height="92"></rect>
+        <text class="title" x="1132.5" y="134">route_after_classification</text>
+        <text class="body" x="1132.5" y="160">unknown / missing</text>
+        <text class="body" x="1132.5" y="180">or complete</text>
+
+        <rect class="box node" x="640" y="330" width="220" height="94"></rect>
+        <text class="title" x="750" y="354">build_review_framework</text>
+        <text class="body" x="750" y="380">framework + payload</text>
+        <text class="body" x="750" y="400">split_into_chunks</text>
+
+        <rect class="box decision" x="960" y="330" width="235" height="94"></rect>
+        <text class="title" x="1077.5" y="354">route_after_review_framework</text>
+        <text class="body" x="1077.5" y="380">document_chunks?</text>
+        <text class="body" x="1077.5" y="400">chunk or full_document</text>
+
+        <rect class="box todo" x="260" y="560" width="225" height="94"></rect>
+        <text class="title" x="372.5" y="584">generate_review_todo_plan</text>
+        <text class="body" x="372.5" y="610">chunk plan builder</text>
+        <text class="body" x="372.5" y="630">extract every chunk</text>
+
+        <rect class="box todo" x="590" y="560" width="225" height="94"></rect>
+        <text class="title" x="702.5" y="584">execute_review_todo_plan</text>
+        <text class="body" x="702.5" y="610">TodoExecutionRunner</text>
+        <text class="body" x="702.5" y="630">synthesize output</text>
+
+        <rect class="box node" x="1040" y="560" width="225" height="94"></rect>
+        <text class="title" x="1152.5" y="584">run_single_pass_review</text>
+        <text class="body" x="1152.5" y="610">fallback path</text>
+        <text class="body" x="1152.5" y="630">when no chunks exist</text>
+
+        <rect class="box final" x="700" y="770" width="230" height="64"></rect>
+        <text class="title" x="815" y="795">build_final_result</text>
+        <text class="body" x="815" y="817">wrap review result</text>
+
+        <rect class="box final" x="1040" y="770" width="155" height="64"></rect>
+        <text class="title" x="1117.5" y="795">END</text>
+        <text class="body" x="1117.5" y="817">final output</text>
+
+        <rect class="box terminal" x="140" y="980" width="230" height="50"></rect>
+        <text class="title" x="255" y="1004">build_missing_input_result</text>
+        <rect class="box terminal" x="535" y="980" width="230" height="50"></rect>
+        <text class="title" x="650" y="1004">build_refusal_result</text>
+        <rect class="box terminal" x="1130" y="980" width="230" height="50"></rect>
+        <text class="title" x="1245" y="1004">build_missing_input_result</text>
+
+        <path class="edge" d="M 205 156 H 250"></path>
+        <path class="edge" d="M 440 156 H 500"></path>
+        <path class="edge" d="M 705 156 H 760"></path>
+        <rect x="710" y="137" width="76" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="748" y="152">complete</text>
+        <path class="edge" d="M 950 156 H 1030"></path>
+
+        <path class="edge" d="M 1090 202 V 285 H 750 V 330"></path>
+        <rect x="928" y="266" width="76" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="966" y="281">complete</text>
+        <path class="edge" d="M 860 377 H 960"></path>
+
+        <path class="edge" d="M 1077.5 424 V 500 H 372.5 V 560"></path>
+        <rect x="662" y="481" width="86" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="705" y="496">has chunks</text>
+        <path class="edge" d="M 1195 377 H 1275 V 510 H 1152.5 V 560"></path>
+        <rect x="1240" y="491" width="80" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1280" y="506">no chunks</text>
+        <path class="edge" d="M 485 607 H 590"></path>
+        <rect x="502" y="588" width="112" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="558" y="603">chunk plan</text>
+
+        <path class="edge" d="M 702.5 654 V 735 H 815 V 770"></path>
+        <rect x="723" y="716" width="132" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="789" y="731">synthesized review</text>
+        <path class="edge" d="M 1152.5 654 V 705 H 930 V 770"></path>
+        <rect x="989" y="686" width="124" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1051" y="701">single-pass result</text>
+        <path class="edge" d="M 930 802 H 1040"></path>
+
+        <path class="edge" d="M 560 202 V 250 H 120 V 930 H 255 V 980"></path>
+        <rect x="145" y="911" width="70" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="180" y="926">missing</text>
+        <path class="edge" d="M 645 202 V 270 H 930 V 900 H 650 V 980"></path>
+        <rect x="828" y="881" width="66" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="861" y="896">refusal</text>
+        <path class="edge" d="M 1235 156 H 1425 V 930 H 1245 V 980"></path>
+        <rect x="1280" y="911" width="130" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1345" y="926">unknown / missing</text>
+
+        <path class="edge-soft" d="M 372.5 654 V 685 H 702.5 V 654"></path>
+        <rect x="485" y="668" width="104" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="537" y="683">generated plan</text>
+      </svg>
+    </section>
+
+    <section class="notes">
+      <article class="note">
+        <h2>读图方式</h2>
+        <p>黑色实线是 LangGraph 的真实控制流；虚线只表示 To-Do plan / synthesize payload 的数据关系，不参与图执行路由。</p>
+      </article>
+      <article class="note">
+        <h2>主执行路径</h2>
+        <p><code>document_chunks</code> 非空时走左下角 chunk map-reduce：生成 chunk To-Do plan，执行 per-chunk extract、aggregate analyze、final synthesize。</p>
+      </article>
+      <article class="note">
+        <h2>Fallback 与提前结束</h2>
+        <p><code>document_chunks</code> 为空走右下角 single-pass fallback；缺输入、拒绝边界、分类失败都统一从右侧提前结束。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

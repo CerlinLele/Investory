@@ -69,6 +69,7 @@ class AppConfig:
         default_factory=lambda: LLM_PROVIDERS[DEFAULT_LLM_PROVIDER],
     )
     mock_tools_enabled: bool = True
+    log_level: str = "INFO"
 
 
 def _as_bool(value: str | None, *, default: bool) -> bool:
@@ -154,4 +155,5 @@ def load_config(*, env_file: Path | None = PROJECT_ROOT / ".env") -> AppConfig:
             getenv("INVESTORY_MOCK_TOOLS_ENABLED"),
             default=True,
         ),
+        log_level=getenv("INVESTORY_LOG_LEVEL", "INFO").strip().upper(),
     )

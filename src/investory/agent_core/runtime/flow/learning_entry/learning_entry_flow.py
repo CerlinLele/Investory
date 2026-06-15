@@ -5,22 +5,19 @@ from uuid import uuid4
 from langgraph.graph import END, START, StateGraph
 
 from investory.agent_core.contracts.learning_entry_state import (
+    LearningEntryCandidateTaskType,
     LearningEntryDecision,
     LearningEntryState,
 )
 from investory.agent_core.contracts.result_types import TaskResult
-from investory.agent_core.runtime.flow.learning_entry_decision import (
-    LearningEntryPolicyDecision,
+from investory.agent_core.runtime.flow.learning_entry.investory_actions import InvestoryAction
+from investory.agent_core.runtime.flow.learning_entry.investory_policy_gate import (
+    CANDIDATE_TASK_TYPE_METADATA_KEY,
+    InvestoryPolicyGate,
+    InvestoryPolicyInput,
+    InvestoryPolicyResult,
 )
-from investory.agent_core.runtime.flow.learning_entry_rules import (
-    INSTRUMENT_NAME_OR_CODE_FIELD,
-    MATERIAL_TEXT_FIELD,
-    QUESTION_FIELD,
-    SOURCE_MATERIAL_FIELD,
-    detect_missing_fields,
-    infer_candidate_task_type,
-    looks_like_investment_advice,
-)
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_router import LearningEntryRouter
 from investory.agent_core.runtime.request_runner import RequestRunner
 from investory.agent_core.runtime.task_executor import TaskExecutor
 from investory.gateway.routing import resolve_task_spec
@@ -36,31 +33,26 @@ SUGGESTED_LEARNING_DIRECTION_FIELD = "suggested_learning_direction"
 MISSING_INPUT_MESSAGE = (
     "Please provide enough material or instrument context to continue."
 )
+GENERAL_LEARNING_CLARIFICATION_MESSAGE = (
+    "Please clarify whether you want an explanation, a summary, or an "
+    "instrument brief, and include the relevant material or instrument context."
+)
 REFUSAL_MESSAGE = (
-    "I cannot provide direct investment advice, but I can help turn this into "
-    "a learning question."
+    "I cannot continue with this request as-is, but I can help turn it into an "
+    "educational learning question."
 )
 REFUSAL_LEARNING_DIRECTION = (
     "Ask for an explanation, summary, or learning brief based on provided "
     "material instead of a buy, sell, timing, or allocation recommendation."
 )
 
-UNKNOWN_INPUT_MISSING_FIELDS = [
-    MATERIAL_TEXT_FIELD,
-    QUESTION_FIELD,
-    INSTRUMENT_NAME_OR_CODE_FIELD,
-    SOURCE_MATERIAL_FIELD,
-]
-
 MISSING_ROUTE = "missing"
 COMPLETE_ROUTE = "complete"
 ADVICE_ROUTE = "advice"
-LEARNING_ROUTE = "learning"
 
 
 class LearningEntryNode(str, Enum):
-    CHECK_MISSING_FIELDS = "check_missing_fields"
-    DECIDE_POLICY = "decide_policy"
+    EVALUATE_POLICY_GATE = "evaluate_policy_gate"
     RESOLVE_TASK_SPEC = "resolve_task_spec"
     EXECUTE_TASK = "execute_task"
     BUILD_MISSING_INPUT_RESULT = "build_missing_input_result"
@@ -68,8 +60,17 @@ class LearningEntryNode(str, Enum):
 
 
 class LearningEntryFlow:
-    def __init__(self, executor: TaskExecutor | None = None) -> None:
+    def __init__(
+        self,
+        executor: TaskExecutor | None = None,
+        policy_gate: InvestoryPolicyGate | None = None,
+        llm_router: LearningEntryRouter | None = None,
+        *,
+        supports_realtime_data: bool = False,
+    ) -> None:
         self.executor = executor or TaskExecutor()
+        self.policy_gate = policy_gate or InvestoryPolicyGate(llm_router=llm_router)
+        self.supports_realtime_data = supports_realtime_data
         self.graph = self._build_graph()
 
     def run(
@@ -91,10 +92,9 @@ class LearningEntryFlow:
         graph = StateGraph(LearningEntryState)
 
         graph.add_node(
-            LearningEntryNode.CHECK_MISSING_FIELDS.value,
-            self.check_missing_fields,
+            LearningEntryNode.EVALUATE_POLICY_GATE.value,
+            self.evaluate_policy_gate,
         )
-        graph.add_node(LearningEntryNode.DECIDE_POLICY.value, self.decide_policy)
         graph.add_node(
             LearningEntryNode.RESOLVE_TASK_SPEC.value,
             self.resolve_task_spec,
@@ -109,21 +109,14 @@ class LearningEntryFlow:
             self.build_refusal_result,
         )
 
-        graph.add_edge(START, LearningEntryNode.CHECK_MISSING_FIELDS.value)
+        graph.add_edge(START, LearningEntryNode.EVALUATE_POLICY_GATE.value)
         graph.add_conditional_edges(
-            LearningEntryNode.CHECK_MISSING_FIELDS.value,
-            self.route_after_missing_check,
+            LearningEntryNode.EVALUATE_POLICY_GATE.value,
+            self.route_after_policy_gate,
             {
                 MISSING_ROUTE: LearningEntryNode.BUILD_MISSING_INPUT_RESULT.value,
-                COMPLETE_ROUTE: LearningEntryNode.DECIDE_POLICY.value,
-            },
-        )
-        graph.add_conditional_edges(
-            LearningEntryNode.DECIDE_POLICY.value,
-            self.route_after_policy_decision,
-            {
                 ADVICE_ROUTE: LearningEntryNode.BUILD_REFUSAL_RESULT.value,
-                LEARNING_ROUTE: LearningEntryNode.RESOLVE_TASK_SPEC.value,
+                COMPLETE_ROUTE: LearningEntryNode.RESOLVE_TASK_SPEC.value,
             },
         )
         graph.add_edge(
@@ -136,44 +129,28 @@ class LearningEntryFlow:
 
         return graph.compile()
 
-    def check_missing_fields(self, state: LearningEntryState) -> dict[str, Any]:
-        missing_fields = detect_missing_fields(state.input_payload)
-        candidate_task_type = infer_candidate_task_type(state.input_payload)
-
-        if candidate_task_type is None and not missing_fields:
-            missing_fields = UNKNOWN_INPUT_MISSING_FIELDS
+    def evaluate_policy_gate(self, state: LearningEntryState) -> dict[str, Any]:
+        policy_result = self.policy_gate.evaluate(
+            InvestoryPolicyInput(
+                payload=state.input_payload,
+                supports_realtime_data=self.supports_realtime_data,
+            )
+        )
+        candidate_task_type = self._candidate_task_type_from_policy(policy_result)
 
         update: dict[str, Any] = {
-            "missing_fields": missing_fields,
+            "missing_fields": policy_result.missing_fields,
             "candidate_task_type": candidate_task_type,
+            "decision": self._decision_from_policy_action(policy_result.action),
         }
-        if missing_fields:
-            update["decision"] = LearningEntryDecision.ASK_FOR_MISSING_INPUT
         return update
 
-    def route_after_missing_check(self, state: LearningEntryState) -> str:
+    def route_after_policy_gate(self, state: LearningEntryState) -> str:
         if state.decision == LearningEntryDecision.ASK_FOR_MISSING_INPUT:
             return MISSING_ROUTE
-        return COMPLETE_ROUTE
-
-    def decide_policy(self, state: LearningEntryState) -> dict[str, Any]:
-        route_action = LearningEntryDecision.EXECUTE_LEARNING_TASK
-        reason = "The request can continue as an educational learning task."
-
-        if looks_like_investment_advice(state.input_payload):
-            route_action = LearningEntryDecision.REFUSE_AND_REDIRECT
-            reason = "The request appears to ask for direct investment advice."
-
-        decision = LearningEntryPolicyDecision(
-            route_action=route_action,
-            reason=reason,
-        )
-        return {"decision": decision.route_action}
-
-    def route_after_policy_decision(self, state: LearningEntryState) -> str:
         if state.decision == LearningEntryDecision.REFUSE_AND_REDIRECT:
             return ADVICE_ROUTE
-        return LEARNING_ROUTE
+        return COMPLETE_ROUTE
 
     def resolve_task_spec(self, state: LearningEntryState) -> dict[str, Any]:
         if state.candidate_task_type is None:
@@ -194,13 +171,18 @@ class LearningEntryFlow:
         return {"output": result}
 
     def build_missing_input_result(self, state: LearningEntryState) -> dict[str, Any]:
+        message = (
+            GENERAL_LEARNING_CLARIFICATION_MESSAGE
+            if not state.missing_fields
+            else MISSING_INPUT_MESSAGE
+        )
         result = TaskResult(
             ok=True,
             task_name=LEARNING_ENTRY_TASK_NAME,
             result={
                 ACTION_FIELD: LearningEntryDecision.ASK_FOR_MISSING_INPUT.value,
                 MISSING_FIELDS_FIELD: state.missing_fields,
-                MESSAGE_FIELD: MISSING_INPUT_MESSAGE,
+                MESSAGE_FIELD: message,
             },
         )
         return {"output": result}
@@ -217,10 +199,24 @@ class LearningEntryFlow:
         )
         return {"output": result}
 
+    @staticmethod
+    def _candidate_task_type_from_policy(
+        policy_result: InvestoryPolicyResult,
+    ) -> LearningEntryCandidateTaskType | None:
+        candidate_task_type = policy_result.metadata.get(CANDIDATE_TASK_TYPE_METADATA_KEY)
+        if candidate_task_type is None:
+            return None
+        return LearningEntryCandidateTaskType(candidate_task_type)
+
+    @staticmethod
+    def _decision_from_policy_action(action: InvestoryAction) -> LearningEntryDecision:
+        return LearningEntryDecision(action.value)
+
 
 def build_learning_entry_flow(
     executor: TaskExecutor | None = None,
     runner: RequestRunner | None = None,
+    llm_router: LearningEntryRouter | None = None,
 ) -> LearningEntryFlow:
     resolved_executor = executor or TaskExecutor(runner=runner)
-    return LearningEntryFlow(executor=resolved_executor)
+    return LearningEntryFlow(executor=resolved_executor, llm_router=llm_router)

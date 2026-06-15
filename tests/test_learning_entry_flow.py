@@ -2,18 +2,28 @@ import pytest
 
 from investory.agent_core.contracts.learning_entry_state import LearningEntryDecision
 from investory.agent_core.contracts.result_types import TaskError, TaskResult
-from investory.agent_core.runtime.flow.learning_entry_flow import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_flow import (
     ACTION_FIELD,
+    GENERAL_LEARNING_CLARIFICATION_MESSAGE,
     LEARNING_ENTRY_TASK_NAME,
+    MISSING_INPUT_MESSAGE,
     MISSING_FIELDS_FIELD,
     SUGGESTED_LEARNING_DIRECTION_FIELD,
     LearningEntryFlow,
 )
-from investory.agent_core.runtime.flow.learning_entry_rules import (
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_router import (
+    LearningEntryRoute,
+    LearningEntryRouteDecision,
+)
+from investory.agent_core.runtime.flow.learning_entry.learning_entry_rules import (
+    CONFIRMATION_GRANTED_FIELD,
     INSTRUMENT_NAME_OR_CODE_FIELD,
     MATERIAL_TEXT_FIELD,
     QUESTION_FIELD,
+    REQUIRES_CONFIRMATION_FIELD,
+    REQUIRES_REALTIME_DATA_FIELD,
     SOURCE_MATERIAL_FIELD,
+    UNKNOWN_INPUT_MISSING_FIELDS,
 )
 from investory.agent_core.tasks import (
     FINANCE_QA_TASK,
@@ -34,6 +44,14 @@ class FakeExecutor:
             task_name=spec.name,
             result={"handled_by": spec.name},
         )
+
+
+class FakeLearningEntryRouter:
+    def __init__(self, decision: LearningEntryRouteDecision) -> None:
+        self.decision = decision
+
+    def route(self, payload: dict) -> LearningEntryRouteDecision:
+        return self.decision
 
 
 def test_learning_entry_flow_returns_missing_input_result_for_qa_missing_material():
@@ -80,6 +98,117 @@ def test_learning_entry_flow_refuses_investment_advice_without_executor_call():
     assert result.result[ACTION_FIELD] == LearningEntryDecision.REFUSE_AND_REDIRECT
     assert SUGGESTED_LEARNING_DIRECTION_FIELD in result.result
     assert executor.calls == []
+
+
+def test_learning_entry_flow_refuses_realtime_request_without_capability():
+    executor = FakeExecutor()
+    flow = LearningEntryFlow(executor=executor)
+
+    result = flow.run(
+        {
+            MATERIAL_TEXT_FIELD: "VOO tracks the S&P 500.",
+            QUESTION_FIELD: "Give me the latest price snapshot.",
+            REQUIRES_REALTIME_DATA_FIELD: True,
+        }
+    )
+
+    assert result.ok is True
+    assert result.task_name == LEARNING_ENTRY_TASK_NAME
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == LearningEntryDecision.REFUSE_AND_REDIRECT
+    assert executor.calls == []
+
+
+def test_learning_entry_flow_requests_confirmation_when_policy_requires_it():
+    executor = FakeExecutor()
+    flow = LearningEntryFlow(executor=executor)
+
+    result = flow.run(
+        {
+            MATERIAL_TEXT_FIELD: "VOO tracks the S&P 500.",
+            QUESTION_FIELD: "Summarize this material.",
+            REQUIRES_CONFIRMATION_FIELD: True,
+            CONFIRMATION_GRANTED_FIELD: False,
+        }
+    )
+
+    assert result.ok is True
+    assert result.task_name == LEARNING_ENTRY_TASK_NAME
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == LearningEntryDecision.ASK_FOR_MISSING_INPUT
+    assert result.result[MISSING_FIELDS_FIELD] == [CONFIRMATION_GRANTED_FIELD]
+    assert executor.calls == []
+
+
+def test_learning_entry_flow_returns_clarification_for_low_confidence_route():
+    executor = FakeExecutor()
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=LearningEntryRoute.FINANCE_QA,
+            confidence=0.41,
+            reason="The request looks educational but the route confidence is low.",
+        )
+    )
+    flow = LearningEntryFlow(executor=executor, llm_router=router)
+
+    result = flow.run({"user_input": "Help me understand this ETF."})
+
+    assert result.ok is True
+    assert result.task_name == LEARNING_ENTRY_TASK_NAME
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == LearningEntryDecision.ASK_FOR_MISSING_INPUT
+    assert result.result[MISSING_FIELDS_FIELD] == []
+    assert (
+        result.result["message"]
+        == GENERAL_LEARNING_CLARIFICATION_MESSAGE
+    )
+    assert executor.calls == []
+
+
+def test_learning_entry_flow_returns_unknown_input_fallback_without_llm_router():
+    executor = FakeExecutor()
+    flow = LearningEntryFlow(executor=executor)
+
+    result = flow.run({"user_input": "Help me with this ETF content."})
+
+    assert result.ok is True
+    assert result.task_name == LEARNING_ENTRY_TASK_NAME
+    assert result.result is not None
+    assert result.result[ACTION_FIELD] == LearningEntryDecision.ASK_FOR_MISSING_INPUT
+    assert result.result[MISSING_FIELDS_FIELD] == UNKNOWN_INPUT_MISSING_FIELDS
+    assert result.result["message"] == MISSING_INPUT_MESSAGE
+    assert executor.calls == []
+
+
+@pytest.mark.parametrize(
+    ("route", "expected_task_name"),
+    [
+        (LearningEntryRoute.FINANCE_QA, FINANCE_QA_TASK.name),
+        (LearningEntryRoute.LEARNING_MATERIAL_SUMMARY, LEARNING_MATERIAL_SUMMARY_TASK.name),
+        (LearningEntryRoute.INSTRUMENT_BRIEF, INSTRUMENT_BRIEF_TASK.name),
+    ],
+)
+def test_learning_entry_flow_executes_high_confidence_llm_learning_routes(
+    route,
+    expected_task_name,
+):
+    executor = FakeExecutor()
+    router = FakeLearningEntryRouter(
+        LearningEntryRouteDecision(
+            route=route,
+            confidence=0.93,
+            reason="The route is clear and should execute.",
+        )
+    )
+    payload = {"user_input": "Handle this learning request."}
+    flow = LearningEntryFlow(executor=executor, llm_router=router)
+
+    result = flow.run(payload)
+
+    assert result.ok is True
+    assert result.task_name == expected_task_name
+    assert result.result == {"handled_by": expected_task_name}
+    assert executor.calls == [(expected_task_name, payload)]
 
 
 @pytest.mark.parametrize(

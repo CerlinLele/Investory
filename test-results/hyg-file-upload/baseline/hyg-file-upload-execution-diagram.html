@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HYG File Upload Execution Diagram</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --paper: #ffffff;
+      --ink: #182235;
+      --muted: #5f6a7f;
+      --line: #2b3548;
+      --lane: #fafcff;
+      --blue: #eaf4ff;
+      --blue-line: #2f6fab;
+      --green: #edf9f2;
+      --green-line: #24845e;
+      --amber: #fff6df;
+      --amber-line: #b97817;
+      --purple: #f2efff;
+      --purple-line: #6754b8;
+      --red: #fff0f0;
+      --red-line: #bb4141;
+      --shadow: 0 18px 44px rgba(31, 42, 68, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(47, 111, 171, 0.09), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(103, 84, 184, 0.08), transparent 30%),
+        var(--bg);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.25;
+    }
+
+    .subtitle {
+      max-width: 1000px;
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: #eef2f7;
+      color: #243044;
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 0.92em;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 0 0 18px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid #d9e0ea;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.84);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border: 2px solid;
+      border-radius: 4px;
+      flex: 0 0 auto;
+    }
+
+    .canvas {
+      overflow: auto;
+      border: 1px solid #d7deeb;
+      border-radius: 14px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+
+    svg {
+      display: block;
+      min-width: 1260px;
+      width: 100%;
+      height: auto;
+    }
+
+    .lane {
+      fill: var(--lane);
+      stroke: #dbe2ed;
+      stroke-width: 1;
+      rx: 14;
+    }
+
+    .lane-title {
+      fill: #43506a;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .box {
+      stroke-width: 2.1;
+      rx: 10;
+      ry: 10;
+      filter: drop-shadow(0 8px 14px rgba(27, 38, 60, 0.07));
+    }
+
+    .start { fill: var(--blue); stroke: var(--blue-line); }
+    .extract { fill: var(--green); stroke: var(--green-line); }
+    .analyze { fill: var(--amber); stroke: var(--amber-line); }
+    .synth { fill: var(--purple); stroke: var(--purple-line); }
+    .warn { fill: var(--red); stroke: var(--red-line); }
+
+    .title {
+      fill: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .body {
+      fill: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+
+    .edge-dashed {
+      fill: none;
+      stroke: #6d7a8d;
+      stroke-width: 1.8;
+      stroke-dasharray: 7 6;
+      marker-end: url(#arrow-soft);
+    }
+
+    .edge-label {
+      fill: #334155;
+      font-size: 12px;
+      font-weight: 700;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .note {
+      padding: 16px 18px;
+      border: 1px solid #d9e0ea;
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 10px 26px rgba(31, 42, 68, 0.07);
+    }
+
+    .note h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    @media (max-width: 860px) {
+      main { padding: 18px; }
+      .legend, .notes { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>HYG File Upload Execution Diagram</h1>
+      <p class="subtitle">
+        基于 <code>session_id=apifox-hyg-file-upload</code> 的实际日志绘制。上半部分展示任务依赖结构，下半部分展示这次运行中真正观察到的执行顺序。重点结论：虽然 DAG 形状允许 extract fan-out，但本次日志显示 extract 任务是串行执行的。
+      </p>
+    </header>
+
+    <section class="legend" aria-label="legend">
+      <div class="legend-item"><span class="swatch" style="background: var(--blue); border-color: var(--blue-line)"></span>开始 / 结果</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--green); border-color: var(--green-line)"></span>Chunk Extract</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--amber); border-color: var(--amber-line)"></span>Aggregate Analyze</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--purple); border-color: var(--purple-line)"></span>Synthesize</div>
+    </section>
+
+    <section class="canvas" aria-label="HYG execution structure">
+      <svg viewBox="0 0 1500 1180" role="img" aria-labelledby="diagram-title diagram-desc">
+        <title id="diagram-title">HYG file upload execution structure and observed runtime ordering</title>
+        <desc id="diagram-desc">A two-part diagram showing the task DAG and the actually observed serial runtime pattern from the HYG file upload log.</desc>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#263244"></path>
+          </marker>
+          <marker id="arrow-soft" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#6d7a8d"></path>
+          </marker>
+        </defs>
+
+        <rect class="lane" x="36" y="60" width="1428" height="410"></rect>
+        <text class="lane-title" x="58" y="90">1. Plan structure from the generated To-Do DAG</text>
+
+        <rect class="lane" x="36" y="515" width="1428" height="560"></rect>
+        <text class="lane-title" x="58" y="545">2. Observed runtime pattern from this specific log</text>
+
+        <rect class="box start" x="90" y="160" width="200" height="84"></rect>
+        <text class="title" x="190" y="185">todo_plan.generated</text>
+        <text class="body" x="190" y="210">chunk_count=25</text>
+        <text class="body" x="190" y="230">task_count=27</text>
+
+        <rect class="box extract" x="410" y="105" width="180" height="68"></rect>
+        <text class="title" x="500" y="128">extract_chunk_0001</text>
+        <text class="body" x="500" y="150">independent extract</text>
+
+        <rect class="box extract" x="410" y="200" width="180" height="68"></rect>
+        <text class="title" x="500" y="223">extract_chunk_0002</text>
+        <text class="body" x="500" y="245">independent extract</text>
+
+        <rect class="box extract" x="410" y="295" width="180" height="68"></rect>
+        <text class="title" x="500" y="318">extract_chunk_0003 ...</text>
+        <text class="body" x="500" y="340">same shape through 0025</text>
+
+        <rect class="box extract" x="410" y="390" width="180" height="68"></rect>
+        <text class="title" x="500" y="413">extract_chunk_0025</text>
+        <text class="body" x="500" y="435">independent extract</text>
+
+        <rect class="box analyze" x="770" y="230" width="220" height="88"></rect>
+        <text class="title" x="880" y="255">analyze_aggregated_chunk_evidence</text>
+        <text class="body" x="880" y="280">depends on all 25 extract tasks</text>
+        <text class="body" x="880" y="300">duration_ms=14902</text>
+
+        <rect class="box synth" x="1140" y="230" width="220" height="88"></rect>
+        <text class="title" x="1250" y="255">synthesize_full_document_review</text>
+        <text class="body" x="1250" y="280">depends on aggregate analyze</text>
+        <text class="body" x="1250" y="300">duration_ms=14847</text>
+
+        <path class="edge" d="M 290 202 H 410"></path>
+        <path class="edge-dashed" d="M 290 202 H 360 V 139 H 410"></path>
+        <path class="edge-dashed" d="M 290 202 H 340 V 234 H 410"></path>
+        <path class="edge-dashed" d="M 290 202 H 320 V 329 H 410"></path>
+        <path class="edge-dashed" d="M 290 202 H 300 V 424 H 410"></path>
+
+        <path class="edge-dashed" d="M 590 139 H 650 V 250 H 770"></path>
+        <path class="edge-dashed" d="M 590 234 H 670 V 260 H 770"></path>
+        <path class="edge-dashed" d="M 590 329 H 690 V 270 H 770"></path>
+        <path class="edge-dashed" d="M 590 424 H 710 V 280 H 770"></path>
+        <rect x="655" y="197" width="120" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="715" y="212">all 25 chunks</text>
+
+        <path class="edge" d="M 990 274 H 1140"></path>
+
+        <rect class="box start" x="80" y="620" width="220" height="84"></rect>
+        <text class="title" x="190" y="645">Observed Extract Stage</text>
+        <text class="body" x="190" y="670">25 extract tasks</text>
+        <text class="body" x="190" y="690">avg 4984 ms each</text>
+
+        <rect class="box warn" x="410" y="605" width="260" height="112"></rect>
+        <text class="title" x="540" y="632">Observed Runtime Behavior</text>
+        <text class="body" x="540" y="660">No overlap visible in the log</text>
+        <text class="body" x="540" y="680">Each next extract starts only after</text>
+        <text class="body" x="540" y="700">the previous extract succeeds</text>
+
+        <rect class="box extract" x="820" y="590" width="220" height="68"></rect>
+        <text class="title" x="930" y="613">extract_chunk_0001</text>
+        <text class="body" x="930" y="635">16:44:06 -> 16:44:12</text>
+
+        <rect class="box extract" x="820" y="690" width="220" height="68"></rect>
+        <text class="title" x="930" y="713">extract_chunk_0002</text>
+        <text class="body" x="930" y="735">starts after 0001 succeeds</text>
+
+        <rect class="box extract" x="820" y="790" width="220" height="68"></rect>
+        <text class="title" x="930" y="813">extract_chunk_0003 ... 0025</text>
+        <text class="body" x="930" y="835">same serial pattern continues</text>
+
+        <rect class="box analyze" x="1130" y="690" width="240" height="88"></rect>
+        <text class="title" x="1250" y="715">aggregate analyze</text>
+        <text class="body" x="1250" y="740">starts only after chunk 0025</text>
+        <text class="body" x="1250" y="760">16:46:11 -> 16:46:26</text>
+
+        <rect class="box synth" x="1130" y="820" width="240" height="88"></rect>
+        <text class="title" x="1250" y="845">final synthesize</text>
+        <text class="body" x="1250" y="870">starts after analyze succeeds</text>
+        <text class="body" x="1250" y="890">16:46:26 -> 16:46:40</text>
+
+        <rect class="box start" x="1130" y="955" width="240" height="84"></rect>
+        <text class="title" x="1250" y="980">todo_execution.completed</text>
+        <text class="body" x="1250" y="1005">succeeded_count=27</text>
+        <text class="body" x="1250" y="1025">duration_ms=154366</text>
+
+        <path class="edge" d="M 300 662 H 410"></path>
+        <path class="edge" d="M 670 662 H 820"></path>
+        <path class="edge" d="M 930 658 V 690"></path>
+        <path class="edge" d="M 930 758 V 790"></path>
+        <path class="edge" d="M 1040 824 H 1130"></path>
+        <path class="edge" d="M 1250 778 V 820"></path>
+        <path class="edge" d="M 1250 908 V 955"></path>
+
+        <rect x="965" y="671" width="120" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1025" y="686">serial chain</text>
+      </svg>
+    </section>
+
+    <section class="notes">
+      <article class="note">
+        <h2>最重要结论</h2>
+        <p>这次日志没有显示 chunk extract 的并发执行。虽然 plan 依赖结构允许 fan-out，但实际运行表现为一条串行链。</p>
+      </article>
+      <article class="note">
+        <h2>时间去哪了</h2>
+        <p>主要时间花在 25 次 extract 上。每次大约 4-6 秒，累积后占了绝大部分总时长。</p>
+      </article>
+      <article class="note">
+        <h2>这意味着什么</h2>
+        <p>如果你想优化端到端时延，优先该查的是 TodoExecutionRunner 是否真的并发调度了同层独立任务，而不是先从 analyze 或 synthesize 下手。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

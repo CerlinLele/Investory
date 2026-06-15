@@ -45,6 +45,7 @@ When executing a user-approved plan step, updating the corresponding worklog is 
 - Do not treat a plan step as complete until the step's worklog entry has been added or updated.
 - Before switching to commit-message, staging, or other housekeeping-only requests for the same step, first ensure the worklog is up to date.
 - If code or tests for a plan step are already finished but the worklog is missing, prioritize repairing the worklog gap before continuing to the next step.
+- When verification involves an iterative loop, record the loop in the worklog: the test command, the failing result, the failure cause or assertion mismatch, the code or test change made to address it, the rerun command, and the final passing result.
 - For step-based execution, use this closeout order: implementation, verification, worklog update, then next-step/commit support.
 
 ## Save Document Requests

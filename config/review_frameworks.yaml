@@ -1,0 +1,51 @@
+etf_factsheet:
+  extract_focus:
+    - underlying index and tracking scope
+    - fees and expense ratios
+    - asset allocation composition
+    - historical performance disclosures
+  analyze_focus:
+    - risk disclosures completeness
+    - historical performance boundary statements
+    - cost impact on long-term returns
+
+fund_prospectus:
+  extract_focus:
+    - investment scope and mandate
+    - fees and charges
+    - restrictions and limitations
+    - subscription and redemption rules
+  analyze_focus:
+    - key risk factors
+    - suitability constraints
+    - critical information gaps
+
+product_brochure:
+  extract_focus:
+    - product structure
+    - return claims and conditions
+    - applicability constraints
+  analyze_focus:
+    - potentially overstated return language
+    - risk disclosure sufficiency
+    - material caveat coverage
+
+earnings_report:
+  extract_focus:
+    - revenue and profit figures
+    - cash flow statements
+    - management commentary
+  analyze_focus:
+    - uncertainty disclosures
+    - non-extrapolatable conclusions
+    - fact versus inference boundaries
+
+learning_material:
+  extract_focus:
+    - core concepts and definitions
+    - mechanisms and examples
+    - key terminology
+  analyze_focus:
+    - learning priorities
+    - internal factual consistency
+    - material facts versus external assumptions

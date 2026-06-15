@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HYG File Upload Rerun Timeline</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --paper: #fffdf8;
+      --ink: #1f2a2e;
+      --muted: #67757d;
+      --grid: #d8d3c8;
+      --track: #f1ece2;
+      --extract: #2f7d69;
+      --extract-fill: #dff3ec;
+      --analyze: #c97b18;
+      --analyze-fill: #fff0d8;
+      --synth: #2463a6;
+      --synth-fill: #e1eefc;
+      --shadow: 0 18px 42px rgba(32, 42, 45, 0.09);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(47, 125, 105, 0.10), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(36, 99, 166, 0.08), transparent 28%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      margin: 0 0 18px;
+      max-width: 1000px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      padding: 14px 16px;
+      border: 1px solid #e3ddd2;
+      border-radius: 14px;
+      background: rgba(255, 253, 248, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .stat .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .stat .value {
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border: 1px solid #dfd8cc;
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.9);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+    }
+
+    .panel {
+      overflow: auto;
+      border: 1px solid #dfd8cc;
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 1360px;
+      height: auto;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .note {
+      padding: 16px 18px;
+      border: 1px solid #e3ddd2;
+      border-radius: 14px;
+      background: rgba(255, 253, 248, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .note h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .lane-bg { fill: var(--track); }
+    .lane-label { fill: var(--ink); font-size: 14px; font-weight: 700; }
+    .axis-label { fill: var(--muted); font-size: 11px; }
+    .grid-line { stroke: var(--grid); stroke-width: 1; }
+    .task-text { fill: var(--ink); font-size: 11px; font-weight: 700; }
+    .task-subtext { fill: var(--muted); font-size: 10px; }
+
+    @media (max-width: 980px) {
+      main { padding: 18px; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .notes { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>HYG File Upload Rerun Timeline</h1>
+    <p class="subtitle">
+      Timeline reconstructed from the rerun log after the concurrency fix. The extract stage now shows three overlapping lanes, followed by the single aggregate analyze task and the final synthesize task.
+    </p>
+
+    <section class="stats">
+      <div class="stat">
+        <div class="label">Total Duration</div>
+        <div class="value">70.022s</div>
+      </div>
+      <div class="stat">
+        <div class="label">Inferred Extract Concurrency</div>
+        <div class="value">3 lanes</div>
+      </div>
+      <div class="stat">
+        <div class="label">Baseline Total</div>
+        <div class="value">154.366s</div>
+      </div>
+      <div class="stat">
+        <div class="label">Overall Speedup</div>
+        <div class="value">2.20x</div>
+      </div>
+    </section>
+
+    <section class="legend">
+      <div class="legend-item"><span class="dot" style="background: var(--extract-fill); border: 2px solid var(--extract);"></span>Extract task</div>
+      <div class="legend-item"><span class="dot" style="background: var(--analyze-fill); border: 2px solid var(--analyze);"></span>Analyze task</div>
+      <div class="legend-item"><span class="dot" style="background: var(--synth-fill); border: 2px solid var(--synth);"></span>Synthesize task</div>
+      <div class="legend-item"><span class="dot" style="background: #d8d3c8;"></span>5-second grid</div>
+    </section>
+
+    <section class="panel">
+      <svg viewBox="0 0 1440 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Timeline diagram">
+        <rect x="150" y="40" width="1250" height="92" rx="14" class="lane-bg" />
+        <rect x="150" y="150" width="1250" height="92" rx="14" class="lane-bg" />
+        <rect x="150" y="260" width="1250" height="92" rx="14" class="lane-bg" />
+        <rect x="150" y="370" width="1250" height="92" rx="14" class="lane-bg" />
+
+        <text x="24" y="64" class="lane-label">Extract lane 1</text>
+        <text x="24" y="86" class="axis-label">independent extract slot</text>
+        <text x="24" y="174" class="lane-label">Extract lane 2</text>
+        <text x="24" y="196" class="axis-label">independent extract slot</text>
+        <text x="24" y="284" class="lane-label">Extract lane 3</text>
+        <text x="24" y="306" class="axis-label">independent extract slot</text>
+        <text x="24" y="394" class="lane-label">Post-processing</text>
+        <text x="24" y="416" class="axis-label">blocked on all extracts</text>
+
+        <line x1="150" y1="30" x2="150" y2="470" class="grid-line" />
+        <line x1="239.3" y1="30" x2="239.3" y2="470" class="grid-line" />
+        <line x1="328.5" y1="30" x2="328.5" y2="470" class="grid-line" />
+        <line x1="417.8" y1="30" x2="417.8" y2="470" class="grid-line" />
+        <line x1="507.0" y1="30" x2="507.0" y2="470" class="grid-line" />
+        <line x1="596.3" y1="30" x2="596.3" y2="470" class="grid-line" />
+        <line x1="685.5" y1="30" x2="685.5" y2="470" class="grid-line" />
+        <line x1="774.8" y1="30" x2="774.8" y2="470" class="grid-line" />
+        <line x1="864.1" y1="30" x2="864.1" y2="470" class="grid-line" />
+        <line x1="953.3" y1="30" x2="953.3" y2="470" class="grid-line" />
+        <line x1="1042.6" y1="30" x2="1042.6" y2="470" class="grid-line" />
+        <line x1="1131.8" y1="30" x2="1131.8" y2="470" class="grid-line" />
+        <line x1="1221.1" y1="30" x2="1221.1" y2="470" class="grid-line" />
+        <line x1="1310.4" y1="30" x2="1310.4" y2="470" class="grid-line" />
+        <line x1="1399.6" y1="30" x2="1399.6" y2="470" class="grid-line" />
+
+        <text x="152" y="24" class="axis-label">0s</text>
+        <text x="241.3" y="24" class="axis-label">5s</text>
+        <text x="330.5" y="24" class="axis-label">10s</text>
+        <text x="419.8" y="24" class="axis-label">15s</text>
+        <text x="509.0" y="24" class="axis-label">20s</text>
+        <text x="598.3" y="24" class="axis-label">25s</text>
+        <text x="687.5" y="24" class="axis-label">30s</text>
+        <text x="776.8" y="24" class="axis-label">35s</text>
+        <text x="866.1" y="24" class="axis-label">40s</text>
+        <text x="955.3" y="24" class="axis-label">45s</text>
+        <text x="1044.6" y="24" class="axis-label">50s</text>
+        <text x="1133.8" y="24" class="axis-label">55s</text>
+        <text x="1223.1" y="24" class="axis-label">60s</text>
+        <text x="1312.4" y="24" class="axis-label">65s</text>
+        <text x="1401.6" y="24" class="axis-label">70s</text>
+
+        <rect x="150.0" y="58" width="98.0" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="158.0" y="75" class="task-text">x0001</text>
+        <text x="158.0" y="92" class="task-subtext">0.000s - 5.492s</text>
+
+        <rect x="150.0" y="168" width="100.3" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="158.0" y="185" class="task-text">x0002</text>
+        <text x="158.0" y="202" class="task-subtext">0.001s - 5.620s</text>
+
+        <rect x="150.0" y="278" width="120.2" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="158.0" y="295" class="task-text">x0003</text>
+        <text x="158.0" y="312" class="task-subtext">0.002s - 6.737s</text>
+
+        <rect x="248.1" y="58" width="107.2" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="256.1" y="75" class="task-text">x0004</text>
+        <text x="256.1" y="92" class="task-subtext">5.493s - 11.498s</text>
+
+        <rect x="250.3" y="168" width="101.5" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="258.3" y="185" class="task-text">x0005</text>
+        <text x="258.3" y="202" class="task-subtext">5.620s - 11.307s</text>
+
+        <rect x="270.3" y="278" width="69.8" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="278.3" y="295" class="task-text">x0006</text>
+        <text x="278.3" y="312" class="task-subtext">6.737s - 10.649s</text>
+
+        <rect x="340.1" y="278" width="112.1" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="348.1" y="295" class="task-text">x0007</text>
+        <text x="348.1" y="312" class="task-subtext">10.650s - 16.932s</text>
+
+        <rect x="351.8" y="168" width="145.4" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="359.8" y="185" class="task-text">x0008</text>
+        <text x="359.8" y="202" class="task-subtext">11.307s - 19.454s</text>
+
+        <rect x="355.2" y="58" width="93.0" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="363.2" y="75" class="task-text">x0009</text>
+        <text x="363.2" y="92" class="task-subtext">11.498s - 16.710s</text>
+
+        <rect x="448.2" y="58" width="89.4" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="456.2" y="75" class="task-text">x0010</text>
+        <text x="456.2" y="92" class="task-subtext">16.711s - 21.722s</text>
+
+        <rect x="452.1" y="278" width="89.5" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="460.1" y="295" class="task-text">x0011</text>
+        <text x="460.1" y="312" class="task-subtext">16.933s - 21.947s</text>
+
+        <rect x="497.2" y="168" width="136.3" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="505.2" y="185" class="task-text">x0012</text>
+        <text x="505.2" y="202" class="task-subtext">19.456s - 27.090s</text>
+
+        <rect x="537.7" y="58" width="96.0" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="545.7" y="75" class="task-text">x0013</text>
+        <text x="545.7" y="92" class="task-subtext">21.723s - 27.103s</text>
+
+        <rect x="541.7" y="278" width="94.0" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="549.7" y="295" class="task-text">x0014</text>
+        <text x="549.7" y="312" class="task-subtext">21.947s - 27.211s</text>
+
+        <rect x="633.5" y="168" width="86.8" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="641.5" y="185" class="task-text">x0015</text>
+        <text x="641.5" y="202" class="task-subtext">27.090s - 31.951s</text>
+
+        <rect x="633.8" y="58" width="93.7" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="641.8" y="75" class="task-text">x0016</text>
+        <text x="641.8" y="92" class="task-subtext">27.104s - 32.352s</text>
+
+        <rect x="635.7" y="278" width="98.1" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="643.7" y="295" class="task-text">x0017</text>
+        <text x="643.7" y="312" class="task-subtext">27.212s - 32.709s</text>
+
+        <rect x="720.4" y="168" width="93.1" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="728.4" y="185" class="task-text">x0018</text>
+        <text x="728.4" y="202" class="task-subtext">31.953s - 37.166s</text>
+
+        <rect x="727.6" y="58" width="74.8" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="735.6" y="75" class="task-text">x0019</text>
+        <text x="735.6" y="92" class="task-subtext">32.353s - 36.541s</text>
+
+        <rect x="734.0" y="278" width="72.1" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="742.0" y="295" class="task-text">x0020</text>
+        <text x="742.0" y="312" class="task-subtext">32.710s - 36.747s</text>
+
+        <rect x="802.4" y="58" width="106.0" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="810.4" y="75" class="task-text">x0021</text>
+        <text x="810.4" y="92" class="task-subtext">36.541s - 42.479s</text>
+
+        <rect x="806.1" y="278" width="90.5" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="814.1" y="295" class="task-text">x0022</text>
+        <text x="814.1" y="312" class="task-subtext">36.748s - 41.816s</text>
+
+        <rect x="813.5" y="168" width="106.4" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="821.5" y="185" class="task-text">x0023</text>
+        <text x="821.5" y="202" class="task-subtext">37.167s - 43.130s</text>
+
+        <rect x="896.6" y="278" width="76.8" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="904.6" y="295" class="task-text">x0024</text>
+        <text x="904.6" y="312" class="task-subtext">41.817s - 46.118s</text>
+
+        <rect x="908.4" y="58" width="70.7" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="916.4" y="75" class="task-text">x0025</text>
+        <text x="916.4" y="92" class="task-subtext">42.480s - 46.442s</text>
+
+        <rect x="979.1" y="388" width="169.5" height="46" rx="10" fill="var(--analyze-fill)" stroke="var(--analyze)" stroke-width="2" />
+        <text x="987.1" y="405" class="task-text">analyze</text>
+        <text x="987.1" y="422" class="task-subtext">46.443s - 55.937s</text>
+
+        <rect x="1148.6" y="388" width="251.3" height="46" rx="10" fill="var(--synth-fill)" stroke="var(--synth)" stroke-width="2" />
+        <text x="1156.6" y="405" class="task-text">synthesize</text>
+        <text x="1156.6" y="422" class="task-subtext">55.937s - 70.016s</text>
+      </svg>
+    </section>
+
+    <section class="notes">
+      <article class="note">
+        <h2>What changed</h2>
+        <p>
+          The rerun shows immediate fan-out to three extract tasks, then steady slot refill as each task finishes. This is the log pattern we expected after moving blocking task execution into threads.
+        </p>
+      </article>
+      <article class="note">
+        <h2>What stayed the same</h2>
+        <p>
+          The plan shape did not change: 25 extract tasks, 1 aggregate analyze task, and 1 final synthesize task. Analyze still depends on all extracts, and synthesize still depends on analyze.
+        </p>
+      </article>
+      <article class="note">
+        <h2>Main payoff</h2>
+        <p>
+          The end-to-end runtime dropped from 154.366 seconds to 70.022 seconds. The win comes from overlapping independent extract tasks, not from faster individual task latency.
+        </p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

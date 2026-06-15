@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+from fastapi import Form, UploadFile
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 
@@ -34,17 +35,45 @@ class TaskRequest(BaseModel):
     session_id: NonEmptyString | None = None
 
 
-class LearningEntryRequest(BaseModel):
+class FlowRequest(BaseModel):
+    """Shared request shape for orchestration-style gateway endpoints."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    payload: dict[str, Any]
+    session_id: NonEmptyString | None = None
+
+
+class LearningEntryRequest(FlowRequest):
     """Public request for the learning entry orchestration endpoint.
 
     The payload stays generic because the entry flow decides which task, if
     any, can safely handle the request.
     """
 
-    model_config = ConfigDict(extra="forbid")
 
-    payload: dict[str, Any]
-    session_id: NonEmptyString | None = None
+class InvestmentDocumentReviewRequest(FlowRequest):
+    """Public request for the investment document review flow endpoint."""
+
+
+class InvestmentDocumentReviewFileUploadRequest:
+    """Multipart form request for the PDF file upload endpoint.
+
+    Not a Pydantic model because FastAPI resolves UploadFile and Form fields
+    via dependency injection, not JSON body parsing.
+    """
+
+    def __init__(
+        self,
+        file: UploadFile,
+        review_goal: str | None = Form(default=None),
+        document_type_hint: str | None = Form(default=None),
+        session_id: str | None = Form(default=None),
+    ) -> None:
+        self.file = file
+        self.review_goal = review_goal
+        self.document_type_hint = document_type_hint
+        self.session_id = session_id
 
 
 class TaskErrorResponse(BaseModel):
@@ -77,6 +106,8 @@ class TaskResponse(BaseModel):
 
 __all__ = [
     "HealthResponse",
+    "InvestmentDocumentReviewFileUploadRequest",
+    "InvestmentDocumentReviewRequest",
     "LearningEntryRequest",
     "TaskErrorResponse",
     "TaskRequest",
