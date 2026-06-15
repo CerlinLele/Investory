@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>第3-1课 — 四阶段工具管理总览</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: #f8f9fa; padding: 40px 24px; color: #1a1a2e; }
+  h1 { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 6px; }
+  .subtitle { text-align: center; color: #666; font-size: 13px; margin-bottom: 40px; }
+
+  /* ── PHASE CARDS ── */
+  .phases { display: flex; gap: 0; align-items: stretch; justify-content: center; max-width: 960px; margin: 0 auto 48px; }
+  .arrow-h { display: flex; align-items: center; color: #aaa; font-size: 22px; padding: 0 4px; flex-shrink: 0; }
+
+  .phase { flex: 1; border-radius: 12px; padding: 20px 16px; position: relative; min-width: 0; }
+  .phase-1 { background: #e8f4fd; border: 2px solid #3498db; }
+  .phase-2 { background: #eafaf1; border: 2px solid #27ae60; }
+  .phase-3 { background: #fef9e7; border: 2px solid #f39c12; }
+  .phase-4 { background: #fdf2f8; border: 2px solid #9b59b6; }
+
+  .phase-badge { font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 8px; }
+  .phase-1 .phase-badge { color: #3498db; }
+  .phase-2 .phase-badge { color: #27ae60; }
+  .phase-3 .phase-badge { color: #f39c12; }
+  .phase-4 .phase-badge { color: #9b59b6; }
+
+  .phase-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .phase-meta { font-size: 11px; color: #888; margin-bottom: 12px; }
+  .phase-items { list-style: none; }
+  .phase-items li { font-size: 12px; color: #444; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,.06); }
+  .phase-items li:last-child { border-bottom: none; }
+  .phase-items li::before { content: "• "; }
+  .phase-goal { margin-top: 12px; font-size: 11px; background: rgba(255,255,255,.6); border-radius: 6px; padding: 6px 8px; color: #555; }
+  .phase-goal strong { display: block; margin-bottom: 2px; color: #333; }
+
+  /* ── DEPENDENCY NOTE ── */
+  .dep-box { max-width: 960px; margin: 0 auto 48px; background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px 24px; }
+  .dep-box h2 { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #333; }
+  .dep-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .dep-node { padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .dep-p1 { background: #3498db; color: #fff; }
+  .dep-p2 { background: #27ae60; color: #fff; }
+  .dep-p3 { background: #f39c12; color: #fff; }
+  .dep-p4 { background: #9b59b6; color: #fff; }
+  .dep-arrow { color: #aaa; font-size: 18px; }
+  .dep-fork { display: flex; flex-direction: column; gap: 8px; }
+  .dep-note { font-size: 11px; color: #888; margin-left: 4px; }
+
+  /* ── SCOPE COMPARISON ── */
+  .scope-box { max-width: 960px; margin: 0 auto; background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px 24px; }
+  .scope-box h2 { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #333; }
+  .scope-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .scope-col h3 { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+  .scope-yes h3 { color: #27ae60; }
+  .scope-no  h3 { color: #e74c3c; }
+  .scope-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+  .scope-item:last-child { border-bottom: none; }
+  .icon { font-size: 14px; flex-shrink: 0; }
+  .scope-item .reason { font-size: 11px; color: #999; display: block; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>第3-1课 — 工具管理系统 四阶段落地计划</h1>
+<p class="subtitle">项目：Investory · 分支：feature/3-1-tool-management-planning-system · 总投入约 2 天</p>
+
+<!-- PHASE CARDS -->
+<div class="phases">
+  <div class="phase phase-1">
+    <div class="phase-badge">Phase 1 · P0 · 0.5天</div>
+    <div class="phase-title">统一能力台账</div>
+    <div class="phase-meta">其余三个 Phase 的基础</div>
+    <ul class="phase-items">
+      <li>task_spec.py 新增 3 个字段</li>
+      <li>tasks.py 为 9 个任务填元数据</li>
+      <li>routing.py 新增 4 个查询函数</li>
+      <li>新建 test_tasks_metadata.py</li>
+    </ul>
+    <div class="phase-goal">
+      <strong>核心目标</strong>
+      工具有名字、有属性、能显式描述
+    </div>
+  </div>
+  <div class="arrow-h">→</div>
+
+  <div class="phase phase-2">
+    <div class="phase-badge">Phase 2 · P0 · 0.5天</div>
+    <div class="phase-title">工具发现与查询</div>
+    <div class="phase-meta">依赖 Phase 1 的元数据</div>
+    <ul class="phase-items">
+      <li>list_read_only_tasks()</li>
+      <li>list_write_tasks()</li>
+      <li>get_specs_for_tags(tags)</li>
+      <li>新建 test_tool_discovery.py</li>
+    </ul>
+    <div class="phase-goal">
+      <strong>核心目标</strong>
+      工具对内可查，运营可获取清单
+    </div>
+  </div>
+  <div class="arrow-h">→</div>
+
+  <div class="phase phase-3">
+    <div class="phase-badge">Phase 3 · P1 · 0.5天</div>
+    <div class="phase-title">工具访问控制</div>
+    <div class="phase-meta">依赖 Phase 1 的 side_effect_level</div>
+    <ul class="phase-items">
+      <li>validate_task_access(name, role)</li>
+      <li>require_task_access(name, role)</li>
+      <li>admin / analyst 角色规则</li>
+      <li>新建 test_task_access_control.py</li>
+    </ul>
+    <div class="phase-goal">
+      <strong>核心目标</strong>
+      工具对外可控，权限系统基础
+    </div>
+  </div>
+  <div class="arrow-h">→</div>
+
+  <div class="phase phase-4">
+    <div class="phase-badge">Phase 4 · P2 · 0.5天</div>
+    <div class="phase-title">审计日志与死代码</div>
+    <div class="phase-meta">可选，推荐做</div>
+    <ul class="phase-items">
+      <li>AuditedTaskExecutor 包裹类</li>
+      <li>get_audit_log() / get_audit_summary()</li>
+      <li>LoopEngine何时启用.md</li>
+      <li>新建 test_task_audit_logging.py</li>
+    </ul>
+    <div class="phase-goal">
+      <strong>核心目标</strong>
+      工具调用可追踪，未来 MCP 预埋
+    </div>
+  </div>
+</div>
+
+<!-- DEPENDENCY -->
+<div class="dep-box">
+  <h2>执行依赖关系</h2>
+  <div class="dep-row">
+    <div class="dep-node dep-p1">Phase 1<br><small>能力台账</small></div>
+    <div class="dep-arrow">→</div>
+    <div class="dep-fork">
+      <div class="dep-node dep-p2">Phase 2 · 工具发现</div>
+      <div class="dep-node dep-p3">Phase 3 · 访问控制</div>
+    </div>
+    <div class="dep-note">Phase 2 和 3 互不依赖<br>可并行开发</div>
+    <div class="dep-arrow">→</div>
+    <div class="dep-node dep-p4">Phase 4<br><small>审计日志</small></div>
+    <div class="dep-note">Phase 4 依赖 Phase 2+3<br>也可单独做</div>
+  </div>
+</div>
+
+<!-- SCOPE COMPARISON -->
+<div class="scope-box">
+  <h2>计划边界 — 做什么 / 不做什么</h2>
+  <div class="scope-grid">
+    <div class="scope-col scope-yes">
+      <h3>✅ 工具管理范围内（做）</h3>
+      <div class="scope-item"><span class="icon">🏷️</span><div>TaskSpec 补充治理元数据<span class="reason">工具有什么属性</span></div></div>
+      <div class="scope-item"><span class="icon">🔍</span><div>routing.py 查询接口<span class="reason">怎么查找工具</span></div></div>
+      <div class="scope-item"><span class="icon">🔒</span><div>角色访问控制<span class="reason">谁能调用什么工具</span></div></div>
+      <div class="scope-item"><span class="icon">📋</span><div>审计日志包裹<span class="reason">调用了什么发生了什么</span></div></div>
+      <div class="scope-item"><span class="icon">🗺️</span><div>LoopEngine 演进说明<span class="reason">未来 MCP 工具的预埋路线</span></div></div>
+    </div>
+    <div class="scope-col scope-no">
+      <h3>❌ 工具管理范围外（不做）</h3>
+      <div class="scope-item"><span class="icon">🤖</span><div>Mock 执行器 / MockTaskExecutor<span class="reason">属于测试基础设施，独立计划</span></div></div>
+      <div class="scope-item"><span class="icon">🔀</span><div>Plan Handler 抽象<span class="reason">属于流程编排，独立计划</span></div></div>
+      <div class="scope-item"><span class="icon">💉</span><div>动态工具注入（课程模块二）<span class="reason">LangGraph 确定性管线不需要</span></div></div>
+      <div class="scope-item"><span class="icon">⚡</span><div>LoopEngine 集成<span class="reason">现在不需要，等 3-2 课</span></div></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

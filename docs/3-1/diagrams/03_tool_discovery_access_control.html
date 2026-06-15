@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Phase 2&3 — 工具发现与访问控制</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: #f8f9fa; padding: 40px 24px; color: #1a1a2e; }
+  h1 { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 6px; }
+  .subtitle { text-align: center; color: #666; font-size: 13px; margin-bottom: 40px; }
+
+  /* ── ROUTING API ── */
+  .section { max-width: 960px; margin: 0 auto 40px; }
+  .section-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; padding-left: 12px; border-left: 4px solid #3498db; }
+  .section-title.green { border-left-color: #27ae60; }
+  .section-title.orange { border-left-color: #f39c12; }
+
+  .api-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .api-card { background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 6px rgba(0,0,0,.07); border-top: 3px solid transparent; }
+  .api-card.p1 { border-top-color: #3498db; }
+  .api-card.p2 { border-top-color: #27ae60; }
+  .api-card.p3 { border-top-color: #f39c12; }
+  .api-phase-badge { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .p1 .api-phase-badge { color: #3498db; }
+  .p2 .api-phase-badge { color: #27ae60; }
+  .p3 .api-phase-badge { color: #f39c12; }
+  .api-sig { font-family: "SF Mono", monospace; font-size: 11px; font-weight: 700; color: #2c3e50; margin-bottom: 6px; line-height: 1.5; }
+  .api-desc { font-size: 11px; color: #666; margin-bottom: 8px; }
+  .api-example { background: #f8f9fa; border-radius: 5px; padding: 6px 8px; font-family: "SF Mono", monospace; font-size: 10px; color: #444; }
+
+  /* ── QUERY FLOW ── */
+  .flow-box { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+  .flow-row { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+  .flow-node { padding: 10px 16px; border-radius: 8px; font-size: 12px; text-align: center; min-width: 120px; }
+  .fn-caller  { background: #eaf0fb; border: 1.5px solid #3498db; color: #1a5276; }
+  .fn-routing { background: #fef9e7; border: 1.5px solid #f39c12; color: #784212; }
+  .fn-tasks   { background: #eafaf1; border: 1.5px solid #27ae60; color: #145a32; }
+  .fn-result  { background: #fdf2f8; border: 1.5px solid #9b59b6; color: #4a235a; }
+  .flow-arrow { padding: 0 10px; color: #bbb; font-size: 18px; }
+  .flow-label { font-size: 10px; color: #999; text-align: center; margin-top: 3px; }
+  .flow-gap { flex: 1; }
+
+  /* ── RBAC MATRIX ── */
+  .rbac-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+  .rbac-table th { background: #2c3e50; color: #fff; padding: 10px 14px; font-size: 12px; font-weight: 600; text-align: left; }
+  .rbac-table td { padding: 10px 14px; font-size: 12px; border-bottom: 1px solid #f0f0f0; }
+  .rbac-table tr:last-child td { border-bottom: none; }
+  .rbac-table tr:hover td { background: #fafafa; }
+  .role-admin   { background: #e8f4fd; color: #1a5276; font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+  .role-analyst { background: #eafaf1; color: #145a32; font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+  .role-other   { background: #fdebd0; color: #784212; font-weight: 700; padding: 2px 8px; border-radius: 8px; }
+  .access-yes   { color: #27ae60; font-weight: 700; }
+  .access-no    { color: #e74c3c; font-weight: 700; }
+  .code-ref     { font-family: "SF Mono", monospace; font-size: 10px; background: #f5f5f5; padding: 2px 5px; border-radius: 3px; color: #666; }
+
+  /* ── CALL DECISION TREE ── */
+  .tree-box { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,.07); position: relative; }
+  .tree-title { font-size: 13px; font-weight: 700; margin-bottom: 20px; color: #2c3e50; }
+  .tree { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .tree-entry { background: #2c3e50; color: #fff; padding: 10px 24px; border-radius: 8px; font-size: 12px; font-weight: 600; text-align: center; }
+  .tree-vline { width: 2px; height: 20px; background: #ddd; margin: 0 auto; }
+  .tree-diamond { background: #fff; border: 2px solid #f39c12; border-radius: 8px; padding: 10px 20px; font-size: 12px; font-weight: 600; color: #784212; text-align: center; }
+  .tree-branches { display: flex; gap: 60px; align-items: flex-start; }
+  .tree-branch { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .tree-branch-label { font-size: 11px; color: #999; margin-bottom: 6px; }
+  .tree-result-ok  { background: #eafaf1; border: 1.5px solid #27ae60; color: #145a32; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; text-align: center; }
+  .tree-result-err { background: #fdedec; border: 1.5px solid #e74c3c; color: #922b21; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; text-align: center; }
+  .tree-hline { display: flex; align-items: center; gap: 0; }
+  .tree-hline-seg { height: 2px; width: 80px; background: #ddd; }
+</style>
+</head>
+<body>
+
+<h1>Phase 2 &amp; 3 — 工具发现 &amp; 访问控制</h1>
+<p class="subtitle">routing.py 演进路径：精确查询 → 批量发现 → 角色验证</p>
+
+<!-- PHASE 1+2 APIs -->
+<div class="section">
+  <div class="section-title">routing.py 新增函数（Phase 1 + 2）</div>
+  <div class="api-grid">
+    <div class="api-card p1">
+      <div class="api-phase-badge">Phase 1</div>
+      <div class="api-sig">list_all_specs()</div>
+      <div class="api-desc">返回全量 9 个 TaskSpec</div>
+      <div class="api-example">→ list[TaskSpec]  # 9个</div>
+    </div>
+    <div class="api-card p1">
+      <div class="api-phase-badge">Phase 1</div>
+      <div class="api-sig">list_specs_by_tag(tag)</div>
+      <div class="api-desc">按业务标签筛选工具</div>
+      <div class="api-example">list_specs_by_tag("learning")
+→ [finance_qa, summary, brief]</div>
+    </div>
+    <div class="api-card p1">
+      <div class="api-phase-badge">Phase 1</div>
+      <div class="api-sig">list_specs_by_side_effect(level)</div>
+      <div class="api-desc">按副作用级别筛选</div>
+      <div class="api-example">list_specs_by_side_effect("write")
+→ [risk_assessment]  # 仅1个</div>
+    </div>
+    <div class="api-card p1">
+      <div class="api-phase-badge">Phase 1</div>
+      <div class="api-sig">get_spec_metadata(name)</div>
+      <div class="api-desc">获取单个工具完整元数据</div>
+      <div class="api-example">→ {name, level, tag, desc}</div>
+    </div>
+    <div class="api-card p2">
+      <div class="api-phase-badge">Phase 2</div>
+      <div class="api-sig">list_read_only_tasks()</div>
+      <div class="api-desc">便利函数：所有 read 级工具</div>
+      <div class="api-example">→ 8 个任务（除 risk_assessment）</div>
+    </div>
+    <div class="api-card p2">
+      <div class="api-phase-badge">Phase 2</div>
+      <div class="api-sig">list_write_tasks()</div>
+      <div class="api-desc">便利函数：所有 write 级工具</div>
+      <div class="api-example">→ [risk_assessment]</div>
+    </div>
+    <div class="api-card p2">
+      <div class="api-phase-badge">Phase 2</div>
+      <div class="api-sig">get_specs_for_tags(tags)</div>
+      <div class="api-desc">多标签并集查询（去重）</div>
+      <div class="api-example">get_specs_for_tags(["learning","risk"])
+→ 5 个任务（3+2，无重复）</div>
+    </div>
+    <div class="api-card p3">
+      <div class="api-phase-badge">Phase 3</div>
+      <div class="api-sig">validate_task_access(name, role)</div>
+      <div class="api-desc">检查角色是否可调用，返回 bool</div>
+      <div class="api-example">validate_task_access("risk_assessment", "analyst")
+→ False</div>
+    </div>
+    <div class="api-card p3">
+      <div class="api-phase-badge">Phase 3</div>
+      <div class="api-sig">require_task_access(name, role)</div>
+      <div class="api-desc">无权限时抛 PermissionError</div>
+      <div class="api-example">require_task_access("risk_assessment", "analyst")
+→ raises PermissionError</div>
+    </div>
+  </div>
+</div>
+
+<!-- QUERY FLOW -->
+<div class="section">
+  <div class="section-title green">工具发现调用链</div>
+  <div class="flow-box">
+    <div class="flow-row" style="gap:0;align-items:flex-start;">
+      <div style="flex:1;min-width:0;">
+        <div class="flow-node fn-caller" style="text-align:left;padding:12px 16px;">
+          <div style="font-weight:700;margin-bottom:4px;">调用方</div>
+          <div style="font-size:11px;">运营工具 / API 端点 / 测试代码</div>
+        </div>
+      </div>
+      <div class="flow-arrow" style="padding-top:14px;">→</div>
+      <div style="flex:1;min-width:0;">
+        <div class="flow-node fn-routing" style="text-align:left;padding:12px 16px;">
+          <div style="font-weight:700;margin-bottom:6px;">routing.py</div>
+          <div style="font-size:10px;font-family:monospace;line-height:1.8;">
+            list_specs_by_tag(tag)<br>
+            list_specs_by_side_effect(level)<br>
+            get_specs_for_tags(tags)
+          </div>
+        </div>
+      </div>
+      <div class="flow-arrow" style="padding-top:14px;">→</div>
+      <div style="flex:1;min-width:0;">
+        <div class="flow-node fn-tasks" style="text-align:left;padding:12px 16px;">
+          <div style="font-weight:700;margin-bottom:4px;">TASKS 字典</div>
+          <div style="font-size:11px;">9 个 TaskSpec<br>含 side_effect_level / tag / desc</div>
+        </div>
+      </div>
+      <div class="flow-arrow" style="padding-top:14px;">→</div>
+      <div style="flex:1;min-width:0;">
+        <div class="flow-node fn-result" style="text-align:left;padding:12px 16px;">
+          <div style="font-weight:700;margin-bottom:4px;">结果</div>
+          <div style="font-size:11px;">list[TaskSpec]<br>过滤后的工具列表</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RBAC MATRIX -->
+<div class="section">
+  <div class="section-title orange">Phase 3 — 角色访问控制矩阵</div>
+  <table class="rbac-table">
+    <thead>
+      <tr>
+        <th>用户角色</th>
+        <th>read 级任务（8 个）</th>
+        <th>write 级任务（risk_assessment）</th>
+        <th>未知任务</th>
+        <th>实现逻辑</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="role-admin">admin</span></td>
+        <td class="access-yes">✅ 允许</td>
+        <td class="access-yes">✅ 允许</td>
+        <td class="access-no">❌ 拒绝</td>
+        <td><span class="code-ref">user_role == "admin" → True</span></td>
+      </tr>
+      <tr>
+        <td><span class="role-analyst">analyst</span></td>
+        <td class="access-yes">✅ 允许</td>
+        <td class="access-no">❌ 拒绝</td>
+        <td class="access-no">❌ 拒绝</td>
+        <td><span class="code-ref">spec.side_effect_level == "read"</span></td>
+      </tr>
+      <tr>
+        <td><span class="role-other">其他/未知</span></td>
+        <td class="access-no">❌ 拒绝</td>
+        <td class="access-no">❌ 拒绝</td>
+        <td class="access-no">❌ 拒绝</td>
+        <td><span class="code-ref">return False</span>（默认拒绝）</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- DECISION TREE -->
+<div class="section">
+  <div class="section-title orange">validate_task_access 决策逻辑</div>
+  <div class="tree-box">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+      <div class="tree-entry">validate_task_access(task_name, user_role)</div>
+      <div class="tree-vline"></div>
+      <div class="tree-diamond">任务是否存在于 TASKS?</div>
+      <div style="display:flex;gap:80px;align-items:flex-start;margin-top:0;">
+        <!-- NO branch -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+          <div class="tree-vline"></div>
+          <div style="font-size:11px;color:#e74c3c;font-weight:600;margin-bottom:6px;">否</div>
+          <div class="tree-result-err">return False</div>
+        </div>
+        <!-- YES branch -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+          <div class="tree-vline"></div>
+          <div style="font-size:11px;color:#27ae60;font-weight:600;margin-bottom:6px;">是</div>
+          <div class="tree-diamond">user_role == "admin"?</div>
+          <div style="display:flex;gap:60px;align-items:flex-start;margin-top:0;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+              <div class="tree-vline"></div>
+              <div style="font-size:11px;color:#27ae60;font-weight:600;margin-bottom:6px;">是</div>
+              <div class="tree-result-ok">return True</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+              <div class="tree-vline"></div>
+              <div style="font-size:11px;color:#e74c3c;font-weight:600;margin-bottom:6px;">否</div>
+              <div class="tree-diamond" style="font-size:11px;">user_role == "analyst"<br>AND level == "read"?</div>
+              <div style="display:flex;gap:50px;align-items:flex-start;margin-top:0;">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+                  <div class="tree-vline"></div>
+                  <div style="font-size:11px;color:#27ae60;font-weight:600;margin-bottom:6px;">是</div>
+                  <div class="tree-result-ok">return True</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:0;">
+                  <div class="tree-vline"></div>
+                  <div style="font-size:11px;color:#e74c3c;font-weight:600;margin-bottom:6px;">否</div>
+                  <div class="tree-result-err">return False</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

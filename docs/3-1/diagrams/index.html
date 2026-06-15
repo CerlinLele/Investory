@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>第3-1课 流程图导航</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: #f0f2f5; padding: 48px 24px; color: #1a1a2e; }
+  h1 { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+  .subtitle { text-align: center; color: #888; font-size: 13px; margin-bottom: 40px; }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 860px; margin: 0 auto; }
+
+  .card { background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,.07); text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 12px; transition: box-shadow .15s, transform .15s; border-top: 4px solid transparent; }
+  .card:hover { box-shadow: 0 8px 24px rgba(0,0,0,.13); transform: translateY(-2px); }
+  .card-01 { border-top-color: #3498db; }
+  .card-02 { border-top-color: #27ae60; }
+  .card-03 { border-top-color: #f39c12; }
+  .card-04 { border-top-color: #9b59b6; }
+
+  .card-num { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+  .card-01 .card-num { color: #3498db; }
+  .card-02 .card-num { color: 27ae60; }
+  .card-03 .card-num { color: #f39c12; }
+  .card-04 .card-num { color: #9b59b6; }
+
+  .card-title { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+  .card-desc  { font-size: 13px; color: #666; line-height: 1.6; }
+
+  .card-covers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .cover-pill { font-size: 11px; background: #f5f5f5; color: #555; padding: 3px 9px; border-radius: 10px; }
+
+  .card-link { margin-top: auto; font-size: 12px; font-weight: 600; color: #3498db; display: flex; align-items: center; gap: 4px; }
+  .card-01 .card-link { color: #3498db; }
+  .card-02 .card-link { color: #27ae60; }
+  .card-03 .card-link { color: #e67e22; }
+  .card-04 .card-link { color: #9b59b6; }
+</style>
+</head>
+<body>
+
+<h1>第3-1课 — 工具管理系统流程图</h1>
+<p class="subtitle">四张图，覆盖从整体规划到具体实现的所有关键概念</p>
+
+<div class="grid">
+
+  <a class="card card-01" href="01_four_phase_overview.html">
+    <div class="card-num">图 01 · 整体规划</div>
+    <div class="card-title">四阶段落地计划总览</div>
+    <div class="card-desc">一张图看懂四个 Phase 的目标、依赖关系、时间投入，以及计划边界（做什么 / 不做什么）。</div>
+    <div class="card-covers">
+      <span class="cover-pill">4 个 Phase 卡片</span>
+      <span class="cover-pill">执行依赖关系</span>
+      <span class="cover-pill">计划边界对比</span>
+    </div>
+    <div class="card-link">打开 →</div>
+  </a>
+
+  <a class="card card-02" href="02_taskspec_data_model.html">
+    <div class="card-num">图 02 · Phase 1</div>
+    <div class="card-title">TaskSpec 数据模型 Before &amp; After</div>
+    <div class="card-desc">展示 TaskSpec 改动前后的字段对比，9 个任务的元数据分配，以及为什么 risk_assessment 是 write 级。</div>
+    <div class="card-covers">
+      <span class="cover-pill">字段 Before/After</span>
+      <span class="cover-pill">9 个任务元数据表</span>
+      <span class="cover-pill">设计决策说明</span>
+    </div>
+    <div class="card-link">打开 →</div>
+  </a>
+
+  <a class="card card-03" href="03_tool_discovery_access_control.html">
+    <div class="card-num">图 03 · Phase 2 &amp; 3</div>
+    <div class="card-title">工具发现 &amp; 访问控制</div>
+    <div class="card-desc">routing.py 所有新增函数的签名和示例，RBAC 角色矩阵，以及 validate_task_access 的决策树。</div>
+    <div class="card-covers">
+      <span class="cover-pill">9 个新增 API</span>
+      <span class="cover-pill">角色权限矩阵</span>
+      <span class="cover-pill">决策树流程图</span>
+    </div>
+    <div class="card-link">打开 →</div>
+  </a>
+
+  <a class="card card-04" href="04_audit_logging_loopengine.html">
+    <div class="card-num">图 04 · Phase 4</div>
+    <div class="card-title">审计日志 &amp; LoopEngine 演进</div>
+    <div class="card-desc">AuditedTaskExecutor 的层次结构与执行流程，审计记录的 JSON 结构，以及 LoopEngine 的时间线和三个触发条件。</div>
+    <div class="card-covers">
+      <span class="cover-pill">Executor 层次结构</span>
+      <span class="cover-pill">审计记录格式</span>
+      <span class="cover-pill">LoopEngine 演进路线</span>
+    </div>
+    <div class="card-link">打开 →</div>
+  </a>
+
+</div>
+
+</body>
+</html>
