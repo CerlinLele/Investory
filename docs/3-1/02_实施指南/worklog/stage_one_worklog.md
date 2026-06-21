@@ -43,3 +43,19 @@
   - `src/investory/agent_core/runtime/react_core/tool_registry.py:86`
   - `src/investory/agent_core/runtime/react_core/tool_registry.py:91`
   - `src/investory/agent_core/runtime/react_core/tool_registry.py:96`
+
+## Step 1.3: Verify the changes do not break existing tests
+
+- Timestamp: `2026-06-21T17:09:00+10:00`
+- Actions:
+  - Ran the plan’s targeted pytest verification against the repo `.venv`.
+  - Confirmed all selected existing tests passed, including the tool registry and task-related subset.
+- Commands:
+  - `.venv\Scripts\python.exe -m pytest tests/ -v -k "test_tool_registry or test_task" --tb=short`
+- Files touched:
+  - None
+- Result:
+  - `46 passed, 248 deselected`.
+- Evidence anchors:
+  - `pytest` output: `tests/test_react_tool_registry.py::test_tool_registry_register_and_get PASSED`
+  - `pytest` output: `tests/test_tasks.py::test_tasks_registry_contains_initial_and_investment_document_review_tasks PASSED`
