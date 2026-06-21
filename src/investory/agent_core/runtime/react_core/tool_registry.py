@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -35,8 +35,22 @@ class ToolValidationResult(BaseModel):
 class ToolSpec:
     name: str
     args_model: type[BaseModel]
+    func: Callable | None = None
+    desc: str = ""
+    side_effect_level: str = "read"
+    tag: str = ""
     requires_confirmation: bool = False
     allowed_task_names: frozenset[str] = ALL_TASKS_ALLOWED
+
+    def to_spec_dict(self) -> dict[str, Any]:
+        """Return the tool capability declaration without the executable function."""
+        return {
+            "name": self.name,
+            "desc": self.desc,
+            "side_effect_level": self.side_effect_level,
+            "tag": self.tag,
+            "args_schema": self.args_model.model_json_schema(),
+        }
 
 
 class ToolRegistry:
@@ -119,3 +133,5 @@ class ToolRegistry:
                 details=details or {},
             ),
         )
+
+
