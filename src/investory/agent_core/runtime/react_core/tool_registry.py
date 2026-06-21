@@ -63,6 +63,44 @@ class ToolRegistry:
     def get(self, name: str) -> ToolSpec | None:
         return self._specs.get(name)
 
+    def list_all(self) -> list[dict[str, Any]]:
+        """Return capability declarations for all registered tools."""
+        return [spec.to_spec_dict() for spec in self._specs.values()]
+
+    def list_by_tag(self, tag: str) -> list[dict[str, Any]]:
+        """Return capability declarations filtered by business tag."""
+        return [
+            spec.to_spec_dict()
+            for spec in self._specs.values()
+            if spec.tag == tag
+        ]
+
+    def list_by_side_effect(self, level: str) -> list[dict[str, Any]]:
+        """Return capability declarations filtered by side-effect level."""
+        return [
+            spec.to_spec_dict()
+            for spec in self._specs.values()
+            if spec.side_effect_level == level
+        ]
+
+    def get_spec_dict(self, name: str) -> dict[str, Any] | None:
+        """Return a single tool capability declaration."""
+        spec = self.get(name)
+        return spec.to_spec_dict() if spec else None
+
+    def get_func(self, name: str) -> Callable | None:
+        """Return the executable function for a registered tool."""
+        spec = self.get(name)
+        return spec.func if spec else None
+
+    def call_func(self, name: str, args: dict[str, Any]) -> Any:
+        """Execute a registered tool function with the provided arguments."""
+        func = self.get_func(name)
+        if func is None:
+            raise ValueError(f"Tool '{name}' not found or has no executable function")
+
+        return func(**args)
+
     def validate(
         self,
         tool_name: str,
@@ -133,5 +171,3 @@ class ToolRegistry:
                 details=details or {},
             ),
         )
-
-
