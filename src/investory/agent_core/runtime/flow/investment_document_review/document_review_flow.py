@@ -131,6 +131,7 @@ CHUNK_REVIEW_SCOPE_FIELD = "review_scope"
 FULL_DOCUMENT_REVIEW_SCOPE = "full_document"
 CHUNK_REVIEW_SCOPE = "document_chunk"
 CHUNK_EXTRACT_TASK_ID_PREFIX = "extract_chunk"
+FULL_DOCUMENT_EXTRACT_TASK_ID = "extract_full_document"
 ANALYZE_TASK_ID_PREFIX = "analyze"
 AGGREGATE_ANALYZE_TASK_ID = "analyze_aggregated_chunk_evidence"
 SYNTHESIZE_REVIEW_TASK_ID = "synthesize_full_document_review"
@@ -358,6 +359,20 @@ def _guess_review_plan_chunk_count(state: InvestmentDocumentReviewState) -> int:
 
 
 def should_use_chunk_review(state: InvestmentDocumentReviewState) -> bool:
+    return len(state.document_chunks or []) > 1
+
+
+def should_use_code_built_plan(state: InvestmentDocumentReviewState) -> bool:
+    """Use code-built plan for known document types; use LLM generation for unknown types"""
+    if state.document_type is None:
+        return False
+    if state.document_type == InvestmentDocumentType.UNKNOWN:
+        return False
+    return state.review_framework is not None
+
+
+def is_chunked_document(state: InvestmentDocumentReviewState) -> bool:
+    """Check if document is chunked (technical level)"""
     return len(state.document_chunks or []) > 1
 
 
@@ -1013,9 +1028,16 @@ class InvestmentDocumentReviewFlow:
         self,
         state: InvestmentDocumentReviewState,
     ) -> dict[str, Any]:
-        if should_use_chunk_review(state):
+        # Known types use code-built plan; unknown types use LLM generation
+        if should_use_code_built_plan(state):
             try:
-                todo_plan = self._build_chunk_review_todo_plan(state)
+                # Further check: is document chunked?
+                if is_chunked_document(state):
+                    # Scenario 1: known type + chunked
+                    todo_plan = self._build_chunk_review_todo_plan(state)
+                else:
+                    # Scenario 2: known type + full document (new)
+                    todo_plan = self._build_known_type_full_document_plan(state)
             except (ValidationError, TodoPlanValidationException) as exc:
                 return {
                     "output": TaskResult(
@@ -1029,10 +1051,11 @@ class InvestmentDocumentReviewFlow:
                 session_id=state.session_id,
                 todo_plan=todo_plan,
                 document_type=state.document_type,
-                chunk_count=_guess_review_plan_chunk_count(state),
+                chunk_count=len(state.document_chunks) if is_chunked_document(state) else 0,
             )
             return {"todo_plan": todo_plan}
 
+        # Scenarios 3/4: Unknown types use LLM generation (chunked or full document)
         plan_payload = self.build_review_todo_plan_payload(state)
         result = self.executor.run(
             INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
@@ -1057,9 +1080,90 @@ class InvestmentDocumentReviewFlow:
             session_id=state.session_id,
             todo_plan=todo_plan,
             document_type=state.document_type,
-            chunk_count=_guess_review_plan_chunk_count(state),
+            chunk_count=len(state.document_chunks) if is_chunked_document(state) else 0,
         )
         return {"todo_plan": todo_plan}
+
+    def _build_known_type_full_document_plan(
+        self,
+        state: InvestmentDocumentReviewState,
+    ) -> TodoExecutionPlan:
+        """Build full-document review plan for known document types (non-chunked)"""
+        if state.review_framework is None:
+            raise RuntimeError("Known document type must have review framework")
+        if state.review_payload is None:
+            raise RuntimeError("Document review flow has no review payload")
+
+        extract_focus = state.review_framework.extract_focus
+        analyze_focus = state.review_framework.analyze_focus
+
+        # 1. Build extract task
+        extract_task = {
+            "id": FULL_DOCUMENT_EXTRACT_TASK_ID,
+            "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
+            "title": "Extract evidence from full document",
+            "description": (
+                "Extract key facts, fees, risks, constraints, disclosures, gaps, "
+                "and source citations from the complete document."
+            ),
+            "payload": {
+                DOCUMENT_TEXT_FIELD: state.input_payload.get(DOCUMENT_TEXT_FIELD),
+                EXTRACT_FOCUS_FIELD: extract_focus,
+                CHUNK_REVIEW_SCOPE_FIELD: FULL_DOCUMENT_REVIEW_SCOPE,
+            },
+            "depends_on": [],
+            "completion_criteria": [
+                "Output contains only facts and evidence from the document.",
+                "Important gaps are recorded as information gaps.",
+                "Source citations identify supporting sections.",
+            ],
+        }
+
+        # 2. Build analyze tasks
+        analyze_tasks = _build_chunk_review_analyze_tasks(
+            analyze_focus=analyze_focus,
+            extract_task_ids=[FULL_DOCUMENT_EXTRACT_TASK_ID],
+        )
+        # Update completion criteria for analyze tasks, change from chunked to full document
+        for task in analyze_tasks:
+            task["completion_criteria"] = [
+                f"Findings stay focused on {task['payload'][ANALYZE_FOCUS_FIELD][0]}.",
+                "Findings are based only on successful extraction results.",
+                "Material gaps, conflicts, and boundary limits are identified.",
+            ]
+
+        analyze_task_ids = [task["id"] for task in analyze_tasks]
+
+        # 3. Build synthesize task
+        synthesize_task = {
+            "id": SYNTHESIZE_REVIEW_TASK_ID,
+            "kind": TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE,
+            "title": "Synthesize full-document review",
+            "description": (
+                "Produce the final investment document review from the extracted "
+                "evidence and analysis results."
+            ),
+            "payload": {},
+            "depends_on": analyze_task_ids,
+            "completion_criteria": [
+                "Final review covers all extracted evidence.",
+                "Facts, risks, gaps, boundary notes, and summary are supported.",
+            ],
+        }
+
+        # 4. Assemble plan
+        tasks = [extract_task] + analyze_tasks + [synthesize_task]
+        document_type_label = state.document_type.value if state.document_type else "document"
+        todo_plan = TodoExecutionPlan.model_validate({
+            "tasks": tasks,
+            "summary": (
+                f"Extract evidence from the {document_type_label}, "
+                f"analyze by review dimension, and synthesize the final review."
+            ),
+        })
+
+        ensure_valid_todo_plan(todo_plan)
+        return todo_plan
 
     def _build_chunk_review_todo_plan(
         self,
