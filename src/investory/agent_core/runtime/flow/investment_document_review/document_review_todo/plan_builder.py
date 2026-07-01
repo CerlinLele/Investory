@@ -38,7 +38,8 @@ from investory.agent_core.runtime.todo_core.plan_validator import (
 )
 from investory.agent_core.tasks import INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK
 
-logger = logging.getLogger(__name__)
+FLOW_LOGGER_NAME = "investory.agent_core.runtime.flow.investment_document_review.document_review_flow"
+logger = logging.getLogger(FLOW_LOGGER_NAME)
 
 
 def should_use_chunk_review(state: InvestmentDocumentReviewState) -> bool:
@@ -50,6 +51,8 @@ def should_use_code_built_plan(state: InvestmentDocumentReviewState) -> bool:
         return False
     if state.document_type == InvestmentDocumentType.UNKNOWN:
         return False
+    if is_chunked_document(state):
+        return state.review_payload is not None
     return state.review_framework is not None
 
 

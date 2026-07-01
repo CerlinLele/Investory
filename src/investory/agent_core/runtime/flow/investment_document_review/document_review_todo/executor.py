@@ -45,7 +45,8 @@ from .payload import (
 from .plan_builder import should_use_chunk_review
 from .summary import find_succeeded_todo_result
 
-logger = logging.getLogger(__name__)
+FLOW_LOGGER_NAME = "investory.agent_core.runtime.flow.investment_document_review.document_review_flow"
+logger = logging.getLogger(FLOW_LOGGER_NAME)
 
 
 def _todo_task_skip_reason(error_type: Any) -> str | None:
@@ -367,6 +368,10 @@ def execute_review_todo_plan(
     state: InvestmentDocumentReviewState,
     executor: TaskExecutor,
     todo_resume_store: InvestmentDocumentReviewTodoResumeStore | None,
+    runner_factory: Callable[
+        [InvestmentDocumentReviewState, TaskExecutor, TodoExecutionResumeState | None],
+        TodoExecutionRunner,
+    ] | None = None,
 ) -> dict[str, Any]:
     if state.todo_plan is None:
         raise RuntimeError("Document review flow has no To-Do plan to execute.")
@@ -378,11 +383,14 @@ def execute_review_todo_plan(
         todo_plan=state.todo_plan,
         resume_state=resume_state,
     )
-    runner = _build_todo_execution_runner(
-        state,
-        executor,
-        resume_state=resume_state,
-    )
+    if runner_factory is None:
+        runner = _build_todo_execution_runner(
+            state,
+            executor,
+            resume_state=resume_state,
+        )
+    else:
+        runner = runner_factory(state, executor, resume_state)
     todo_results = asyncio.run(
         runner.run(state.todo_plan, resume_state=resume_state)
     )

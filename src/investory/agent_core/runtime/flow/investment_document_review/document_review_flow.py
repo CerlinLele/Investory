@@ -99,11 +99,30 @@ class InvestmentDocumentReviewFlow:
     ) -> None:
         resolved_executor = executor or TaskExecutor()
         resolved_router = llm_router or InvestmentDocumentReviewLLMRouter()
+        todo_runner_factory = None
+        custom_todo_runner_builder = getattr(
+            self,
+            "_build_todo_execution_runner",
+            None,
+        )
+        if custom_todo_runner_builder is not None:
+
+            def todo_runner_factory(
+                state: InvestmentDocumentReviewState,
+                _executor: TaskExecutor,
+                resume_state,
+            ):
+                return custom_todo_runner_builder(
+                    state,
+                    resume_state=resume_state,
+                )
+
         self.nodes = InvestmentDocumentReviewNodeHandlers(
             executor=resolved_executor,
             llm_router=resolved_router,
             supports_realtime_data=supports_realtime_data,
             todo_resume_store=todo_resume_store,
+            todo_runner_factory=todo_runner_factory,
         )
         self.graph = self._build_graph()
 

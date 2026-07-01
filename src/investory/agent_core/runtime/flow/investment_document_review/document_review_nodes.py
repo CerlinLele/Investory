@@ -6,6 +6,7 @@ investment document review flow. It separates node behavior from graph structure
 """
 
 import logging
+from collections.abc import Callable
 from typing import Any
 from uuid import uuid4
 
@@ -82,6 +83,8 @@ from investory.agent_core.task_models.investment_document_review_reflection impo
     InvestmentDocumentReviewReflectionResult,
 )
 from investory.agent_core.runtime.task_executor import TaskExecutor
+from investory.agent_core.runtime.todo_core.runner import TodoExecutionRunner
+from investory.agent_core.contracts.todo_execution import TodoExecutionResumeState
 from investory.agent_core.tasks import (
     INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
     INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK,
@@ -89,7 +92,8 @@ from investory.agent_core.tasks import (
 )
 
 
-logger = logging.getLogger(__name__)
+FLOW_LOGGER_NAME = "investory.agent_core.runtime.flow.investment_document_review.document_review_flow"
+logger = logging.getLogger(FLOW_LOGGER_NAME)
 
 
 def _log_review_reflection_started(
@@ -162,11 +166,17 @@ class InvestmentDocumentReviewNodeHandlers:
         llm_router: InvestmentDocumentReviewRouter,
         supports_realtime_data: bool,
         todo_resume_store: InvestmentDocumentReviewTodoResumeStore | None,
+        todo_runner_factory: Callable[
+            [InvestmentDocumentReviewState, TaskExecutor, TodoExecutionResumeState | None],
+            TodoExecutionRunner,
+        ]
+        | None = None,
     ) -> None:
         self.executor = executor
         self.llm_router = llm_router
         self.supports_realtime_data = supports_realtime_data
         self.todo_resume_store = todo_resume_store
+        self.todo_runner_factory = todo_runner_factory
 
     # =========================================================================
     # Policy Gate / Classification / Framework
@@ -288,6 +298,7 @@ class InvestmentDocumentReviewNodeHandlers:
             state=state,
             executor=self.executor,
             todo_resume_store=self.todo_resume_store,
+            runner_factory=self.todo_runner_factory,
         )
 
     def reflect_review_output(

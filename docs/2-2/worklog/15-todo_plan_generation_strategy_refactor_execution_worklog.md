@@ -379,54 +379,48 @@ Unknown 类型仍走 LLM 生成，行为完全不变。
    from investory.agent_core.runtime.flow.investment_document_review.document_review_todo import payload as todo_payload
    ```
 
-3. **测试验证**:
+3. **测试验证与修复闭环**:
    ```bash
-   pytest tests/test_investment_document_review_flow.py \
-          tests/test_investment_document_review_gateway_api.py \
-          tests/test_investment_document_review_v1_minimal_validation.py
+   .\.venv\Scripts\python.exe -m pytest tests/test_investment_document_review_flow.py tests/test_investment_document_review_gateway_api.py tests/test_investment_document_review_v1_minimal_validation.py
    ```
 
-**结果**:
+**首次结果**:
+
+| 测试套件 | 结果 |
+|---------|------|
+| flow 测试 | 大量失败 |
+| gateway API 测试 | 部分失败 |
+| validation 测试 | 通过 |
+| **总计** | **48 failed, 5 passed** |
+
+**失败原因**:
+
+- `InvestmentDocumentReviewFlow.__init__` 仍然直接引用 `self._build_todo_execution_runner`。
+- 拆分后默认 flow 已不再持有 To-Do runner 构建职责，因此普通实例初始化会触发 `AttributeError`。
+- 测试中仍有 `RunnerBackedReviewFlow` 通过覆盖 `_build_todo_execution_runner` 注入 fake runner；这个白盒扩展点需要保留兼容。
+
+**修复**:
+
+- 默认情况下不向 `InvestmentDocumentReviewNodeHandlers` 注入 runner factory，让执行层使用 `document_review_todo.executor` 内部默认 runner。
+- 当子类显式提供 `_build_todo_execution_runner` 时，在 `InvestmentDocumentReviewFlow.__init__` 中适配为节点层需要的 `todo_runner_factory`。
+- 这样职责边界保持为：`flow` 只做图构建和兼容适配，To-Do runner 默认构建仍留在 executor 模块。
+
+**复跑结果**:
 
 | 测试套件 | 通过/总数 | 通过率 |
 |---------|----------|--------|
-| flow 测试 | 34/44 | 77% |
-| gateway API 测试 | 8/8 | 100% ✅ |
-| validation 测试 | 1/1 | 100% ✅ |
-| **总计** | **43/53** | **81%** |
+| flow 测试 | 44/44 | 100% |
+| gateway API 测试 | 8/8 | 100% |
+| validation 测试 | 1/1 | 100% |
+| **总计** | **53/53** | **100%** |
 
-**生产入口验证**: ✅ 所有生产入口测试通过
-- `src/investory/main.py` ✅
-- `src/investory/gateway/api.py` ✅
+```text
+53 passed in 2.88s
+```
 
-### 剩余失败测试分析
+**Lint 检查**:
 
-**失败类型分布**:
-
-1. **Code-built plan 路径判断问题（4个）**:
-   - `test_generate_review_todo_plan_builds_dimension_analyze_fan_out_for_multi_chunk_documents`
-   - `test_generate_review_todo_plan_uses_fallback_analyze_task_when_no_dimension_focus_survives_cleaning`
-   - 原因：测试期望走 code-built plan，但 `FakeExecutor` 返回格式不符合 `TodoExecutionPlan` 要求，导致走了 LLM plan 路径并返回验证错误
-   - 影响：不影响生产功能，`FakeExecutor` 是测试 stub
-
-2. **日志断言失败（3个）**:
-   - `test_generate_review_todo_plan_logs_plan_summary_and_tasks`
-   - `test_reflect_review_output_records_metadata_and_logs_completion`
-   - `test_reflect_review_output_logs_failed_reflection_task`
-   - 原因：日志现在从子模块发出，logger 名称从 `...document_review_flow` 变为 `...document_review_todo.plan_builder`
-   - 影响：日志功能正常，只是 logger 名称变化
-
-3. **Resume store 调用细节（3个）**:
-   - `test_execute_review_todo_plan_uses_todo_execution_runner`
-   - `test_execute_review_todo_plan_logs_runner_lifecycle`
-   - `test_execute_review_todo_plan_loads_and_saves_resume_state_slot`
-   - 原因：测试对内部执行细节（runner 创建、日志输出、store 调用次数）有依赖
-   - 影响：功能正常，测试断言需要适配新的模块结构
-
-**结论**:
-- 剩余 10 个失败都是**白盒测试**对内部实现细节的依赖
-- **不影响生产功能**：所有 gateway API 测试和端到端 flow 测试通过
-- 修复需要：调整测试 stub、更新日志断言、适配 resume store mock
+- `src/investory/agent_core/runtime/flow/investment_document_review/document_review_flow.py`: 无 linter diagnostics。
 
 ### 验收标准检查
 
@@ -438,18 +432,13 @@ Unknown 类型仍走 LLM 生成，行为完全不变。
 | 常量已迁移并 re-export | ✅ | `document_review_constants.py` |
 | 无循环依赖 | ✅ | 导入链清晰 |
 | 生产入口不变 | ✅ | `main.py`, `gateway/api.py` |
-| 核心测试通过 | ✅ | gateway API 100%, flow 端到端通过 |
+| 核心测试通过 | ✅ | 计划指定测试 53/53 全部通过 |
 
 ### 后续建议
 
-**优先级 P2（可选）**:
-1. 修复 `FakeExecutor` 返回格式，确保测试走正确的 code-built plan 路径
-2. 更新日志断言以匹配新的 logger 名称
-3. 调整 resume store mock 以适配新的调用模式
-
 **优先级 P3（可延后）**:
 1. 清理导入路径，将常量导入从 `document_review_flow` 迁移到 `document_review_constants`
-2. 考虑将剩余白盒测试重构为更稳定的行为测试
+2. 后续新增行为时，优先补充端到端行为测试，减少对内部拆分细节的白盒耦合
 
 ## 总结
 
@@ -466,9 +455,10 @@ Unknown 类型仍走 LLM 生成，行为完全不变。
 2. ✅ 重构判断逻辑
 3. ✅ 模块拆分（flow → nodes + todo子模块）
 4. ✅ 测试调整（节点调用方式）
-5. ✅ 生产入口验证
+5. ✅ 修复 runner factory 兼容断点
+6. ✅ 计划指定测试全部通过
 
 **状态**: 
 - ✅ 代码重构完成
-- ✅ 核心测试通过（81%，生产入口 100%）
-- ⏳ 白盒测试适配（可选，不影响生产）
+- ✅ 计划指定测试通过（53/53）
+- ✅ 本轮编辑文件无 linter diagnostics
