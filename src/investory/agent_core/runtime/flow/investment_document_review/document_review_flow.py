@@ -2,9 +2,8 @@ import asyncio
 import logging
 import re
 from collections.abc import Callable
-from enum import Enum
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
@@ -25,6 +24,49 @@ from investory.agent_core.contracts.todo_execution import (
     TodoTaskKind,
     TodoTaskResult,
     TodoTaskStatus,
+)
+from investory.agent_core.runtime.flow.investment_document_review.document_review_constants import (
+    ACTION_FIELD,
+    AGGREGATE_ANALYZE_TASK_ID,
+    ANALYZE_TASK_ID_PREFIX,
+    CHUNK_COUNT_FIELD,
+    CHUNK_EXTRACT_TASK_ID_PREFIX,
+    CHUNK_INDEX_FIELD,
+    CHUNK_REVIEW_SCOPE,
+    CHUNK_REVIEW_SCOPE_FIELD,
+    CLASSIFICATION_CLARIFICATION_MESSAGE,
+    COMPLETE_ROUTE,
+    DEFAULT_REFLECTION_MAX_ROUNDS,
+    FULL_DOCUMENT_EXTRACT_TASK_ID,
+    FULL_DOCUMENT_REVIEW_SCOPE,
+    INVESTMENT_DOCUMENT_REVIEW_REFLECTION_CRITERIA,
+    INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
+    InvestmentDocumentReviewAction,
+    InvestmentDocumentReviewNode,
+    InvestmentDocumentReviewTodoResumeStore,
+    MAX_ROUNDS_FIELD,
+    MESSAGE_FIELD,
+    MISSING_INPUT_MESSAGE,
+    MISSING_ROUTE,
+    PENDING_APPROVAL_ROUTE,
+    REFUSAL_MESSAGE,
+    REFUSAL_ROUTE,
+    REVIEW_RESULT_FIELD,
+    REVIEW_SUMMARY_FIELD,
+    ROUTE_CONFIDENCE_FIELD,
+    ROUTE_REASON_FIELD,
+    SYNTHESIZE_REVIEW_TASK_ID,
+    TODO_PLAN_FIELD,
+    TODO_RESULTS_FIELD,
+    CRITERIA_FIELD,
+    REQUIRED_ROLE_FIELD,
+    STATUS_FIELD,
+    DOCUMENT_TYPE_FIELD as DOCUMENT_TYPE_FIELD_CONST,
+    REVIEW_FIELD,
+    RISK_ASSESSMENT_FIELD,
+    APPROVAL_FIELD,
+    MISSING_FIELDS_FIELD,
+    COMPLETED_TODO_RESULT_STATUSES,
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_router import (
     InvestmentDocumentReviewLLMRouter,
@@ -85,126 +127,7 @@ if TYPE_CHECKING:
     from investory.agent_core.runtime.request_runner import RequestRunner
 
 
-INVESTMENT_DOCUMENT_REVIEW_TASK_NAME = "investment_document_review"
 logger = logging.getLogger(__name__)
-
-ACTION_FIELD = "action"
-MESSAGE_FIELD = "message"
-DOCUMENT_TYPE_FIELD = "document_type"
-REVIEW_FIELD = "review"
-RISK_ASSESSMENT_FIELD = "risk_assessment"
-APPROVAL_FIELD = "approval"
-STATUS_FIELD = "status"
-REQUIRED_ROLE_FIELD = "required_role"
-MISSING_FIELDS_FIELD = "missing_fields"
-ROUTE_REASON_FIELD = "route_reason"
-ROUTE_CONFIDENCE_FIELD = "route_confidence"
-REVIEW_RESULT_FIELD = "review_result"
-TODO_PLAN_FIELD = "todo_plan"
-TODO_RESULTS_FIELD = "todo_results"
-REVIEW_SUMMARY_FIELD = "review_summary"
-CRITERIA_FIELD = "criteria"
-MAX_ROUNDS_FIELD = "max_rounds"
-DEFAULT_REFLECTION_MAX_ROUNDS = 1
-
-MISSING_INPUT_MESSAGE = (
-    "Please provide the missing document material or a clearer document type hint "
-    "so the review can continue."
-)
-CLASSIFICATION_CLARIFICATION_MESSAGE = (
-    "Please clarify the document type or provide more review context so the "
-    "document review can continue."
-)
-REFUSAL_MESSAGE = (
-    "This flow cannot handle buy, sell, hold, timing, allocation, or real-time "
-    "market requests. It can only review the provided document for facts, risks, "
-    "and information gaps."
-)
-
-MISSING_ROUTE = "missing"
-REFUSAL_ROUTE = "refusal"
-COMPLETE_ROUTE = "complete"
-PENDING_APPROVAL_ROUTE = "pending_approval"
-CHUNK_INDEX_FIELD = "chunk_index"
-CHUNK_COUNT_FIELD = "chunk_count"
-CHUNK_REVIEW_SCOPE_FIELD = "review_scope"
-FULL_DOCUMENT_REVIEW_SCOPE = "full_document"
-CHUNK_REVIEW_SCOPE = "document_chunk"
-CHUNK_EXTRACT_TASK_ID_PREFIX = "extract_chunk"
-FULL_DOCUMENT_EXTRACT_TASK_ID = "extract_full_document"
-ANALYZE_TASK_ID_PREFIX = "analyze"
-AGGREGATE_ANALYZE_TASK_ID = "analyze_aggregated_chunk_evidence"
-SYNTHESIZE_REVIEW_TASK_ID = "synthesize_full_document_review"
-COMPLETED_TODO_RESULT_STATUSES = {
-    TodoTaskStatus.SUCCEEDED,
-    TodoTaskStatus.FAILED,
-    TodoTaskStatus.SKIPPED,
-}
-INVESTMENT_DOCUMENT_REVIEW_REFLECTION_CRITERIA = [
-    (
-        "Review results must be based only on the input document, To-Do plan, "
-        "To-Do results, and deterministic review summary."
-    ),
-    (
-        "Extracted facts must come from successful extract, analyze, or "
-        "synthesize results."
-    ),
-    (
-        "Risk findings must be supported by evidence and must not provide buy, "
-        "sell, hold, timing, allocation, or return-prediction advice."
-    ),
-    (
-        "Failed or skipped tasks must be reflected in information_gaps or "
-        "boundary_notes."
-    ),
-    (
-        "The summary should be concise, audit-friendly, and clear about key "
-        "risks and limitations."
-    ),
-    "The output must preserve the InvestmentDocumentReviewResult structure.",
-]
-
-
-class InvestmentDocumentReviewAction(str, Enum):
-    ASK_FOR_MISSING_INPUT = "ask_for_missing_input"
-    REFUSE_AND_REDIRECT = "refuse_and_redirect"
-    COMPLETE = "complete"
-    PENDING_HUMAN_APPROVAL = "pending_human_approval"
-
-
-class InvestmentDocumentReviewNode(str, Enum):
-    EVALUATE_POLICY_GATE = "evaluate_policy_gate"
-    CLASSIFY_DOCUMENT_TYPE = "classify_document_type"
-    BUILD_REVIEW_FRAMEWORK = "build_review_framework"
-    GENERATE_REVIEW_TODO_PLAN = "generate_review_todo_plan"
-    EXECUTE_REVIEW_TODO_PLAN = "execute_review_todo_plan"
-    RUN_SINGLE_PASS_REVIEW = "run_single_pass_review"
-    REFLECT_REVIEW_OUTPUT = "reflect_review_output"
-    ASSESS_REVIEW_RISK = "assess_review_risk"
-    BUILD_FINAL_RESULT = "build_final_result"
-    BUILD_PENDING_APPROVAL_RESULT = "build_pending_approval_result"
-    BUILD_MISSING_INPUT_RESULT = "build_missing_input_result"
-    BUILD_REFUSAL_RESULT = "build_refusal_result"
-
-
-class InvestmentDocumentReviewTodoResumeStore(Protocol):
-    # This checkpoint persists only review-task execution. Future approval resume
-    # metadata stays on InvestmentDocumentReviewState and should not rerun review work.
-    def load_resume_state(
-        self,
-        *,
-        session_id: str,
-        plan: TodoExecutionPlan,
-    ) -> TodoExecutionResumeState | None: ...
-
-    def save_resume_state(
-        self,
-        *,
-        session_id: str,
-        plan: TodoExecutionPlan,
-        results: list[TodoTaskResult],
-        previous_resume_state: TodoExecutionResumeState | None,
-    ) -> None: ...
 
 
 def _build_completed_todo_results(
