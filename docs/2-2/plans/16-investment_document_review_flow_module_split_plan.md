@@ -138,13 +138,24 @@ graph TD
 
 ---
 
-### 2. Todo 子模块体系（4 个子模块 + 1 个 facade）
+### 2. Todo 子模块体系（独立子目录）
 
-`document_review_todo.py` 本身约 1060 行，职责过多。需要进一步拆分成 4 个子模块，然后用 facade 统一导出。
+`document_review_todo.py` 本身约 1060 行，职责过多。拆分成独立的 `document_review_todo/` 子目录，包含 4 个子模块 + 1 个 `__init__.py` facade。
 
-#### 2.1 `document_review_todo_plan_builder.py`
+目录结构：
+```
+investment_document_review/
+└── document_review_todo/
+    ├── __init__.py          # facade，统一导出公开函数
+    ├── plan_builder.py      # Plan 生成策略
+    ├── executor.py          # Plan 执行与 resume
+    ├── payload.py           # Payload 组装
+    └── summary.py           # 结果聚合
+```
 
-路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo_plan_builder.py`
+#### 2.1 `document_review_todo/plan_builder.py`
+
+路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo/plan_builder.py`
 
 职责：Todo 计划生成策略（代码构建 + LLM 方式）
 
@@ -163,9 +174,9 @@ graph TD
 
 原因：Plan 生成是独立的策略决策层，包括判断逻辑、构建逻辑和 LLM 回退。
 
-#### 2.2 `document_review_todo_executor.py`
+#### 2.2 `document_review_todo/executor.py`
 
-路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo_executor.py`
+路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo/executor.py`
 
 职责：Todo 计划执行与 resume 状态管理
 
@@ -186,9 +197,9 @@ graph TD
 
 原因：执行层负责 runner 构建、task 调度、resume 持久化和执行日志，是独立的运行时层。
 
-#### 2.3 `document_review_todo_payload.py`
+#### 2.3 `document_review_todo/payload.py`
 
-路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo_payload.py`
+路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo/payload.py`
 
 职责：三种 Todo 任务类型的 payload 组装
 
@@ -202,9 +213,9 @@ graph TD
 
 原因：Payload 组装是纯数据转换层，依赖 state 和 task spec，独立于执行和聚合。
 
-#### 2.4 `document_review_todo_summary.py`
+#### 2.4 `document_review_todo/summary.py`
 
-路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo_summary.py`
+路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo/summary.py`
 
 职责：Todo 结果聚合与状态汇总
 
@@ -221,9 +232,9 @@ graph TD
 
 原因：结果聚合是独立的后处理层，从 results 列表中提取、分类、组装 summary。
 
-#### 2.5 `document_review_todo.py` (Facade)
+#### 2.5 `document_review_todo/__init__.py` (Facade)
 
-路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo.py`
+路径：`src/investory/agent_core/runtime/flow/investment_document_review/document_review_todo/__init__.py`
 
 重构后职责：作为 facade 统一导出 Todo 子模块的公开函数，保持向后兼容。
 
@@ -231,7 +242,7 @@ graph TD
 
 ```python
 # 从 plan_builder 导出
-from .document_review_todo_plan_builder import (
+from .plan_builder import (
     should_use_chunk_review,
     should_use_code_built_plan,
     is_chunked_document,
@@ -239,15 +250,15 @@ from .document_review_todo_plan_builder import (
 )
 
 # 从 executor 导出
-from .document_review_todo_executor import (
-    InvestmentDocumentReviewTodoResumeStore,
-    execute_review_todo_plan,
-)
+from .executor import execute_review_todo_plan
+
+# InvestmentDocumentReviewTodoResumeStore 在 constants 中定义
+from ..document_review_constants import InvestmentDocumentReviewTodoResumeStore
 
 # payload 和 summary 的函数是私有的，不需要导出
 ```
 
-原因：避免破坏现有导入路径，nodes 和 flow 继续从 `document_review_todo` 导入公开函数。
+原因：子目录 + `__init__.py` facade 让 todo 模块更内聚，导入路径 `from ...document_review_todo import xxx` 保持不变。
 
 ---
 
