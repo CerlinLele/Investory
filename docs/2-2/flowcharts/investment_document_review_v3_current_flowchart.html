@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Investment Document Review — Current LangGraph Flow (v3)</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --ink: #172033;
+      --muted: #5c667a;
+      --line: #263244;
+      --lane: #f9fbff;
+      --gate: #eaf4ff;
+      --gate-line: #2f6fab;
+      --decision: #fff6df;
+      --decision-line: #b97817;
+      --todo: #f1efff;
+      --todo-line: #6754b8;
+      --review: #edf9f2;
+      --review-line: #24845e;
+      --reflect: #e6f7f7;
+      --reflect-line: #1f8a8a;
+      --risk: #fff4de;
+      --risk-line: #b57316;
+      --approval: #fff0f1;
+      --approval-line: #ba3e4d;
+      --final: #eef2ff;
+      --final-line: #5267bd;
+      --terminal: #fff0f0;
+      --terminal-line: #bb4141;
+      --shadow: 0 18px 44px rgba(31, 42, 68, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(47, 111, 171, 0.11), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(103, 84, 184, 0.10), transparent 32%),
+        var(--bg);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    header { margin-bottom: 18px; }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.25;
+    }
+
+    .subtitle {
+      max-width: 1040px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    code {
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: #eef2f7;
+      color: #243044;
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: 0.92em;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border: 1px solid #d9e0ea;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border: 2px solid;
+      border-radius: 4px;
+      flex: 0 0 auto;
+    }
+
+    .canvas {
+      overflow: auto;
+      border: 1px solid #d7deeb;
+      border-radius: 14px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    svg {
+      display: block;
+      min-width: 1320px;
+      width: 100%;
+      height: auto;
+    }
+
+    .lane {
+      fill: var(--lane);
+      stroke: #dbe2ed;
+      stroke-width: 1;
+      rx: 14;
+    }
+
+    .lane-title {
+      fill: #43506a;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .box {
+      stroke-width: 2.1;
+      rx: 10;
+      ry: 10;
+      filter: drop-shadow(0 8px 14px rgba(27, 38, 60, 0.07));
+    }
+
+    .start { fill: var(--gate); stroke: var(--gate-line); }
+    .gate { fill: var(--gate); stroke: var(--gate-line); }
+    .decision { fill: var(--decision); stroke: var(--decision-line); }
+    .todo { fill: var(--todo); stroke: var(--todo-line); }
+    .review { fill: var(--review); stroke: var(--review-line); }
+    .reflect { fill: var(--reflect); stroke: var(--reflect-line); }
+    .risk { fill: var(--risk); stroke: var(--risk-line); }
+    .approval { fill: var(--approval); stroke: var(--approval-line); }
+    .final { fill: var(--final); stroke: var(--final-line); }
+    .terminal { fill: var(--terminal); stroke: var(--terminal-line); }
+
+    .title {
+      fill: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .body {
+      fill: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 2;
+      marker-end: url(#arrow);
+    }
+
+    .edge-label {
+      fill: #334155;
+      font-size: 11.5px;
+      font-weight: 700;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+
+    .side-label {
+      fill: #52615e;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .note {
+      padding: 16px 18px;
+      border: 1px solid #d9e0ea;
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.86);
+      box-shadow: 0 10px 26px rgba(31, 42, 68, 0.07);
+    }
+
+    .note h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    @media (max-width: 860px) {
+      main { padding: 18px; }
+      .legend, .notes { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>投资文档审查 Agent 当前实现流程图（v3）</h1>
+      <p class="subtitle">
+        对应当前代码 <code>document_review_flow.py</code> 中 <code>InvestmentDocumentReviewFlow._build_graph()</code> 的真实
+        LangGraph 结构（12 个节点），在 v1 的路由 / chunk 执行基础上补齐了 v2 规划、worklog 13/14 已落地的
+        <code>reflect_review_output</code> 反思质量闸门与 <code>assess_review_risk</code> 风险评估 + 审批路由。
+        第 3-1 课的 <code>ToolRegistry</code> / 工具查询能力目前仍是独立模块，尚未被本流程引用，图中不作为节点画出。
+      </p>
+    </header>
+
+    <section class="legend" aria-label="legend">
+      <div class="legend-item"><span class="swatch" style="background: var(--gate); border-color: var(--gate-line)"></span>入口 / 分类节点</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--decision); border-color: var(--decision-line)"></span>条件路由</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--todo); border-color: var(--todo-line)"></span>To-Do DAG 执行</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--review); border-color: var(--review-line)"></span>审查框架 / 单次审查</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--reflect); border-color: var(--reflect-line)"></span>反思质量闸门</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--risk); border-color: var(--risk-line)"></span>风险评估</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--approval); border-color: var(--approval-line)"></span>审批结果</div>
+      <div class="legend-item"><span class="swatch" style="background: var(--terminal); border-color: var(--terminal-line)"></span>提前结束</div>
+    </section>
+
+    <section class="canvas" aria-label="Investment document review current LangGraph diagram">
+      <svg viewBox="0 0 1500 1220" role="img" aria-labelledby="diagram-title diagram-desc">
+        <title id="diagram-title">Investment Document Review Current LangGraph Flow</title>
+        <desc id="diagram-desc">Twelve-node LangGraph covering policy gate, classification, review framework routing, chunked To-Do DAG or single-pass review, a reflection quality gate, risk assessment with approval routing, and terminal result builders.</desc>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#263244"></path>
+          </marker>
+        </defs>
+
+        <rect class="lane" x="36" y="62" width="1428" height="180"></rect>
+        <text class="lane-title" x="58" y="92">1. Policy gate and document classification</text>
+
+        <rect class="lane" x="36" y="262" width="1428" height="170"></rect>
+        <text class="lane-title" x="58" y="292">2. Review framework and scope routing</text>
+
+        <rect class="lane" x="36" y="452" width="1428" height="190"></rect>
+        <text class="lane-title" x="58" y="482">3. Review execution: chunk To-Do DAG or single-pass</text>
+
+        <rect class="lane" x="36" y="662" width="1428" height="190"></rect>
+        <text class="lane-title" x="58" y="692">4. Reflection quality gate and risk assessment</text>
+
+        <rect class="lane" x="36" y="872" width="1428" height="150"></rect>
+        <text class="lane-title" x="58" y="902">5. Final output (auto-complete or pending approval)</text>
+
+        <rect class="lane" x="36" y="1042" width="1428" height="140"></rect>
+        <text class="lane-title" x="58" y="1072">6. Early exits</text>
+
+        <!-- Lane 1 -->
+        <rect class="box start" x="60" y="124" width="140" height="64"></rect>
+        <text class="title" x="130" y="148">START</text>
+        <text class="body" x="130" y="170">input_payload</text>
+
+        <rect class="box gate" x="250" y="110" width="195" height="92"></rect>
+        <text class="title" x="347.5" y="134">evaluate_policy_gate</text>
+        <text class="body" x="347.5" y="160">detect_missing_fields</text>
+        <text class="body" x="347.5" y="180">advice / realtime guard</text>
+
+        <rect class="box decision" x="495" y="110" width="205" height="92"></rect>
+        <text class="title" x="597.5" y="134">route_after_policy_gate</text>
+        <text class="body" x="597.5" y="160">missing / refusal</text>
+        <text class="body" x="597.5" y="180">or complete</text>
+
+        <rect class="box gate" x="750" y="110" width="195" height="92"></rect>
+        <text class="title" x="847.5" y="134">classify_document_type</text>
+        <text class="body" x="847.5" y="160">llm_router.route()</text>
+        <text class="body" x="847.5" y="180">type + confidence</text>
+
+        <rect class="box decision" x="995" y="110" width="215" height="92"></rect>
+        <text class="title" x="1102.5" y="134">route_after_classification</text>
+        <text class="body" x="1102.5" y="160">unknown / missing</text>
+        <text class="body" x="1102.5" y="180">or complete</text>
+
+        <!-- Lane 2 -->
+        <rect class="box review" x="640" y="298" width="220" height="94"></rect>
+        <text class="title" x="750" y="322">build_review_framework</text>
+        <text class="body" x="750" y="348">get_review_framework</text>
+        <text class="body" x="750" y="368">payload + split_into_chunks</text>
+
+        <rect class="box decision" x="960" y="298" width="235" height="94"></rect>
+        <text class="title" x="1077.5" y="322">route_after_review_framework</text>
+        <text class="body" x="1077.5" y="348">document_chunk</text>
+        <text class="body" x="1077.5" y="368">or full_document</text>
+
+        <!-- Lane 3 -->
+        <rect class="box todo" x="150" y="500" width="225" height="94"></rect>
+        <text class="title" x="262.5" y="524">generate_review_todo_plan</text>
+        <text class="body" x="262.5" y="550">extract per chunk</text>
+        <text class="body" x="262.5" y="570">+ analyze by focus dim</text>
+
+        <rect class="box todo" x="430" y="500" width="225" height="94"></rect>
+        <text class="title" x="542.5" y="524">execute_review_todo_plan</text>
+        <text class="body" x="542.5" y="550">TodoExecutionRunner</text>
+        <text class="body" x="542.5" y="570">resume via load/save state</text>
+
+        <rect class="box review" x="1040" y="500" width="225" height="94"></rect>
+        <text class="title" x="1152.5" y="524">run_single_pass_review</text>
+        <text class="body" x="1152.5" y="550">short document</text>
+        <text class="body" x="1152.5" y="570">no chunking</text>
+
+        <!-- Lane 4 -->
+        <rect class="box reflect" x="650" y="708" width="270" height="90"></rect>
+        <text class="title" x="785" y="730">reflect_review_output</text>
+        <text class="body" x="785" y="752">reflection quality gate</text>
+        <text class="body" x="785" y="772">revises structured review</text>
+
+        <rect class="box risk" x="960" y="708" width="230" height="90"></rect>
+        <text class="title" x="1075" y="730">assess_review_risk</text>
+        <text class="body" x="1075" y="752">RISK_ASSESSMENT_TASK</text>
+        <text class="body" x="1075" y="772">overall_risk + approval_status</text>
+
+        <rect class="box decision" x="1230" y="708" width="200" height="90"></rect>
+        <text class="title" x="1330" y="730">route_after_risk_assessment</text>
+        <text class="body" x="1330" y="752">complete</text>
+        <text class="body" x="1330" y="772">or pending_approval</text>
+
+        <!-- Lane 5 -->
+        <rect class="box final" x="650" y="920" width="210" height="64"></rect>
+        <text class="title" x="755" y="944">build_final_result</text>
+        <text class="body" x="755" y="964">action = complete</text>
+
+        <rect class="box approval" x="900" y="920" width="250" height="64"></rect>
+        <text class="title" x="1025" y="944">build_pending_approval_result</text>
+        <text class="body" x="1025" y="964">action = pending_human_approval</text>
+
+        <rect class="box final" x="1230" y="920" width="140" height="64"></rect>
+        <text class="title" x="1300" y="944">END</text>
+        <text class="body" x="1300" y="964">TaskResult output</text>
+
+        <!-- Lane 6 -->
+        <rect class="box terminal" x="150" y="1090" width="250" height="54"></rect>
+        <text class="title" x="275" y="1112">build_missing_input_result</text>
+        <text class="body" x="275" y="1130">-&gt; END (ask_for_missing_input)</text>
+
+        <rect class="box terminal" x="550" y="1090" width="230" height="54"></rect>
+        <text class="title" x="665" y="1112">build_refusal_result</text>
+        <text class="body" x="665" y="1130">-&gt; END (refuse_and_redirect)</text>
+
+        <rect class="box terminal" x="1130" y="1090" width="250" height="54"></rect>
+        <text class="title" x="1255" y="1112">build_missing_input_result</text>
+        <text class="body" x="1255" y="1130">-&gt; END (unknown document type)</text>
+
+        <!-- Lane 1 internal edges -->
+        <path class="edge" d="M 200 156 H 250"></path>
+        <path class="edge" d="M 445 156 H 495"></path>
+        <path class="edge" d="M 700 156 H 750"></path>
+        <rect x="708" y="137" width="76" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="746" y="152">complete</text>
+        <path class="edge" d="M 945 156 H 995"></path>
+
+        <!-- classification -> review framework (complete) -->
+        <path class="edge" d="M 1102.5 202 V 250 H 750 V 298"></path>
+        <rect x="920" y="231" width="76" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="958" y="246">complete</text>
+
+        <!-- review framework routing -->
+        <path class="edge" d="M 860 345 H 960"></path>
+        <path class="edge" d="M 1077.5 392 V 440 H 262.5 V 500"></path>
+        <rect x="345" y="421" width="128" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="409" y="436">document_chunk</text>
+        <path class="edge" d="M 1077.5 392 V 440 H 1152.5 V 500"></path>
+        <rect x="1093" y="421" width="120" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1153" y="436">full_document</text>
+
+        <!-- lane 3 internal and convergence into reflection -->
+        <path class="edge" d="M 375 547 H 430"></path>
+        <path class="edge" d="M 542.5 594 V 650 H 785 V 708"></path>
+        <rect x="602" y="631" width="150" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="677" y="646">synthesized review</text>
+        <path class="edge" d="M 1152.5 594 V 650 H 785 V 708"></path>
+        <rect x="960" y="631" width="140" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1030" y="646">single-pass result</text>
+
+        <!-- reflection -> risk -->
+        <path class="edge" d="M 920 753 H 960"></path>
+        <path class="edge" d="M 1190 753 H 1230"></path>
+
+        <!-- risk assessment routing -->
+        <path class="edge" d="M 1330 798 V 862 H 755 V 920"></path>
+        <rect x="770" y="843" width="132" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="836" y="858">low / medium risk</text>
+        <path class="edge" d="M 1330 798 V 862 H 1025 V 920"></path>
+        <rect x="1150" y="843" width="42" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1171" y="858">high</text>
+
+        <!-- final results -> END -->
+        <path class="edge" d="M 755 984 V 1010 H 1300 V 984"></path>
+        <path class="edge" d="M 1025 984 V 1000 H 1300 V 984"></path>
+
+        <!-- early exits -->
+        <path class="edge" d="M 597.5 202 V 240 H 90 V 1060 H 275 V 1090"></path>
+        <rect x="98" y="900" width="68" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="132" y="915">missing</text>
+        <path class="edge" d="M 597.5 202 V 260 H 1460 V 1060 H 665 V 1090"></path>
+        <rect x="1395" y="900" width="68" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1429" y="915">refusal</text>
+        <path class="edge" d="M 1102.5 202 V 280 H 1445 V 1060 H 1255 V 1090"></path>
+        <rect x="1373" y="900" width="88" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1417" y="915">unknown</text>
+
+        <text class="side-label" x="410" y="695">chunk 路径与 single-pass 路径在此汇合，统一经过反思质量闸门后再进入风险评估</text>
+        <text class="side-label" x="415" y="1005">approval_status = auto_approved / pending_human_approval，来自 assess_review_risk 写入的 state 字段</text>
+      </svg>
+    </section>
+
+    <section class="notes">
+      <article class="note">
+        <h2>与 v1 / v2 的差异</h2>
+        <p>v1 只到 <code>build_final_result</code> 就结束；v2 只是风险审批的架构草图。当前代码在 review 输出之后插入了
+        <code>reflect_review_output</code>（反思质量闸门，worklog 14）与 <code>assess_review_risk</code>
+        （风险评估 + 审批路由，worklog 13），两条 review 执行路径（chunk To-Do DAG / single-pass）都先汇合到反思节点，再统一进入风险评估。</p>
+      </article>
+      <article class="note">
+        <h2>审批是路由，不是新执行</h2>
+        <p><code>route_after_risk_assessment</code> 只根据 <code>state.approval_status</code> 决定走
+        <code>build_final_result</code> 还是 <code>build_pending_approval_result</code>；两者都直接产出最终 <code>TaskResult</code>，
+        不会重新触发 extract / analyze / synthesize。人工审批决策的 resume 入口（<code>approval_decision_at</code> /
+        <code>approval_actor_role</code> 字段）已预留在 state 上，但目前还没有对应的恢复节点。</p>
+      </article>
+      <article class="note">
+        <h2>3-1 ToolRegistry 尚未接入</h2>
+        <p>第 3-1 课新增的 <code>ToolRegistry</code> / <code>ToolSpec</code> 查询能力（<code>list_all</code>、
+        <code>list_by_tag</code> 等）目前只是独立模块，<code>document_review_flow.py</code> 没有导入或调用它。
+        这套流程仍是确定性 LangGraph pipeline，还不是基于工具调用的 agentic 循环，因此图中不画出对应节点。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
