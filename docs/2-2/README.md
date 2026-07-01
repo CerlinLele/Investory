@@ -37,6 +37,8 @@
 - [`investment_document_review_v1_flowchart.html`](flowcharts/investment_document_review_v1_flowchart.html)
 - [`investment_document_review_synthesis_flowchart.html`](flowcharts/investment_document_review_synthesis_flowchart.html)
 - [`investment_document_review_resume_flowchart.html`](flowcharts/investment_document_review_resume_flowchart.html)
+- [`investment_document_review_v2_risk_approval_architecture.html`](flowcharts/investment_document_review_v2_risk_approval_architecture.html)
+- [`investment_document_review_v3_current_flowchart.html`](flowcharts/investment_document_review_v3_current_flowchart.html) — 当前代码实际实现（含 reflection 与 risk approval 节点）
 
 ## 知识笔记
 
