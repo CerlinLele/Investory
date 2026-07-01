@@ -59,3 +59,25 @@
 - Evidence anchors:
   - `pytest` output: `tests/test_react_tool_registry.py::test_tool_registry_register_and_get PASSED`
   - `pytest` output: `tests/test_tasks.py::test_tasks_registry_contains_initial_and_investment_document_review_tasks PASSED`
+
+## Step 1.4: Add enhanced registry tests
+
+- Timestamp: `2026-06-21T17:13:00+10:00`
+- Actions:
+  - Added `tests/test_tool_registry_enhanced.py` to cover listing, filtering, function lookup, and execution behavior.
+  - Covered `list_all()`, `list_by_tag()`, `list_by_side_effect()`, `get_func()`, `call_func()`, and the missing-tool error path.
+- Commands:
+  - `Get-Content -LiteralPath 'tests\test_react_tool_registry.py'`
+  - `.venv\Scripts\python.exe -m pytest tests\test_tool_registry_enhanced.py -v`
+- Files touched:
+  - `tests/test_tool_registry_enhanced.py`
+- Result:
+  - `6 passed in 0.05s`.
+- Evidence anchors:
+  - `tests/test_tool_registry_enhanced.py:1`
+  - `tests/test_tool_registry_enhanced.py:15`
+  - `tests/test_tool_registry_enhanced.py:38`
+  - `tests/test_tool_registry_enhanced.py:61`
+  - `tests/test_tool_registry_enhanced.py:82`
+  - `tests/test_tool_registry_enhanced.py:101`
+  - `tests/test_tool_registry_enhanced.py:116`
