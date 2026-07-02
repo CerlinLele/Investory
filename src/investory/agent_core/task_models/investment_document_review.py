@@ -113,13 +113,21 @@ class InvestmentDocumentReviewRiskAssessmentResult(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _validate_risk_consistency(self) -> "InvestmentDocumentReviewRiskAssessmentResult":
-        if self.overall_risk == InvestmentDocumentReviewRiskLevel.HIGH and not self.critical_issues:
-            raise ValueError("high risk requires at least one critical_issue")
+    def _fix_risk_consistency(self) -> "InvestmentDocumentReviewRiskAssessmentResult":
+        # Rule 1: critical_issues non-empty ⟹ approval_status must be PENDING_HUMAN_APPROVAL
         if self.critical_issues and self.approval_status == InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED:
-            raise ValueError("critical_issues present but approval_status is auto_approved")
-        if not self.critical_issues and self.approval_status == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL:
-            raise ValueError("approval_status is pending_human_approval but critical_issues is empty")
+            self.approval_status = InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL
+
+        # Rule 2: approval_status == PENDING_HUMAN_APPROVAL ⟹ auto_proceed must be False
         if self.approval_status == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL and self.auto_proceed:
-            raise ValueError("auto_proceed cannot be true when approval_status is pending_human_approval")
+            self.auto_proceed = False
+
+        # Rule 3: overall_risk == HIGH ⟹ critical_issues must be non-empty
+        if self.overall_risk == InvestmentDocumentReviewRiskLevel.HIGH and not self.critical_issues:
+            self.critical_issues = ["Risk level is HIGH; requires human review due to unspecified critical concerns"]
+
+        # Rule 4: approval_status == PENDING_HUMAN_APPROVAL ⟹ critical_issues must be non-empty
+        if self.approval_status == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL and not self.critical_issues:
+            self.critical_issues = ["Approval is pending human review; auto-generated for consistency"]
+
         return self

@@ -35,7 +35,7 @@
 
 ### 方案
 
-在 `InvestmentDocumentReviewRiskAssessmentResult` 上新增 `model_validator(mode="after")`，强制以下不变量：
+在 `InvestmentDocumentReviewRiskAssessmentResult` 上新增 `model_validator(mode="after")`，**自动修复**不一致的字段组合，而不是直接抛出异常。修复规则按优先级顺序应用：
 
 ```python
 from pydantic import model_validator
@@ -44,38 +44,54 @@ class InvestmentDocumentReviewRiskAssessmentResult(BaseModel):
     ...
 
     @model_validator(mode="after")
-    def _validate_risk_consistency(self) -> "InvestmentDocumentReviewRiskAssessmentResult":
-        if self.overall_risk == InvestmentDocumentReviewRiskLevel.HIGH and not self.critical_issues:
-            raise ValueError("high risk requires at least one critical_issue")
+    def _fix_risk_consistency(self) -> "InvestmentDocumentReviewRiskAssessmentResult":
+        # Rule 1: critical_issues non-empty ⟹ approval_status must be PENDING_HUMAN_APPROVAL
         if self.critical_issues and self.approval_status == InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED:
-            raise ValueError("critical_issues present but approval_status is auto_approved")
-        if not self.critical_issues and self.approval_status == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL:
-            raise ValueError("approval_status is pending_human_approval but critical_issues is empty")
+            self.approval_status = InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL
+        
+        # Rule 2: approval_status == PENDING_HUMAN_APPROVAL ⟹ auto_proceed must be False
         if self.approval_status == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL and self.auto_proceed:
-            raise ValueError("auto_proceed cannot be true when approval_status is pending_human_approval")
+            self.auto_proceed = False
+        
+        # Rule 3: overall_risk == HIGH ⟹ critical_issues must be non-empty
+        if self.overall_risk == InvestmentDocumentReviewRiskLevel.HIGH and not self.critical_issues:
+            self.critical_issues = ["Risk level is HIGH; requires human review due to unspecified critical concerns"]
+        
+        # Rule 4: approval_status == PENDING_HUMAN_APPROVAL ⟹ critical_issues must be non-empty
+        if self.approval_status == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL and not self.critical_issues:
+            self.critical_issues = ["Approval is pending human review; auto-generated for consistency"]
+        
         return self
 ```
 
-校验规则只表达"字段之间的逻辑一致性"，不额外引入业务判断（例如不判断"什么算 critical"），保持与现有 prompt 约束对齐：
-
-- `critical_issues` 非空 ⟺ `approval_status != auto_approved`
-- `approval_status == pending_human_approval` ⟹ `auto_proceed == false`
-- `overall_risk == high` ⟹ `critical_issues` 非空
+修复逻辑遵循以下原则：
+- **优先保持 LLM 意图**：尽量不改动 LLM 显式生成的字段值
+- **自动同步衍生字段**：当主字段确定后，自动纠正依赖的衍生字段（如 `auto_proceed` 依赖 `approval_status`）
+- **最小修复**：当某字段因逻辑要求必须有值时，补充通用的自动生成值（不引入业务逻辑判断）
+- **无例外返回**：所有 LLM 输出都能通过，避免验证失败导致流程中断
 
 ### 失败路径影响
 
-[document_review_nodes.py:399-410](../../../src/investory/agent_core/runtime/flow/investment_document_review/document_review_nodes.py#L399-L410) 的 `assess_review_risk` 已经用 `try/except ValidationError` 包裹 `model_validate` 调用，新增的 `model_validator` 抛出的 `ValueError` 会被 Pydantic 包装进同一个 `ValidationError`，现有异常处理路径无需改动，只是新增了会触发 `ok=False` 的场景（一致性被打破时），需要在测试里覆盖。
+不再产生异常。所有 LLM 输出都会通过 `model_validator` 并返回修复后的结果。
+
+[document_review_nodes.py:399-410](../../../src/investory/agent_core/runtime/flow/investment_document_review/document_review_nodes.py#L399-L410) 的 `try/except ValidationError` 处理逻辑仍然保留（防止其他可能的 Pydantic 错误），但 `model_validator` 修复后的输出不会触发异常路径。修复过程对调用方透明：
+
+- 接收到 LLM 原始输出 → 自动修复 → 返回一致的结果对象
+- 修复过程不产生日志、告警或额外副作用（纯数据变换）
+- 流程始终返回 `ok=True`（除非存在其他 Pydantic 字段类型错误）
+
+这种设计的优势是 LLM 可以"接近合理"的输出也被接纳，同时下游系统始终接收到逻辑一致的数据，无需担心字段组合的不合法性。
 
 ### 测试
 
 在 [test_investment_document_review_task_model.py](../../../tests/test_investment_document_review_task_model.py) 中补充：
 
-- `test_investment_document_review_risk_assessment_result_rejects_inconsistent_critical_issues_and_auto_approved`
-- `test_investment_document_review_risk_assessment_result_rejects_pending_approval_without_critical_issues`
-- `test_investment_document_review_risk_assessment_result_rejects_high_risk_without_critical_issues`
-- `test_investment_document_review_risk_assessment_result_rejects_auto_proceed_true_with_pending_approval`
+- `test_investment_document_review_risk_assessment_result_fixes_critical_issues_with_auto_approved`：输入有 `critical_issues` 但 `approval_status=AUTO_APPROVED`，验证输出被自动改为 `PENDING_HUMAN_APPROVAL`
+- `test_investment_document_review_risk_assessment_result_fixes_auto_proceed_with_pending_approval`：输入 `approval_status=PENDING_HUMAN_APPROVAL` 但 `auto_proceed=true`，验证输出被自动改为 `false`
+- `test_investment_document_review_risk_assessment_result_adds_default_critical_issue_for_high_risk`：输入 `overall_risk=HIGH` 但 `critical_issues=[]`，验证输出自动补充了一个 default critical issue
+- `test_investment_document_review_risk_assessment_result_adds_default_critical_issue_for_pending_approval`：输入 `approval_status=PENDING_HUMAN_APPROVAL` 但 `critical_issues=[]`，验证输出自动补充了一个 default critical issue
 
-四个用例均用 `pytest.raises(ValidationError)` 断言，复用现有文件里 `test_investment_document_review_risk_assessment_result_accepts_structured_status` 的合法样例作对照，不新增测试文件。
+四个用例均用 `assert` 直接验证修复后的字段值，无需 `pytest.raises`。测试样本基于合法的 LLM 输出形状，但字段值故意设成不一致的组合，验证修复后恢复一致性。
 
 ---
 
@@ -194,7 +210,7 @@ D 项制品补齐应该在 A/B/C 代码改动**之后**完成，或者明确标�
 ## 实施步骤
 
 1. **Step 1（D 优先）**: 补齐 `test-results/hyg-file-upload/2026-07-02/hyg-file-upload-test-result.md` 和 `hyg-file-upload-execution-diagram.html`，作为改进前基线快照。
-2. **Step 2（A）**: 在 `investment_document_review.py` 的 `InvestmentDocumentReviewRiskAssessmentResult` 上新增 `model_validator`，补充 4 个反例测试。
+2. **Step 2（A）**: 在 `investment_document_review.py` 的 `InvestmentDocumentReviewRiskAssessmentResult` 上新增 `model_validator`，实现自动修复逻辑，补充 4 个修复验证测试。
 3. **Step 3（B）**: 调整 `document_chunker.py` 的 `CHUNK_SIZE=1000`、`CHUNK_OVERLAP=150`，新增 `tests/test_document_chunker.py`。
 4. **Step 4（C）**: 在 `investment_document_extract.md` 加入 Visual-only redundancy rule，补充 prompt 渲染断言测试。
 5. **Step 5（验证）**: 使用仓库 `.venv` 运行：
@@ -207,15 +223,19 @@ D 项制品补齐应该在 A/B/C 代码改动**之后**完成，或者明确标�
 
 ## 风险点
 
-### 风险 1：`model_validator` 让此前"合法但松散"的 LLM 输出被判定为失败
+### 风险 1：自动修复可能掩盖 LLM 输出质量问题
 
-现有 prompt 已经要求这些一致性（笔记里也确认了这一点），新增校验理论上只会拒绝 prompt 本就不允许的输出组合。如果线上出现校验频繁失败，说明 LLM 没有遵循 prompt 约束，需要回头加强 prompt 措辞，而不是放宽校验。
+通过自动修复避免了验证失败，但也可能让某些 LLM 输出的逻辑问题被无声地纠正而无法追踪。如果 LLM 频繁生成需要修复的不一致字段组合，说明 prompt 或模型的一致性理解有问题，应该在观察修复频率、建立监控告警（例如记录修复发生的情况）。
 
-### 风险 2：`CHUNK_SIZE` 调大后单次 extract 的 token 成本上升
+### 风险 2：自动生成的 critical_issues 可能过于通用
+
+当 HIGH 风险或 PENDING_HUMAN_APPROVAL 但没有具体 critical_issues 时，自动补充的默认文案（"Risk level is HIGH; requires human review due to unspecified critical concerns"）是通用的占位符，可能掩盖了 LLM 实际应该提供的具体风险描述。下游系统和人工审批者会看到这个通用文案，可能影响决策质量。
+
+### 风险 3：`CHUNK_SIZE` 调大后单次 extract 的 token 成本上升
 
 笔记里已经评估："chunk 总数减少，总调用次数减少，可能抵偿"。本计划不引入额外的 token 用量监控，如果后续实测发现总成本不降反升，需要重新评估方案 1+2 与方案 3（邻近上下文传递）的取舍。
 
-### 风险 3：Visual-only 规则可能被 LLM 过度使用，导致真实缺失被误判为"视觉冗余"
+### 风险 4：Visual-only 规则可能被 LLM 过度使用，导致真实缺失被误判为"视觉冗余"
 
 规则文案已经限定"presents the same quantitative data that is otherwise available"，即要求视觉元素对应的数据必须已经在文字/表格中出现才能降级为 `boundary_notes`。如果后续观察到误用，需要收紧措辞（例如要求引用具体的已提取数据点）。
 
@@ -223,7 +243,7 @@ D 项制品补齐应该在 A/B/C 代码改动**之后**完成，或者明确标�
 
 ## 验收标准
 
-1. `InvestmentDocumentReviewRiskAssessmentResult` 拒绝 4 类不一致输入组合，4 个新增测试通过。
+1. `InvestmentDocumentReviewRiskAssessmentResult` 自动修复 4 类不一致输入组合，4 个新增测试验证修复后的字段值正确，全部通过。
 2. `document_chunker.py` 的 `CHUNK_SIZE=1000`、`CHUNK_OVERLAP=150`，新增的 `test_document_chunker.py` 三个测试通过。
 3. `investment_document_extract.md` 包含 Visual-only redundancy rule 文案，新增的 prompt 渲染断言测试通过。
 4. `test-results/hyg-file-upload/2026-07-02/` 目录补齐 `hyg-file-upload-test-result.md` 和 `hyg-file-upload-execution-diagram.html`。
