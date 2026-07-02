@@ -56,9 +56,65 @@
 - Extract/Analyze 并发模式未变：3 槶 extract 流水线、3 个 analyze 维度同时启动。
 - 本次运行首次在 `test-results/hyg-file-upload/` 下完整跑通并留存了 risk assessment + 人工审批路由到 `pending_human_approval` 的结果（`2026-06-10` 与 `2026-07-01` 的记录只覆盖并发性验证，未涉及审批阶段）。
 
+## Chunk 截断问题分析
+
+### 问题现象
+
+`critical_issues` 中反复出现"Several disclosure sentences are truncated"。这看起来像"整段塞进去 vs 分块"的矛盾：
+- 分块太小 → 会有截断（当前表现）
+- 整段塞进去 → 避免截断，但长文档会顶到上下文窗口上限
+
+### 根本原因
+
+**不是矛盾，而是当前分块参数偏保守**：
+
+- [document_chunker.py:7-8](src/investory/agent_core/runtime/flow/investment_document_review/document_chunker.py#L7-L8) 设置 `CHUNK_SIZE=500` 字符、`CHUNK_OVERLAP=50` 字符
+- 一个 500 字符的 chunk ≈ 80-100 个英文单词；50 字符的 overlap 只占 chunk 大小的 10%
+- ETF factsheet 里的风险披露、免责条款、费用说明等关键句子通常超过 500 字符
+- 当句子跨越两个 chunk 的边界时，50 字符 overlap 往往不足以将整句完整放入任何一个 chunk
+- 结果：某个 chunk 的 extract 任务只看到"Investing involves risk, including possible loss of"但看不到后半句，被标记为 truncated
+
+### 改进方案
+
+三种思路可单独或组合使用（都只需参数/payload 调整，无架构改动）：
+
+**方案 1：增加 overlap 比例**
+- 当前：`CHUNK_OVERLAP=50`（10% of chunk size）
+- 改进：`CHUNK_OVERLAP=75-100`（15-20% of chunk size）
+- 效果：让跨界句子更可能在至少一个 chunk 里完整出现
+- 代价：chunk 间重复内容增多，per-chunk extract 的去重成本略增
+
+**方案 2：扩大 chunk_size**
+- 当前：`CHUNK_SIZE=500`
+- 改进：`CHUNK_SIZE=1000-1500`
+- 效果：chunk 总数减少（从 25 降到 10-15），边界数量随之减少
+- 代价：单次 extract 调用的 token 成本略增，但总调用次数反而减少，可能抵偿
+
+**方案 3：邻近上下文传递**
+- 在每个 chunk 的 extract payload 中额外带上前一 chunk 末尾 + 后一 chunk 开头的小段原文（作为"引用上下文"）
+- 这些上下文不参与该 chunk 的评分，仅用于帮助识别跨界句子是否完整
+- 效果：即使 chunk_size 不变，也能显著降低"半句话"问题
+- 代价：payload 构造逻辑稍复杂，但无额外 LLM 调用
+
+### 当前状态
+
+本次运行的 3 项 `critical_issues` 中 2 项与截断有关，说明这个问题已经被 LLM 检测到且列为"阻止自动通过"的信号。如果后续要降低截断概率，方案 1+2 的组合（overlap 调到 15-20% + chunk_size 到 1000）可以先试，成本最低。
+
+---
+
 ## 后续建议
+
+### 1. Risk Assessment 的一致性校验
 
 - 如果 `medium` 风险落到 `pending_human_approval` 的情况后续造成下游困惑，可考虑：
   - 在 prompt 中明确"覆盖默认 `auto_proceed`"的触发条件（例如仅当 `critical_issues` 非空时才允许覆盖）；或
   - 在 `InvestmentDocumentReviewRiskAssessmentResult` 上加 `model_validator`，强制 `critical_issues` 非空 ⟺ `approval_status != auto_approved`。
+
+### 2. Chunk 截断优化
+
+- 调整 `CHUNK_SIZE` 和 `CHUNK_OVERLAP` 参数，目标：`CHUNK_SIZE=1000, CHUNK_OVERLAP=150-200`
+- 可选：实现邻近上下文传递（方案 3），进一步降低边界截断
+
+### 3. 测试制品完整性
+
 - 本次运行尚未生成 `hyg-file-upload-test-result.md` / `hyg-file-upload-execution-diagram.html`，如需完整书面报告可后补。
