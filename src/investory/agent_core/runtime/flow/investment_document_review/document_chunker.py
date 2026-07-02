@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-CHUNK_SIZE = 500
-CHUNK_OVERLAP = 50
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 150
 SELECT_MAX_CHARS = 4000
 CHUNK_SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
 
