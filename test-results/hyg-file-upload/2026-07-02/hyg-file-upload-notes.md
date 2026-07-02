@@ -102,6 +102,55 @@
 
 ---
 
+## Performance Chart Gap 问题分析
+
+### 问题现象
+
+`critical_issues` 的第三项和 `information_gaps` 中出现：
+- "The exact full performance chart or hypothetical $10,000 path is not visible."
+- "The full performance chart and some performance-context details are not visible."
+
+这不是分块截断问题，而是根本上的**模态限制**。
+
+### 根本原因
+
+[pdf_extractor.py:26-29](src/investory/gateway/pdf_extractor.py#L26-L29) 中 PDF 提取仅使用 `page.extract_text()`，只能从 PDF 的文字层中提取内容。ETF factsheet 里的"Growth of $10,000"图表通常是**矢量图形或栅格图像**（曲线、坐标轴等），不是可提取的文本，因此无论如何细化分块都无法捕获这条曲线的数据——这不是切割问题，而是内容本身的模态不匹配。
+
+### 信息冗余性分析
+
+但这个 gap 是否真的代表审查**缺失了关键数据**？对比本次结果已提取的数据（[response.json:19](test-results/hyg-file-upload/2026-07-02/hyg-file-upload-response.json#L19)）：
+
+> "Calendar-year performance is shown for 2021 to 2025, and annualized performance is shown for NAV, market price, and benchmark across 1-year, 3-year, 5-year, 10-year, and since inception periods."
+
+同样的收益数据**已经以文字和表格形式完整提取**。那条"$10,000 增长曲线图"只是把这些数字换成图形展示的冗余表达，并不包含额外的数据维度。也就是说，这个 information_gap 本质上是"图表的**视觉呈现方式**没被捕获"，而不是"审查缺失了关键的收益/风险数据"。
+
+### 为什么这个 Gap 被列为阻止自动通过的信号
+
+当前 `investment_document_extract.md` 和 `investment_document_synthesize.md` 的 prompt 没有区分两类 gap：
+1. **真实数据缺失**：披露文本被截断、关键风险说明缺失、费用详情不完整
+2. **视觉冗余缺失**：图表没被提取，但相同的数据已经以文字形式提供
+
+这导致两类 gap 混合计入 `information_gaps`/`critical_issues`，被同等加权，拉高了风险判定，不必要地触发了人工审批。
+
+### 改进建议
+
+无需引入图像识别或多模态 LLM（投入成本高，信息收益低）。而是在 extract prompt 中加入一条规则，明确区分两类 gap。
+
+修改 [investment_document_extract.md](src/investory/agent_core/prompts/tasks/investment_document_extract.md) 的 Requirements 部分，加入：
+
+> **Visual-only redundancy rule**: If a graphical element (e.g., a performance growth chart, pie chart, or diagram) presents the same quantitative data that is otherwise available in extracted text, tables, or structured fields, note it under `boundary_notes` as "visual-only representation" rather than `information_gaps`. Example: "The $10,000 growth chart visualizes the same annual returns data already captured in the performance table; chart rendering details are not captured by text extraction."
+
+这样做的效果：
+- Extract 任务会将图表缺失归类到 `boundary_notes`（源限制说明），而不是 `information_gaps`（内容缺失）
+- Synthesize 任务会在最终 review 的 `boundary_notes` 里带上这条说明
+- Risk assessment 不会因为"视觉冗余"而升高风险等级
+
+### 预期影响
+
+若实施此改进，本次运行的 `critical_issues` 会从 3 项降到 2 项（仅保留真实的截断问题），很可能将 `approval_status` 从 `pending_human_approval` 改判为 `auto_approved`，因为剩下的 2 项截断都是 Chunk 参数问题引起的（可独立优化）。
+
+---
+
 ## 后续建议
 
 ### 1. Risk Assessment 的一致性校验
