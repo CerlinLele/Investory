@@ -104,6 +104,63 @@ def test_investment_document_review_risk_assessment_result_accepts_structured_st
     assert result.auto_proceed is False
 
 
+def test_investment_document_review_risk_assessment_result_rejects_inconsistent_critical_issues_and_auto_approved() -> None:
+    with pytest.raises(ValueError, match="critical_issues present but approval_status is auto_approved"):
+        InvestmentDocumentReviewRiskAssessmentResult.model_validate(
+            {
+                "overall_risk": InvestmentDocumentReviewRiskLevel.LOW,
+                "risk_reason": "No significant risks found.",
+                "critical_issues": ["This should not exist"],
+                "approval_status": InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED,
+                "required_role": None,
+                "auto_proceed": True,
+            }
+        )
+
+
+def test_investment_document_review_risk_assessment_result_rejects_pending_approval_without_critical_issues() -> None:
+    with pytest.raises(ValueError, match="approval_status is pending_human_approval but critical_issues is empty"):
+        InvestmentDocumentReviewRiskAssessmentResult.model_validate(
+            {
+                "overall_risk": InvestmentDocumentReviewRiskLevel.MEDIUM,
+                "risk_reason": "Some concerns present.",
+                "critical_issues": [],
+                "approval_status": InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL,
+                "required_role": COMPLIANCE_REVIEWER_ROLE,
+                "auto_proceed": False,
+            }
+        )
+
+
+def test_investment_document_review_risk_assessment_result_rejects_high_risk_without_critical_issues() -> None:
+    with pytest.raises(ValueError, match="high risk requires at least one critical_issue"):
+        InvestmentDocumentReviewRiskAssessmentResult.model_validate(
+            {
+                "overall_risk": InvestmentDocumentReviewRiskLevel.HIGH,
+                "risk_reason": "High risk assessment.",
+                "critical_issues": [],
+                "approval_status": InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL,
+                "required_role": COMPLIANCE_REVIEWER_ROLE,
+                "auto_proceed": False,
+            }
+        )
+
+
+def test_investment_document_review_risk_assessment_result_rejects_auto_proceed_true_with_pending_approval() -> None:
+    with pytest.raises(ValueError, match="auto_proceed cannot be true when approval_status is pending_human_approval"):
+        InvestmentDocumentReviewRiskAssessmentResult.model_validate(
+            {
+                "overall_risk": InvestmentDocumentReviewRiskLevel.MEDIUM,
+                "risk_reason": "Some concerns present.",
+                "critical_issues": ["Incomplete disclosure"],
+                "approval_status": InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL,
+                "required_role": COMPLIANCE_REVIEWER_ROLE,
+                "auto_proceed": True,
+            }
+        )
+
+
+
 def test_investment_document_review_reflection_input_defaults_and_limits() -> None:
     payload = InvestmentDocumentReviewReflectionInput.model_validate(
         {
