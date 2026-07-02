@@ -23,7 +23,6 @@
 1. 让 `critical_issues` 与 `approval_status` / `auto_proceed` 的关系有代码层保障，不完全依赖 LLM 自洽。
 2. 降低 chunk 边界截断导致的虚假 `critical_issues`。
 3. 让图表类"视觉冗余"缺口不再被误判为需要人工审批的 `critical_issue`。
-4. 让 `2026-07-02` 这次回归测试的制品目录完整，可作为后续对比基线。
 
 ---
 
@@ -182,42 +181,16 @@ def test_investment_document_extract_prompt_includes_visual_only_redundancy_rule
 
 ---
 
-## D. 补齐测试制品
-
-### 问题
-
-`test-results/hyg-file-upload/2026-07-02/` 目前只有 `hyg-file-upload-notes.md`、`hyg-file-upload-response.json`、`hyg-file-upload.log`，缺少 `hyg-file-upload-test-result.md` 和 `hyg-file-upload-execution-diagram.html`，不满足 [test-results/hyg-file-upload/README.md](../../../test-results/hyg-file-upload/README.md) 里描述的完整制品集合（对照 `2026-06-10-2.after-concurrency-fix/` 目录已有的四件套）。
-
-### 方案
-
-补充两个制品文件到 `test-results/hyg-file-upload/2026-07-02/`：
-
-1. **`hyg-file-upload-test-result.md`**：参照 [2026-06-10-2.after-concurrency-fix/hyg-file-upload-test-result.md](../../../test-results/hyg-file-upload/2026-06-10-2.after-concurrency-fix/hyg-file-upload-test-result.md) 的结构（Test Artifact / Outcome / Task Breakdown / Timing Summary / Concurrency Reading / Interpretation），内容改为反映 `2026-07-02` 这次运行的实际结果：模块拆分后的回归验证、`risk_assessment` + 审批路由首次完整跑通、`pending_human_approval` 结果，以及与既往运行的任务结构对比。可直接从 [hyg-file-upload-notes.md](../../../test-results/hyg-file-upload/2026-07-02/hyg-file-upload-notes.md) 已有的"结果概览"和"时间分解"表格改写成叙述体，不需要重新分析日志。
-2. **`hyg-file-upload-execution-diagram.html`**：参照 [2026-06-10-2.after-concurrency-fix/hyg-file-upload-execution-diagram.html](../../../test-results/hyg-file-upload/2026-06-10-2.after-concurrency-fix/hyg-file-upload-execution-diagram.html) 的时间轴可视化样式（extract/analyze/synthesize 三色分段 + 统计卡片），基于 `hyg-file-upload.log` 中的实际时间戳绘制 `2026-07-02` 这次运行的 extract fan-out、analyze 并发、synthesize、reflection、risk assessment 各阶段时间轴。需要新增一个 risk assessment 阶段的可视化分段（既往制品的图表模板里没有这个阶段，因为这是笔记里提到的"首次完整跑通审批路由"的记录）。
-
-### 排序说明
-
-D 项制品补齐应该在 A/B/C 代码改动**之后**完成，或者明确标注这份制品对应的是"改进前"的基线快照 —— 如果先做 D 再做 A/B/C，`test-result.md` 里的数字（`critical_issues=3`、`chunk_count=25`）会在改动后过时。建议顺序：
-
-1. 先完成 D（补齐 `2026-07-02` 现有日志/响应对应的制品，作为"改进前基线"）
-2. 再实施 A → B → C
-3. 跑一次新的 apifox 回归，产出新的日期目录（如 `2026-07-03` 或当次实际日期），验证 `critical_issues` 数量下降、`chunk_count` 下降，并在 notes 里与 `2026-07-02` 基线对比
-
-本计划的执行范围到"D 制品补齐 + A/B/C 代码改动 + 单元测试通过"为止，不包含第 3 步的新回归测试（新回归属于下一次验证工作，不在本次计划内启动服务或调用真实 LLM）。
-
----
-
 ## 实施步骤
 
-1. **Step 1（D 优先）**: 补齐 `test-results/hyg-file-upload/2026-07-02/hyg-file-upload-test-result.md` 和 `hyg-file-upload-execution-diagram.html`，作为改进前基线快照。
-2. **Step 2（A）**: 在 `investment_document_review.py` 的 `InvestmentDocumentReviewRiskAssessmentResult` 上新增 `model_validator`，实现自动修复逻辑，补充 4 个修复验证测试。
-3. **Step 3（B）**: 调整 `document_chunker.py` 的 `CHUNK_SIZE=1000`、`CHUNK_OVERLAP=150`，新增 `tests/test_document_chunker.py`。
-4. **Step 4（C）**: 在 `investment_document_extract.md` 加入 Visual-only redundancy rule，补充 prompt 渲染断言测试。
-5. **Step 5（验证）**: 使用仓库 `.venv` 运行：
+1. **Step 1（A）**: 在 `investment_document_review.py` 的 `InvestmentDocumentReviewRiskAssessmentResult` 上新增 `model_validator`，实现自动修复逻辑，补充 4 个修复验证测试。
+2. **Step 2（B）**: 调整 `document_chunker.py` 的 `CHUNK_SIZE=1000`、`CHUNK_OVERLAP=150`，新增 `tests/test_document_chunker.py`。
+3. **Step 3（C）**: 在 `investment_document_extract.md` 加入 Visual-only redundancy rule，补充 prompt 渲染断言测试。
+4. **Step 4（验证）**: 使用仓库 `.venv` 运行：
    ```powershell
    .venv\Scripts\python.exe -m pytest tests/test_investment_document_review_task_model.py tests/test_document_chunker.py tests/test_investment_document_review_todo_prompts.py tests/test_investment_document_review_flow.py tests/test_investment_document_review_gateway_api.py
    ```
-6. **Step 6（worklog）**: 在 `docs/2-2/worklog/` 新增 `17-chunk_truncation_and_visual_gap_improvement_execution_worklog.md`，记录每步改动、测试结果。
+5. **Step 5（worklog）**: 在 `docs/2-2/worklog/` 新增 `17-chunk_truncation_and_visual_gap_improvement_execution_worklog.md`，记录每步改动、测试结果。
 
 ---
 
@@ -246,6 +219,5 @@ D 项制品补齐应该在 A/B/C 代码改动**之后**完成，或者明确标�
 1. `InvestmentDocumentReviewRiskAssessmentResult` 自动修复 4 类不一致输入组合，4 个新增测试验证修复后的字段值正确，全部通过。
 2. `document_chunker.py` 的 `CHUNK_SIZE=1000`、`CHUNK_OVERLAP=150`，新增的 `test_document_chunker.py` 三个测试通过。
 3. `investment_document_extract.md` 包含 Visual-only redundancy rule 文案，新增的 prompt 渲染断言测试通过。
-4. `test-results/hyg-file-upload/2026-07-02/` 目录补齐 `hyg-file-upload-test-result.md` 和 `hyg-file-upload-execution-diagram.html`。
-5. 现有回归测试套件（`test_investment_document_review_flow.py`、`test_investment_document_review_gateway_api.py`、`test_investment_document_review_task_model.py`、`test_investment_document_review_todo_prompts.py`）全部通过。
-6. Worklog 已更新，记录本次改动和验证结果。
+4. 现有回归测试套件（`test_investment_document_review_flow.py`、`test_investment_document_review_gateway_api.py`、`test_investment_document_review_task_model.py`、`test_investment_document_review_todo_prompts.py`）全部通过。
+5. Worklog 已更新，记录本次改动和验证结果。
