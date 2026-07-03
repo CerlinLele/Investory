@@ -48,9 +48,41 @@ def resolve_task_spec(task_type: str) -> TaskSpec:
     return TASKS[resolve_task_name(task_type)]
 
 
+def list_specs_by_tag(tag: str) -> list[TaskSpec]:
+    """Return all TaskSpecs matching the given tag."""
+    return [spec for spec in TASKS.values() if spec.tag == tag]
+
+
+def list_specs_by_side_effect(level: str) -> list[TaskSpec]:
+    """Return all TaskSpecs matching the given side_effect_level."""
+    return [spec for spec in TASKS.values() if spec.side_effect_level == level]
+
+
+def list_all_specs() -> list[TaskSpec]:
+    """Return all TaskSpecs."""
+    return list(TASKS.values())
+
+
+def get_spec_metadata(task_name: str) -> dict:
+    """Get governance metadata for a single task."""
+    spec = TASKS.get(task_name)
+    if spec is None:
+        raise UnknownTaskTypeError(task_name)
+    return {
+        "name": spec.name,
+        "side_effect_level": spec.side_effect_level,
+        "tag": spec.tag,
+        "desc": spec.desc,
+    }
+
+
 __all__ = [
     "TASK_ALIASES",
     "UnknownTaskTypeError",
     "resolve_task_name",
     "resolve_task_spec",
+    "list_specs_by_tag",
+    "list_specs_by_side_effect",
+    "list_all_specs",
+    "get_spec_metadata",
 ]

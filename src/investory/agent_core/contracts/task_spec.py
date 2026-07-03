@@ -9,3 +9,6 @@ class TaskSpec:
     prompt_name: str
     input_model: type[BaseModel]
     output_model: type[BaseModel]
+    side_effect_level: str = "read"  # read / write / exec
+    tag: str = ""  # learning / document_review / risk / ...
+    desc: str = ""  # one-line description
