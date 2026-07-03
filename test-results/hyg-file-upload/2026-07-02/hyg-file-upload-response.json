@@ -1,0 +1,78 @@
+{
+    "ok": true,
+    "task_name": "investment_document_review",
+    "session_id": "apifox-hyg-file-upload",
+    "result": {
+        "action": "pending_human_approval",
+        "document_type": "etf_factsheet",
+        "route_reason": "The excerpt explicitly says 'Fact Sheet' for the iShares iBoxx $ High Yield Corporate Bond ETF and describes ETF objectives and key facts, which matches an ETF factsheet.",
+        "route_confidence": 0.99,
+        "review": {
+            "document_type": "etf_factsheet",
+            "extracted_facts": [
+                "The document is a fact sheet for the iShares iBoxx $ High Yield Corporate Bond ETF (HYG), dated March 31, 2026.",
+                "The fund seeks to track an index of U.S. dollar-denominated high yield corporate bonds and is described as offering exposure to non-investment grade corporate credit for income-oriented exposure.",
+                "The asset class is Fixed Income and the benchmark shown is Markit iBoxx USD Liquid High Yield Index.",
+                "The fund launch date is 04/04/2007, distribution frequency is monthly, exchange is NYSE Arca, CUSIP is 464288513, shares outstanding are 206,400,000, and net assets are $16,378.81 million.",
+                "The expense ratio and management fee are both shown as 0.49%; Acquired Fund Fees and Expenses and Other Expenses are both shown as 0.00%.",
+                "The document shows a hypothetical $10,000 growth chart, assumes reinvestment of dividends and capital gains, and states that fund expenses were deducted in the chart.",
+                "Calendar-year performance is shown for 2021 to 2025, and annualized performance is shown for NAV, market price, and benchmark across 1-year, 3-year, 5-year, 10-year, and since inception periods.",
+                "The fund characteristics section shows a 30 Day SEC Yield of 6.70%.",
+                "Portfolio statistics shown include Equity Beta (3y) of 0.30, Weighted Avg Maturity of 3.82 years, Effective Duration of 3.02 years, Standard Deviation (3y) of 4.57%, Convexity of -0.15, and Number of Holdings of 1,321.",
+                "The holdings section shows top holdings, a maturity breakdown, sector weights, and credit-rating breakdowns; the visible text notes that holdings and allocations are subject to change.",
+                "The document says credit quality ratings are sourced from S&P, Moody’s, and Fitch and converted to the equivalent S&P major rating category; it also states that unrated securities do not necessarily indicate low quality and that below investment-grade is BB and below.",
+                "The document states that ETF shares are bought and sold at market price, not NAV, are not individually redeemed from the fund, and that brokerage commissions reduce returns.",
+                "The document states that index returns are illustrative, unmanaged, do not reflect fees or expenses, and cannot be directly invested in.",
+                "The document includes Morningstar-related text showing a 3-star rating for the 3-, 5-, and 10-year periods, and explains Morningstar’s risk-adjusted rating methodology."
+            ],
+            "risk_findings": [
+                "The factsheet explicitly discloses fixed income risk, including interest-rate risk and credit risk.",
+                "The document explicitly says non-investment-grade debt may have greater market fluctuations, default risk, and risk of loss of income and principal than higher-rated securities.",
+                "The document says investing involves risk, including possible loss of principal.",
+                "The performance language is limited by standard disclosures: past performance is not a guarantee of future results, and current performance may be lower or higher than quoted.",
+                "The market-price return methodology changed on 8/10/20, so return presentation is not fully uniform across all periods shown.",
+                "The document notes that ETF trading at market price, not NAV, and brokerage commissions can affect returns.",
+                "Some performance and disclosure sentences are truncated in the extracted chunks, limiting completeness of the review.",
+                "Morningstar ratings are share-class specific and do not substitute for a full risk analysis."
+            ],
+            "information_gaps": [
+                "The specific index replication or tracking method is not fully explained in the extracted text.",
+                "The meaning of the \"††\" marker in the growth-of-$10,000 heading is not visible.",
+                "One performance disclaimer sentence is truncated, so the full wording cannot be verified from the extracted chunks.",
+                "The full Morningstar rating context is incomplete in the opening chunk, and the visible text does not fully show the rating statement there.",
+                "The exact full performance chart or hypothetical $10,000 path is not visible.",
+                "The extraction does not provide a complete fund-specific risk section beyond the disclosed high-level risks.",
+                "A complete fee breakdown beyond the 0.49% expense/management fee and 0.00% AFFE/other expenses is not shown."
+            ],
+            "boundary_notes": [
+                "This review is based only on the provided factsheet chunk results and task synthesis.",
+                "No buy, sell, hold, timing, sizing, suitability, or return-prediction advice is provided.",
+                "Historical performance is presented only as disclosed data and is not used to infer future results.",
+                "Where text was truncated or absent, the limitation is reported as missing information rather than inferred."
+            ],
+            "summary": "The factsheet provides a broad but partly fragmented disclosure set for the iShares iBoxx $ High Yield Corporate Bond ETF. It clearly shows fund identity, benchmark, fee level, holdings/credit breakdowns, yield and performance figures, and key high-yield and fixed-income risks. However, some disclosure details are incomplete or truncated, so the review is not fully exhaustive.",
+            "learning_next_steps": [
+                "Review how ETF fees, bid/ask spreads, and brokerage commissions can affect quoted versus realized returns.",
+                "Compare the document’s performance-disclosure language with the fund’s fee and yield disclosures to understand what the numbers do and do not show.",
+                "Learn how high-yield bond credit ratings, maturity, and duration are used to describe fixed-income risk."
+            ]
+        },
+        "risk_assessment": {
+            "overall_risk": "medium",
+            "risk_reason": "The factsheet shows standard high-yield and fixed-income risks, plus trading and past-performance cautions, but nothing in the extracted evidence indicates an extreme or exceptional issue. Review completeness is limited by truncated disclosures and missing full tracking-method/performance context, so the document is not low-risk for automatic release without caveats.",
+            "critical_issues": [
+                "Several disclosure sentences are truncated, limiting verification of the full wording.",
+                "The specific index replication or tracking method is not fully explained in the extracted text.",
+                "The full performance chart and some performance-context details are not visible."
+            ],
+            "approval_status": "pending_human_approval",
+            "required_role": "human reviewer",
+            "auto_proceed": false
+        },
+        "approval": {
+            "status": "pending_human_approval",
+            "required_role": "human reviewer"
+        }
+    },
+    "error": null
+}

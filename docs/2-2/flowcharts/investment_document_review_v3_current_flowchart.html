@@ -176,6 +176,8 @@
       fill: #334155;
       font-size: 11.5px;
       font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: middle;
       paint-order: stroke;
       stroke: #fff;
       stroke-width: 4px;
@@ -287,15 +289,15 @@
         <text class="body" x="597.5" y="160">missing / refusal</text>
         <text class="body" x="597.5" y="180">or complete</text>
 
-        <rect class="box gate" x="750" y="110" width="195" height="92"></rect>
-        <text class="title" x="847.5" y="134">classify_document_type</text>
-        <text class="body" x="847.5" y="160">llm_router.route()</text>
-        <text class="body" x="847.5" y="180">type + confidence</text>
+        <rect class="box gate" x="780" y="110" width="195" height="92"></rect>
+        <text class="title" x="877.5" y="134">classify_document_type</text>
+        <text class="body" x="877.5" y="160">llm_router.route()</text>
+        <text class="body" x="877.5" y="180">type + confidence</text>
 
-        <rect class="box decision" x="995" y="110" width="215" height="92"></rect>
-        <text class="title" x="1102.5" y="134">route_after_classification</text>
-        <text class="body" x="1102.5" y="160">unknown / missing</text>
-        <text class="body" x="1102.5" y="180">or complete</text>
+        <rect class="box decision" x="1025" y="110" width="215" height="92"></rect>
+        <text class="title" x="1132.5" y="134">route_after_classification</text>
+        <text class="body" x="1132.5" y="160">unknown / missing</text>
+        <text class="body" x="1132.5" y="180">or complete</text>
 
         <!-- Lane 2 -->
         <rect class="box review" x="640" y="298" width="220" height="94"></rect>
@@ -369,60 +371,60 @@
         <!-- Lane 1 internal edges -->
         <path class="edge" d="M 200 156 H 250"></path>
         <path class="edge" d="M 445 156 H 495"></path>
-        <path class="edge" d="M 700 156 H 750"></path>
-        <rect x="708" y="137" width="76" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="746" y="152">complete</text>
-        <path class="edge" d="M 945 156 H 995"></path>
+        <path class="edge" d="M 700 156 H 780"></path>
+        <rect x="704" y="137" width="72" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="740" y="148">complete</text>
+        <path class="edge" d="M 975 156 H 1025"></path>
 
         <!-- classification -> review framework (complete) -->
-        <path class="edge" d="M 1102.5 202 V 250 H 750 V 298"></path>
-        <rect x="920" y="231" width="76" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="958" y="246">complete</text>
+        <path class="edge" d="M 1132.5 202 V 250 H 750 V 298"></path>
+        <rect x="903" y="231" width="76" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="941" y="242">complete</text>
 
         <!-- review framework routing -->
         <path class="edge" d="M 860 345 H 960"></path>
         <path class="edge" d="M 1077.5 392 V 440 H 262.5 V 500"></path>
         <rect x="345" y="421" width="128" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="409" y="436">document_chunk</text>
+        <text class="edge-label" x="409" y="432">document_chunk</text>
         <path class="edge" d="M 1077.5 392 V 440 H 1152.5 V 500"></path>
         <rect x="1093" y="421" width="120" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="1153" y="436">full_document</text>
+        <text class="edge-label" x="1153" y="432">full_document</text>
 
         <!-- lane 3 internal and convergence into reflection -->
         <path class="edge" d="M 375 547 H 430"></path>
         <path class="edge" d="M 542.5 594 V 650 H 785 V 708"></path>
         <rect x="602" y="631" width="150" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="677" y="646">synthesized review</text>
+        <text class="edge-label" x="677" y="642">synthesized review</text>
         <path class="edge" d="M 1152.5 594 V 650 H 785 V 708"></path>
         <rect x="960" y="631" width="140" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="1030" y="646">single-pass result</text>
+        <text class="edge-label" x="1030" y="642">single-pass result</text>
 
         <!-- reflection -> risk -->
         <path class="edge" d="M 920 753 H 960"></path>
         <path class="edge" d="M 1190 753 H 1230"></path>
 
         <!-- risk assessment routing -->
-        <path class="edge" d="M 1330 798 V 862 H 755 V 920"></path>
-        <rect x="770" y="843" width="132" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="836" y="858">low / medium risk</text>
-        <path class="edge" d="M 1330 798 V 862 H 1025 V 920"></path>
-        <rect x="1150" y="843" width="42" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="1171" y="858">high</text>
+        <path class="edge" d="M 1290 798 V 850 H 755 V 920"></path>
+        <rect x="800" y="839" width="132" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="866" y="850">low / medium risk</text>
+        <path class="edge" d="M 1370 798 V 866 H 1025 V 920"></path>
+        <rect x="1130" y="855" width="42" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
+        <text class="edge-label" x="1151" y="866">high</text>
 
         <!-- final results -> END -->
-        <path class="edge" d="M 755 984 V 1010 H 1300 V 984"></path>
-        <path class="edge" d="M 1025 984 V 1000 H 1300 V 984"></path>
+        <path class="edge" d="M 755 920 V 890 H 1290 V 920"></path>
+        <path class="edge" d="M 1150 952 H 1230"></path>
 
         <!-- early exits -->
         <path class="edge" d="M 597.5 202 V 240 H 90 V 1060 H 275 V 1090"></path>
         <rect x="98" y="900" width="68" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="132" y="915">missing</text>
+        <text class="edge-label" x="132" y="911">missing</text>
         <path class="edge" d="M 597.5 202 V 260 H 1460 V 1060 H 665 V 1090"></path>
         <rect x="1395" y="900" width="68" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="1429" y="915">refusal</text>
-        <path class="edge" d="M 1102.5 202 V 280 H 1445 V 1060 H 1255 V 1090"></path>
+        <text class="edge-label" x="1429" y="911">refusal</text>
+        <path class="edge" d="M 1132.5 202 V 280 H 1445 V 1060 H 1255 V 1090"></path>
         <rect x="1373" y="900" width="88" height="22" rx="5" fill="#ffffff" stroke="#d7deeb"></rect>
-        <text class="edge-label" x="1417" y="915">unknown</text>
+        <text class="edge-label" x="1417" y="911">unknown</text>
 
         <text class="side-label" x="410" y="695">chunk 路径与 single-pass 路径在此汇合，统一经过反思质量闸门后再进入风险评估</text>
         <text class="side-label" x="415" y="1005">approval_status = auto_approved / pending_human_approval，来自 assess_review_risk 写入的 state 字段</text>

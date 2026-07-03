@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from investory.agent_core.contracts.investment_document_review_state import (
     InvestmentDocumentType,
@@ -111,3 +111,23 @@ class InvestmentDocumentReviewRiskAssessmentResult(BaseModel):
     auto_proceed: bool = Field(
         description="Whether downstream systems may proceed without human approval."
     )
+
+    @model_validator(mode="after")
+    def _fix_risk_consistency(self) -> "InvestmentDocumentReviewRiskAssessmentResult":
+        # Rule 1: critical_issues non-empty ⟹ approval_status must be PENDING_HUMAN_APPROVAL
+        if self.critical_issues and self.approval_status == InvestmentDocumentReviewApprovalStatus.AUTO_APPROVED:
+            self.approval_status = InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL
+
+        # Rule 2: approval_status == PENDING_HUMAN_APPROVAL ⟹ auto_proceed must be False
+        if self.approval_status == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL and self.auto_proceed:
+            self.auto_proceed = False
+
+        # Rule 3: overall_risk == HIGH ⟹ critical_issues must be non-empty
+        if self.overall_risk == InvestmentDocumentReviewRiskLevel.HIGH and not self.critical_issues:
+            self.critical_issues = ["Risk level is HIGH; requires human review due to unspecified critical concerns"]
+
+        # Rule 4: approval_status == PENDING_HUMAN_APPROVAL ⟹ critical_issues must be non-empty
+        if self.approval_status == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL and not self.critical_issues:
+            self.critical_issues = ["Approval is pending human review; auto-generated for consistency"]
+
+        return self

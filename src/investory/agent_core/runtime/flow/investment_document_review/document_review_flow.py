@@ -1,647 +1,94 @@
-import asyncio
 import logging
-import re
-from collections.abc import Callable
-from enum import Enum
-from time import perf_counter
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
-from pydantic import ValidationError
 
 from investory.agent_core.contracts.investment_document_review_state import (
-    ANALYZE_FOCUS_FIELD,
-    DOCUMENT_TEXT_FIELD,
-    EXTRACT_FOCUS_FIELD,
-    REVIEW_GOAL_FIELD,
     InvestmentDocumentReviewState,
-    InvestmentDocumentType,
 )
-from investory.agent_core.contracts.result_types import TaskResult, normalize_task_error
-from investory.agent_core.contracts.todo_execution import (
-    TodoExecutionPlan,
-    TodoExecutionResumeState,
-    TodoTaskKind,
-    TodoTaskResult,
-    TodoTaskStatus,
+from investory.agent_core.contracts.result_types import TaskResult
+from investory.agent_core.runtime.flow.investment_document_review.document_review_constants import (
+    COMPLETE_ROUTE,
+    CHUNK_REVIEW_SCOPE,
+    FULL_DOCUMENT_REVIEW_SCOPE,
+    InvestmentDocumentReviewNode,
+    InvestmentDocumentReviewTodoResumeStore,
+    MISSING_ROUTE,
+    PENDING_APPROVAL_ROUTE,
+    REFUSAL_ROUTE,
+)
+
+# Re-export route constants for graph construction
+__all__ = [
+    "InvestmentDocumentReviewFlow",
+    "build_investment_document_review_flow",
+]
+from investory.agent_core.runtime.flow.investment_document_review.document_review_nodes import (
+    InvestmentDocumentReviewNodeHandlers,
 )
 from investory.agent_core.runtime.flow.investment_document_review.document_review_router import (
     InvestmentDocumentReviewLLMRouter,
     InvestmentDocumentReviewRouter,
 )
-from investory.agent_core.runtime.flow.investment_document_review.document_chunker import (
-    split_into_chunks,
-)
-from investory.agent_core.runtime.flow.investment_document_review.document_review_rules import (
-    UNKNOWN_DOCUMENT_MISSING_FIELDS,
-    detect_missing_fields,
-    get_review_framework,
-    looks_like_investment_advice,
-    requires_realtime_data,
-)
-from investory.agent_core.task_models.investment_document_review_todo_tasks import (
-    InvestmentDocumentReviewAnalyzeInput,
-    InvestmentDocumentReviewExtractInput,
-    InvestmentDocumentReviewSynthesizeInput,
-    InvestmentDocumentReviewTodoSummary,
-    InvestmentDocumentReviewTodoTaskSummary,
-)
-from investory.agent_core.task_models.investment_document_review import (
-    InvestmentDocumentReviewApprovalStatus,
-    InvestmentDocumentReviewRiskAssessmentInput,
-    InvestmentDocumentReviewRiskAssessmentResult,
-    InvestmentDocumentReviewResult,
-)
-from investory.agent_core.task_models.investment_document_review_reflection import (
-    InvestmentDocumentReviewReflectionInput,
-    InvestmentDocumentReviewReflectionResult,
-)
 from investory.agent_core.runtime.task_executor import TaskExecutor
-from investory.agent_core.runtime.todo_core.plan_validator import (
-    TodoPlanValidationException,
-    ensure_valid_todo_plan,
+
+# Re-export constants and utilities for backward compatibility
+from investory.agent_core.runtime.flow.investment_document_review.document_review_constants import (
+    ACTION_FIELD,
+    AGGREGATE_ANALYZE_TASK_ID,
+    APPROVAL_FIELD,
+    CHUNK_COUNT_FIELD,
+    CHUNK_EXTRACT_TASK_ID_PREFIX,
+    CHUNK_INDEX_FIELD,
+    CHUNK_REVIEW_SCOPE,
+    CHUNK_REVIEW_SCOPE_FIELD,
+    CLASSIFICATION_CLARIFICATION_MESSAGE,
+    CRITERIA_FIELD,
+    DOCUMENT_TYPE_FIELD,
+    FULL_DOCUMENT_EXTRACT_TASK_ID,
+    FULL_DOCUMENT_REVIEW_SCOPE,
+    INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
+    InvestmentDocumentReviewAction,
+    MAX_ROUNDS_FIELD,
+    MESSAGE_FIELD,
+    MISSING_FIELDS_FIELD,
+    MISSING_INPUT_MESSAGE,
+    PENDING_APPROVAL_ROUTE,
+    REFUSAL_MESSAGE,
+    REQUIRED_ROLE_FIELD,
+    REVIEW_FIELD,
+    REVIEW_RESULT_FIELD,
+    REVIEW_SUMMARY_FIELD,
+    RISK_ASSESSMENT_FIELD,
+    ROUTE_CONFIDENCE_FIELD,
+    ROUTE_REASON_FIELD,
+    STATUS_FIELD,
+    SYNTHESIZE_REVIEW_TASK_ID,
+    TODO_PLAN_FIELD,
+    TODO_RESULTS_FIELD,
 )
-from investory.agent_core.runtime.todo_core.runner import (
-    TODO_EVENT_LAYER_STARTED,
-    TODO_EVENT_TASK_FAILED,
-    TODO_EVENT_TASK_RETRYING,
-    TODO_EVENT_TASK_SKIPPED,
-    TODO_EVENT_TASK_STARTED,
-    TODO_EVENT_TASK_SUCCEEDED,
-    TodoExecutionRunner,
-)
-from investory.agent_core.tasks import (
-    INVESTMENT_DOCUMENT_ANALYZE_TASK,
-    INVESTMENT_DOCUMENT_EXTRACT_TASK,
-    INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK,
-    INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK,
-    INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
-    INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
-    INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
+from investory.agent_core.runtime.flow.investment_document_review.document_review_todo import (
+    is_chunked_document,
+    should_use_chunk_review,
+    should_use_code_built_plan,
 )
 
 if TYPE_CHECKING:
     from investory.agent_core.runtime.request_runner import RequestRunner
 
 
-INVESTMENT_DOCUMENT_REVIEW_TASK_NAME = "investment_document_review"
 logger = logging.getLogger(__name__)
-
-ACTION_FIELD = "action"
-MESSAGE_FIELD = "message"
-DOCUMENT_TYPE_FIELD = "document_type"
-REVIEW_FIELD = "review"
-RISK_ASSESSMENT_FIELD = "risk_assessment"
-APPROVAL_FIELD = "approval"
-STATUS_FIELD = "status"
-REQUIRED_ROLE_FIELD = "required_role"
-MISSING_FIELDS_FIELD = "missing_fields"
-ROUTE_REASON_FIELD = "route_reason"
-ROUTE_CONFIDENCE_FIELD = "route_confidence"
-REVIEW_RESULT_FIELD = "review_result"
-TODO_PLAN_FIELD = "todo_plan"
-TODO_RESULTS_FIELD = "todo_results"
-REVIEW_SUMMARY_FIELD = "review_summary"
-CRITERIA_FIELD = "criteria"
-MAX_ROUNDS_FIELD = "max_rounds"
-DEFAULT_REFLECTION_MAX_ROUNDS = 1
-
-MISSING_INPUT_MESSAGE = (
-    "Please provide the missing document material or a clearer document type hint "
-    "so the review can continue."
-)
-CLASSIFICATION_CLARIFICATION_MESSAGE = (
-    "Please clarify the document type or provide more review context so the "
-    "document review can continue."
-)
-REFUSAL_MESSAGE = (
-    "This flow cannot handle buy, sell, hold, timing, allocation, or real-time "
-    "market requests. It can only review the provided document for facts, risks, "
-    "and information gaps."
-)
-
-MISSING_ROUTE = "missing"
-REFUSAL_ROUTE = "refusal"
-COMPLETE_ROUTE = "complete"
-PENDING_APPROVAL_ROUTE = "pending_approval"
-CHUNK_INDEX_FIELD = "chunk_index"
-CHUNK_COUNT_FIELD = "chunk_count"
-CHUNK_REVIEW_SCOPE_FIELD = "review_scope"
-FULL_DOCUMENT_REVIEW_SCOPE = "full_document"
-CHUNK_REVIEW_SCOPE = "document_chunk"
-CHUNK_EXTRACT_TASK_ID_PREFIX = "extract_chunk"
-ANALYZE_TASK_ID_PREFIX = "analyze"
-AGGREGATE_ANALYZE_TASK_ID = "analyze_aggregated_chunk_evidence"
-SYNTHESIZE_REVIEW_TASK_ID = "synthesize_full_document_review"
-COMPLETED_TODO_RESULT_STATUSES = {
-    TodoTaskStatus.SUCCEEDED,
-    TodoTaskStatus.FAILED,
-    TodoTaskStatus.SKIPPED,
-}
-INVESTMENT_DOCUMENT_REVIEW_REFLECTION_CRITERIA = [
-    (
-        "Review results must be based only on the input document, To-Do plan, "
-        "To-Do results, and deterministic review summary."
-    ),
-    (
-        "Extracted facts must come from successful extract, analyze, or "
-        "synthesize results."
-    ),
-    (
-        "Risk findings must be supported by evidence and must not provide buy, "
-        "sell, hold, timing, allocation, or return-prediction advice."
-    ),
-    (
-        "Failed or skipped tasks must be reflected in information_gaps or "
-        "boundary_notes."
-    ),
-    (
-        "The summary should be concise, audit-friendly, and clear about key "
-        "risks and limitations."
-    ),
-    "The output must preserve the InvestmentDocumentReviewResult structure.",
-]
-
-
-class InvestmentDocumentReviewAction(str, Enum):
-    ASK_FOR_MISSING_INPUT = "ask_for_missing_input"
-    REFUSE_AND_REDIRECT = "refuse_and_redirect"
-    COMPLETE = "complete"
-    PENDING_HUMAN_APPROVAL = "pending_human_approval"
-
-
-class InvestmentDocumentReviewNode(str, Enum):
-    EVALUATE_POLICY_GATE = "evaluate_policy_gate"
-    CLASSIFY_DOCUMENT_TYPE = "classify_document_type"
-    BUILD_REVIEW_FRAMEWORK = "build_review_framework"
-    GENERATE_REVIEW_TODO_PLAN = "generate_review_todo_plan"
-    EXECUTE_REVIEW_TODO_PLAN = "execute_review_todo_plan"
-    RUN_SINGLE_PASS_REVIEW = "run_single_pass_review"
-    REFLECT_REVIEW_OUTPUT = "reflect_review_output"
-    ASSESS_REVIEW_RISK = "assess_review_risk"
-    BUILD_FINAL_RESULT = "build_final_result"
-    BUILD_PENDING_APPROVAL_RESULT = "build_pending_approval_result"
-    BUILD_MISSING_INPUT_RESULT = "build_missing_input_result"
-    BUILD_REFUSAL_RESULT = "build_refusal_result"
-
-
-class InvestmentDocumentReviewTodoResumeStore(Protocol):
-    # This checkpoint persists only review-task execution. Future approval resume
-    # metadata stays on InvestmentDocumentReviewState and should not rerun review work.
-    def load_resume_state(
-        self,
-        *,
-        session_id: str,
-        plan: TodoExecutionPlan,
-    ) -> TodoExecutionResumeState | None: ...
-
-    def save_resume_state(
-        self,
-        *,
-        session_id: str,
-        plan: TodoExecutionPlan,
-        results: list[TodoTaskResult],
-        previous_resume_state: TodoExecutionResumeState | None,
-    ) -> None: ...
-
-
-def _build_completed_todo_results(
-    todo_plan: TodoExecutionPlan,
-    results_by_id: dict[str, TodoTaskResult],
-) -> list[TodoTaskResult]:
-    completed_results_by_id = {
-        result.id: result
-        for result in results_by_id.values()
-        if result.status in COMPLETED_TODO_RESULT_STATUSES
-    }
-    planned_task_ids = [task.id for task in todo_plan.tasks]
-    ordered_results = [
-        completed_results_by_id[task_id]
-        for task_id in planned_task_ids
-        if task_id in completed_results_by_id
-    ]
-    ordered_results.extend(
-        result
-        for task_id, result in completed_results_by_id.items()
-        if task_id not in planned_task_ids
-    )
-    return ordered_results
-
-
-def _find_succeeded_todo_result(
-    todo_results: list[TodoTaskResult],
-    task_id: str,
-) -> TodoTaskResult | None:
-    for result in todo_results:
-        if result.id == task_id and result.status == TodoTaskStatus.SUCCEEDED:
-            return result
-    return None
-
-
-def _build_review_todo_summary(
-    *,
-    todo_plan: TodoExecutionPlan,
-    completed_results: list[TodoTaskResult],
-) -> InvestmentDocumentReviewTodoSummary:
-    tasks_by_id = {task.id: task for task in todo_plan.tasks}
-    succeeded_task_ids: list[str] = []
-    failed_task_ids: list[str] = []
-    skipped_task_ids: list[str] = []
-    extracted_facts: list[str] = []
-    risk_findings: list[str] = []
-    information_gaps: list[str] = []
-    boundary_notes: list[str] = []
-    task_summaries: list[InvestmentDocumentReviewTodoTaskSummary] = []
-
-    for result in completed_results:
-        task = tasks_by_id.get(result.id)
-        if result.status == TodoTaskStatus.SUCCEEDED:
-            succeeded_task_ids.append(result.id)
-            result_payload = result.result or {}
-            extracted_facts.extend(_string_list_from_result(result_payload, "extracted_facts"))
-            risk_findings.extend(_string_list_from_result(result_payload, "risk_findings"))
-            information_gaps.extend(
-                _string_list_from_result(result_payload, "information_gaps")
-            )
-            boundary_notes.extend(_string_list_from_result(result_payload, "boundary_notes"))
-            summary = _string_from_result(result_payload, "summary")
-        elif result.status == TodoTaskStatus.FAILED:
-            failed_task_ids.append(result.id)
-            summary = _todo_result_error_message(result)
-            information_gaps.append(
-                _todo_incomplete_review_note(
-                    result=result,
-                    task_title=task.title if task is not None else None,
-                )
-            )
-        else:
-            skipped_task_ids.append(result.id)
-            summary = _todo_result_error_message(result)
-            boundary_notes.append(
-                _todo_incomplete_review_note(
-                    result=result,
-                    task_title=task.title if task is not None else None,
-                )
-            )
-
-        task_summaries.append(
-            InvestmentDocumentReviewTodoTaskSummary(
-                task_id=result.id,
-                task_title=task.title if task is not None else None,
-                task_kind=task.kind if task is not None else None,
-                status=result.status,
-                summary=summary,
-            )
-        )
-
-    return InvestmentDocumentReviewTodoSummary(
-        plan_summary=todo_plan.summary,
-        planned_task_count=len(todo_plan.tasks),
-        completed_task_count=len(completed_results),
-        succeeded_task_ids=succeeded_task_ids,
-        failed_task_ids=failed_task_ids,
-        skipped_task_ids=skipped_task_ids,
-        extracted_facts=extracted_facts,
-        risk_findings=risk_findings,
-        information_gaps=information_gaps,
-        boundary_notes=boundary_notes,
-        task_summaries=task_summaries,
-    )
-
-
-def _build_review_task_status_summary(
-    *,
-    review_summary: InvestmentDocumentReviewTodoSummary,
-) -> list[str]:
-    status_summaries: list[str] = []
-    for summary in review_summary.task_summaries:
-        parts = [summary.task_id, summary.status.value]
-        if summary.summary:
-            parts.append(summary.summary)
-        status_summaries.append(" | ".join(parts))
-    return status_summaries
-
-
-def _log_review_todo_plan_generated(
-    *,
-    session_id: str | None,
-    todo_plan: TodoExecutionPlan,
-    document_type: InvestmentDocumentType | None,
-    chunk_count: int,
-) -> None:
-    logger.info(
-        "investment_document_review.todo_plan.generated session_id=%s document_type=%s "
-        "chunk_count=%s task_count=%s failure_policy=%s summary=%s",
-        session_id,
-        document_type.value if document_type is not None else None,
-        chunk_count,
-        len(todo_plan.tasks),
-        todo_plan.failure_policy.value,
-        todo_plan.summary,
-    )
-    for task in todo_plan.tasks:
-        logger.debug(
-            "investment_document_review.todo_plan.task session_id=%s task_id=%s "
-            "task_kind=%s title=%s depends_on=%s completion_criteria_count=%s",
-            session_id,
-            task.id,
-            task.kind.value,
-            task.title,
-            ",".join(task.depends_on) if task.depends_on else "",
-            len(task.completion_criteria),
-        )
-
-
-def _guess_review_plan_chunk_count(state: InvestmentDocumentReviewState) -> int:
-    return len(state.document_chunks or [])
-
-
-def should_use_chunk_review(state: InvestmentDocumentReviewState) -> bool:
-    return len(state.document_chunks or []) > 1
-
-
-def _normalize_todo_task_id_fragment(value: str) -> str:
-    normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
-    return normalized or "dimension"
-
-
-def _build_chunk_review_analyze_tasks(
-    *,
-    analyze_focus: list[str],
-    extract_task_ids: list[str],
-) -> list[dict[str, Any]]:
-    normalized_counts: dict[str, int] = {}
-    analyze_tasks: list[dict[str, Any]] = []
-
-    for focus in analyze_focus:
-        if not isinstance(focus, str):
-            continue
-        cleaned_focus = focus.strip()
-        if not cleaned_focus:
-            continue
-
-        normalized_focus = _normalize_todo_task_id_fragment(cleaned_focus)
-        occurrence = normalized_counts.get(normalized_focus, 0) + 1
-        normalized_counts[normalized_focus] = occurrence
-        task_id = f"{ANALYZE_TASK_ID_PREFIX}_{normalized_focus}"
-        if occurrence > 1:
-            task_id = f"{task_id}_{occurrence}"
-
-        analyze_tasks.append(
-            {
-                "id": task_id,
-                "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
-                "title": f"Analyze {cleaned_focus}",
-                "description": (
-                    "Review the extracted chunk evidence for this dimension and "
-                    "identify supported risks, inconsistencies, limits, and gaps."
-                ),
-                "payload": {ANALYZE_FOCUS_FIELD: [cleaned_focus]},
-                "depends_on": extract_task_ids,
-                "completion_criteria": [
-                    f"Findings stay focused on {cleaned_focus}.",
-                    "Findings are based only on successful chunk extraction results.",
-                    "Material gaps, conflicts, and boundary limits are identified.",
-                ],
-            }
-        )
-
-    if analyze_tasks:
-        return analyze_tasks
-
-    return [
-        {
-            "id": AGGREGATE_ANALYZE_TASK_ID,
-            "kind": TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE,
-            "title": "Analyze aggregated chunk evidence",
-            "description": (
-                "Merge evidence extracted from every document chunk and analyze "
-                "risks, disclosure quality, inconsistencies, constraints, and gaps."
-            ),
-            "payload": {ANALYZE_FOCUS_FIELD: []},
-            "depends_on": extract_task_ids,
-            "completion_criteria": [
-                "Findings are based only on successful chunk extraction results.",
-                "Cross-chunk conflicts, limitations, and disclosure gaps are identified.",
-            ],
-        }
-    ]
-
-
-def _build_review_todo_runner_event_handler(
-    *,
-    session_id: str | None,
-) -> Callable[[str, dict[str, Any]], None]:
-    def handle_event(event_name: str, payload: dict[str, Any]) -> None:
-        if event_name == TODO_EVENT_LAYER_STARTED:
-            logger.debug(
-                "investment_document_review.todo_layer.started session_id=%s layer_index=%s task_ids=%s",
-                session_id,
-                payload.get("layer_index"),
-                ",".join(payload.get("task_ids", [])),
-            )
-            return
-
-        if event_name == TODO_EVENT_TASK_STARTED:
-            logger.info(
-                "investment_document_review.todo_task.started session_id=%s task_id=%s task_kind=%s depends_on=%s attempt=%s",
-                session_id,
-                payload.get("task_id"),
-                payload.get("task_kind"),
-                ",".join(payload.get("depends_on", [])),
-                payload.get("attempt"),
-            )
-            return
-
-        if event_name == TODO_EVENT_TASK_RETRYING:
-            logger.info(
-                "investment_document_review.todo_task.retrying session_id=%s task_id=%s task_kind=%s attempt=%s next_attempt=%s max_attempts=%s error_type=%s",
-                session_id,
-                payload.get("task_id"),
-                payload.get("task_kind"),
-                payload.get("attempt"),
-                payload.get("next_attempt"),
-                payload.get("max_attempts"),
-                payload.get("error_type"),
-            )
-            return
-
-        if event_name == TODO_EVENT_TASK_SUCCEEDED:
-            logger.info(
-                "investment_document_review.todo_task.succeeded session_id=%s task_id=%s task_kind=%s duration_ms=%s result_keys=%s",
-                session_id,
-                payload.get("task_id"),
-                payload.get("task_kind"),
-                payload.get("duration_ms"),
-                ",".join(payload.get("result_keys", [])),
-            )
-            return
-
-        if event_name == TODO_EVENT_TASK_FAILED:
-            logger.warning(
-                "investment_document_review.todo_task.failed session_id=%s task_id=%s task_kind=%s duration_ms=%s error_type=%s stage=%s result_keys=%s",
-                session_id,
-                payload.get("task_id"),
-                payload.get("task_kind"),
-                payload.get("duration_ms"),
-                payload.get("error_type"),
-                payload.get("stage"),
-                ",".join(payload.get("result_keys", [])),
-            )
-            return
-
-        if event_name == TODO_EVENT_TASK_SKIPPED:
-            reason = _todo_task_skip_reason(payload.get("error_type"))
-            logger.info(
-                "investment_document_review.todo_task.skipped session_id=%s task_id=%s task_kind=%s duration_ms=%s reason=%s stage=%s failed_dependency_task_id=%s",
-                session_id,
-                payload.get("task_id"),
-                payload.get("task_kind"),
-                payload.get("duration_ms"),
-                reason,
-                payload.get("stage"),
-                payload.get("failed_dependency_task_id"),
-            )
-
-    return handle_event
-
-
-def _todo_task_skip_reason(error_type: Any) -> str | None:
-    if not isinstance(error_type, str):
-        return None
-    return error_type
-
-
-def _count_todo_results_by_status(
-    todo_results: list[TodoTaskResult],
-) -> dict[TodoTaskStatus, int]:
-    counts = {
-        TodoTaskStatus.SUCCEEDED: 0,
-        TodoTaskStatus.FAILED: 0,
-        TodoTaskStatus.SKIPPED: 0,
-    }
-    for result in todo_results:
-        if result.status in counts:
-            counts[result.status] += 1
-    return counts
-
-
-def _log_review_todo_execution_started(
-    *,
-    session_id: str | None,
-    todo_plan: TodoExecutionPlan,
-    resume_state: TodoExecutionResumeState | None,
-) -> None:
-    logger.info(
-        "investment_document_review.todo_execution.started session_id=%s "
-        "task_count=%s resume_task_count=%s failure_policy=%s",
-        session_id,
-        len(todo_plan.tasks),
-        len(resume_state.results_by_id) if resume_state is not None else 0,
-        todo_plan.failure_policy.value,
-    )
-
-
-def _log_review_todo_execution_completed(
-    *,
-    session_id: str | None,
-    todo_results: list[TodoTaskResult],
-    duration_ms: int,
-    synthesis_produced: bool,
-) -> None:
-    counts = _count_todo_results_by_status(todo_results)
-    logger.info(
-        "investment_document_review.todo_execution.completed session_id=%s "
-        "succeeded_count=%s failed_count=%s skipped_count=%s duration_ms=%s "
-        "synthesis_produced=%s",
-        session_id,
-        counts[TodoTaskStatus.SUCCEEDED],
-        counts[TodoTaskStatus.FAILED],
-        counts[TodoTaskStatus.SKIPPED],
-        duration_ms,
-        str(synthesis_produced).lower(),
-    )
-
-
-def _log_review_reflection_started(
-    *,
-    session_id: str | None,
-) -> None:
-    logger.info(
-        "investment_document_review.reflection.started session_id=%s",
-        session_id,
-    )
-
-
-def _log_review_reflection_completed(
-    *,
-    session_id: str | None,
-    reflection: InvestmentDocumentReviewReflectionResult,
-) -> None:
-    logger.info(
-        "investment_document_review.reflection.completed session_id=%s "
-        "passed=%s score=%s rounds=%s issue_count=%s safety_flag_count=%s",
-        session_id,
-        str(reflection.passed).lower(),
-        reflection.score,
-        reflection.rounds,
-        len(reflection.issues),
-        len(reflection.safety_flags),
-    )
-
-
-def _log_review_reflection_failed(
-    *,
-    session_id: str | None,
-    stage: str,
-    error_type: str | None,
-) -> None:
-    logger.warning(
-        "investment_document_review.reflection.failed session_id=%s stage=%s "
-        "error_type=%s",
-        session_id,
-        stage,
-        error_type,
-    )
-
-
-def _string_list_from_result(result_payload: dict[str, Any], key: str) -> list[str]:
-    value = result_payload.get(key)
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, str)]
-
-
-def _string_from_result(result_payload: dict[str, Any], key: str) -> str | None:
-    value = result_payload.get(key)
-    if isinstance(value, str):
-        return value
-    return None
-
-
-def _todo_result_error_message(result: TodoTaskResult) -> str | None:
-    if result.error is None:
-        return None
-    message = result.error.get("message")
-    if isinstance(message, str):
-        return message
-    return None
-
-
-def _todo_incomplete_review_note(
-    *,
-    result: TodoTaskResult,
-    task_title: str | None,
-) -> str:
-    task_label = task_title or result.id
-    reason = _todo_result_error_message(result)
-    if reason:
-        return f"{task_label} ({result.id}) did not complete: {reason}"
-    return f"{task_label} ({result.id}) did not complete with status {result.status.value}."
 
 
 class InvestmentDocumentReviewFlow:
+    """
+    LangGraph-based investment document review flow.
+
+    Responsible for constructing the state graph and orchestrating node execution.
+    All node behavior is delegated to InvestmentDocumentReviewNodeHandlers.
+    """
+
     def __init__(
         self,
         executor: TaskExecutor | None = None,
@@ -650,10 +97,33 @@ class InvestmentDocumentReviewFlow:
         supports_realtime_data: bool = False,
         todo_resume_store: InvestmentDocumentReviewTodoResumeStore | None = None,
     ) -> None:
-        self.executor = executor or TaskExecutor()
-        self.llm_router = llm_router or InvestmentDocumentReviewLLMRouter()
-        self.supports_realtime_data = supports_realtime_data
-        self.todo_resume_store = todo_resume_store
+        resolved_executor = executor or TaskExecutor()
+        resolved_router = llm_router or InvestmentDocumentReviewLLMRouter()
+        todo_runner_factory = None
+        custom_todo_runner_builder = getattr(
+            self,
+            "_build_todo_execution_runner",
+            None,
+        )
+        if custom_todo_runner_builder is not None:
+
+            def todo_runner_factory(
+                state: InvestmentDocumentReviewState,
+                _executor: TaskExecutor,
+                resume_state,
+            ):
+                return custom_todo_runner_builder(
+                    state,
+                    resume_state=resume_state,
+                )
+
+        self.nodes = InvestmentDocumentReviewNodeHandlers(
+            executor=resolved_executor,
+            llm_router=resolved_router,
+            supports_realtime_data=supports_realtime_data,
+            todo_resume_store=todo_resume_store,
+            todo_runner_factory=todo_runner_factory,
+        )
         self.graph = self._build_graph()
 
     def run(
@@ -680,57 +150,57 @@ class InvestmentDocumentReviewFlow:
 
         graph.add_node(
             InvestmentDocumentReviewNode.EVALUATE_POLICY_GATE.value,
-            self.evaluate_policy_gate,
+            self.nodes.evaluate_policy_gate,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.CLASSIFY_DOCUMENT_TYPE.value,
-            self.classify_document_type,
+            self.nodes.classify_document_type,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.BUILD_REVIEW_FRAMEWORK.value,
-            self.build_review_framework,
+            self.nodes.build_review_framework,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.GENERATE_REVIEW_TODO_PLAN.value,
-            self.generate_review_todo_plan,
+            self.nodes.generate_review_todo_plan,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.EXECUTE_REVIEW_TODO_PLAN.value,
-            self.execute_review_todo_plan,
+            self.nodes.execute_review_todo_plan,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.RUN_SINGLE_PASS_REVIEW.value,
-            self.run_single_pass_review,
+            self.nodes.run_single_pass_review,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.REFLECT_REVIEW_OUTPUT.value,
-            self.reflect_review_output,
+            self.nodes.reflect_review_output,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.ASSESS_REVIEW_RISK.value,
-            self.assess_review_risk,
+            self.nodes.assess_review_risk,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value,
-            self.build_final_result,
+            self.nodes.build_final_result,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.BUILD_PENDING_APPROVAL_RESULT.value,
-            self.build_pending_approval_result,
+            self.nodes.build_pending_approval_result,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.BUILD_MISSING_INPUT_RESULT.value,
-            self.build_missing_input_result,
+            self.nodes.build_missing_input_result,
         )
         graph.add_node(
             InvestmentDocumentReviewNode.BUILD_REFUSAL_RESULT.value,
-            self.build_refusal_result,
+            self.nodes.build_refusal_result,
         )
 
         graph.add_edge(START, InvestmentDocumentReviewNode.EVALUATE_POLICY_GATE.value)
         graph.add_conditional_edges(
             InvestmentDocumentReviewNode.EVALUATE_POLICY_GATE.value,
-            self.route_after_policy_gate,
+            self.nodes.route_after_policy_gate,
             {
                 MISSING_ROUTE: InvestmentDocumentReviewNode.BUILD_MISSING_INPUT_RESULT.value,
                 REFUSAL_ROUTE: InvestmentDocumentReviewNode.BUILD_REFUSAL_RESULT.value,
@@ -739,7 +209,7 @@ class InvestmentDocumentReviewFlow:
         )
         graph.add_conditional_edges(
             InvestmentDocumentReviewNode.CLASSIFY_DOCUMENT_TYPE.value,
-            self.route_after_classification,
+            self.nodes.route_after_classification,
             {
                 MISSING_ROUTE: InvestmentDocumentReviewNode.BUILD_MISSING_INPUT_RESULT.value,
                 COMPLETE_ROUTE: InvestmentDocumentReviewNode.BUILD_REVIEW_FRAMEWORK.value,
@@ -747,7 +217,7 @@ class InvestmentDocumentReviewFlow:
         )
         graph.add_conditional_edges(
             InvestmentDocumentReviewNode.BUILD_REVIEW_FRAMEWORK.value,
-            self.route_after_review_framework,
+            self.nodes.route_after_review_framework,
             {
                 CHUNK_REVIEW_SCOPE: InvestmentDocumentReviewNode.GENERATE_REVIEW_TODO_PLAN.value,
                 FULL_DOCUMENT_REVIEW_SCOPE: InvestmentDocumentReviewNode.RUN_SINGLE_PASS_REVIEW.value,
@@ -771,7 +241,7 @@ class InvestmentDocumentReviewFlow:
         )
         graph.add_conditional_edges(
             InvestmentDocumentReviewNode.ASSESS_REVIEW_RISK.value,
-            self.route_after_risk_assessment,
+            self.nodes.route_after_risk_assessment,
             {
                 COMPLETE_ROUTE: InvestmentDocumentReviewNode.BUILD_FINAL_RESULT.value,
                 PENDING_APPROVAL_ROUTE: (
@@ -788,927 +258,6 @@ class InvestmentDocumentReviewFlow:
         graph.add_edge(InvestmentDocumentReviewNode.BUILD_REFUSAL_RESULT.value, END)
 
         return graph.compile()
-
-    def evaluate_policy_gate(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        return {"missing_fields": detect_missing_fields(state.input_payload)}
-
-    def route_after_policy_gate(self, state: InvestmentDocumentReviewState) -> str:
-        if state.missing_fields:
-            return MISSING_ROUTE
-
-        if looks_like_investment_advice(state.input_payload):
-            return REFUSAL_ROUTE
-
-        if (
-            requires_realtime_data(state.input_payload)
-            and not self.supports_realtime_data
-        ):
-            return REFUSAL_ROUTE
-
-        return COMPLETE_ROUTE
-
-    def classify_document_type(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        decision = self.llm_router.route(state.input_payload)
-        missing_fields = decision.missing_fields
-        if decision.document_type == InvestmentDocumentType.UNKNOWN and not missing_fields:
-            missing_fields = UNKNOWN_DOCUMENT_MISSING_FIELDS
-        return {
-            "document_type": decision.document_type,
-            "route_reason": decision.reason,
-            "route_confidence": decision.confidence,
-            "missing_fields": missing_fields,
-        }
-
-    def route_after_classification(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> str:
-        if state.document_type == InvestmentDocumentType.UNKNOWN:
-            return MISSING_ROUTE
-
-        if state.missing_fields:
-            return MISSING_ROUTE
-
-        return COMPLETE_ROUTE
-
-    def build_review_framework(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if state.document_type is None:
-            raise RuntimeError("Document review flow has no classified document type.")
-
-        review_framework = get_review_framework(state.document_type)
-        if review_framework is None:
-            raise RuntimeError(
-                f"Document review flow has no framework for {state.document_type.value}."
-            )
-
-        review_payload = {
-            DOCUMENT_TEXT_FIELD: state.input_payload.get(DOCUMENT_TEXT_FIELD),
-            DOCUMENT_TYPE_FIELD: state.document_type,
-            EXTRACT_FOCUS_FIELD: review_framework.extract_focus,
-            ANALYZE_FOCUS_FIELD: review_framework.analyze_focus,
-            REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
-        }
-
-        document_text = state.input_payload.get(DOCUMENT_TEXT_FIELD) or ""
-        document_chunks = split_into_chunks(document_text) if document_text else []
-
-        return {
-            "review_framework": review_framework,
-            "review_payload": review_payload,
-            "document_chunks": document_chunks,
-        }
-
-    def route_after_review_framework(self, state: InvestmentDocumentReviewState) -> str:
-        if should_use_chunk_review(state):
-            return CHUNK_REVIEW_SCOPE
-        return FULL_DOCUMENT_REVIEW_SCOPE
-
-    def run_single_pass_review(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        result = self.executor.run(
-            INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK,
-            state.review_payload or state.input_payload,
-        )
-        return {"output": result}
-
-    def reflect_review_output(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if state.output is None or not state.output.ok:
-            return {}
-
-        try:
-            payload = self._build_review_reflection_payload(state=state)
-        except (RuntimeError, ValidationError) as exc:
-            task_error = normalize_task_error(exc, stage="output_validation")
-            _log_review_reflection_failed(
-                session_id=state.session_id,
-                stage=task_error.stage,
-                error_type=task_error.error_type,
-            )
-            return {
-                "output": TaskResult(
-                    ok=False,
-                    task_name=INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
-                    error=task_error,
-                )
-            }
-
-        _log_review_reflection_started(session_id=state.session_id)
-        result = self.executor.run(INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK, payload)
-        if not result.ok:
-            _log_review_reflection_failed(
-                session_id=state.session_id,
-                stage=result.error.stage if result.error is not None else "unknown",
-                error_type=(
-                    result.error.error_type if result.error is not None else None
-                ),
-            )
-            return {"output": result}
-
-        try:
-            reflection = InvestmentDocumentReviewReflectionResult.model_validate(
-                result.result
-            )
-        except ValidationError as exc:
-            task_error = normalize_task_error(exc, stage="output_validation")
-            _log_review_reflection_failed(
-                session_id=state.session_id,
-                stage=task_error.stage,
-                error_type=task_error.error_type,
-            )
-            return {
-                "output": TaskResult(
-                    ok=False,
-                    task_name=INVESTMENT_DOCUMENT_REVIEW_REFLECTION_TASK.name,
-                    error=task_error,
-                )
-            }
-
-        _log_review_reflection_completed(
-            session_id=state.session_id,
-            reflection=reflection,
-        )
-        return {
-            "output": TaskResult(
-                ok=True,
-                task_name=state.output.task_name,
-                result=reflection.review_result.model_dump(mode="json"),
-            ),
-            "reflection_result": reflection.model_dump(mode="json"),
-            "reflection_passed": reflection.passed,
-            "reflection_rounds": reflection.rounds,
-        }
-
-    def assess_review_risk(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if state.output is None:
-            raise RuntimeError("Document review flow has no review result to assess.")
-
-        if not state.output.ok:
-            return {}
-
-        try:
-            payload = self._build_review_risk_assessment_payload(state=state)
-        except RuntimeError as exc:
-            return {
-                "output": TaskResult(
-                    ok=False,
-                    task_name=INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
-                    error=normalize_task_error(exc, stage="output_validation"),
-                )
-            }
-
-        result = self.executor.run(INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK, payload)
-        if not result.ok:
-            return {"output": result}
-
-        try:
-            risk_assessment = InvestmentDocumentReviewRiskAssessmentResult.model_validate(
-                result.result
-            )
-        except ValidationError as exc:
-            return {
-                "output": TaskResult(
-                    ok=False,
-                    task_name=INVESTMENT_DOCUMENT_RISK_ASSESSMENT_TASK.name,
-                    error=normalize_task_error(exc, stage="output_validation"),
-                )
-            }
-
-        return {
-            "risk_assessment": risk_assessment.model_dump(mode="json"),
-            "approval_status": risk_assessment.approval_status.value,
-            "approval_required_role": risk_assessment.required_role,
-        }
-
-    def route_after_risk_assessment(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> str:
-        if state.output is None or not state.output.ok:
-            return COMPLETE_ROUTE
-        if (
-            state.approval_status
-            == InvestmentDocumentReviewApprovalStatus.PENDING_HUMAN_APPROVAL.value
-        ):
-            return PENDING_APPROVAL_ROUTE
-        return COMPLETE_ROUTE
-
-    def generate_review_todo_plan(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if should_use_chunk_review(state):
-            try:
-                todo_plan = self._build_chunk_review_todo_plan(state)
-            except (ValidationError, TodoPlanValidationException) as exc:
-                return {
-                    "output": TaskResult(
-                        ok=False,
-                        task_name=INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
-                        error=normalize_task_error(exc, stage="output_validation"),
-                    )
-                }
-
-            _log_review_todo_plan_generated(
-                session_id=state.session_id,
-                todo_plan=todo_plan,
-                document_type=state.document_type,
-                chunk_count=_guess_review_plan_chunk_count(state),
-            )
-            return {"todo_plan": todo_plan}
-
-        plan_payload = self.build_review_todo_plan_payload(state)
-        result = self.executor.run(
-            INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK,
-            plan_payload,
-        )
-        if not result.ok:
-            return {"output": result}
-
-        try:
-            todo_plan = TodoExecutionPlan.model_validate(result.result)
-            ensure_valid_todo_plan(todo_plan)
-        except (ValidationError, TodoPlanValidationException) as exc:
-            return {
-                "output": TaskResult(
-                    ok=False,
-                    task_name=INVESTMENT_DOCUMENT_REVIEW_PLAN_TASK.name,
-                    error=normalize_task_error(exc, stage="output_validation"),
-                )
-            }
-
-        _log_review_todo_plan_generated(
-            session_id=state.session_id,
-            todo_plan=todo_plan,
-            document_type=state.document_type,
-            chunk_count=_guess_review_plan_chunk_count(state),
-        )
-        return {"todo_plan": todo_plan}
-
-    def _build_chunk_review_todo_plan(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> TodoExecutionPlan:
-        if state.review_payload is None:
-            raise RuntimeError("Document review flow has no review payload for chunk review.")
-
-        chunk_count = len(state.document_chunks)
-        extract_task_ids = [
-            f"{CHUNK_EXTRACT_TASK_ID_PREFIX}_{idx + 1:04d}"
-            for idx in range(chunk_count)
-        ]
-        extract_focus = state.review_payload.get(EXTRACT_FOCUS_FIELD) or []
-        analyze_focus = state.review_payload.get(ANALYZE_FOCUS_FIELD) or []
-        analyze_tasks = _build_chunk_review_analyze_tasks(
-            analyze_focus=analyze_focus,
-            extract_task_ids=extract_task_ids,
-        )
-        analyze_task_ids = [task["id"] for task in analyze_tasks]
-        tasks = [
-            {
-                "id": task_id,
-                "kind": TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT,
-                "title": f"Extract evidence from document chunk {idx + 1} of {chunk_count}",
-                "description": (
-                    "Extract lightweight, document-grounded evidence from this chunk: "
-                    "key facts, fees, risks, constraints, disclosures, gaps, unusual "
-                    "statements, and source citations."
-                ),
-                "payload": {
-                    DOCUMENT_TEXT_FIELD: chunk,
-                    EXTRACT_FOCUS_FIELD: extract_focus,
-                    CHUNK_INDEX_FIELD: idx,
-                    CHUNK_COUNT_FIELD: chunk_count,
-                    CHUNK_REVIEW_SCOPE_FIELD: CHUNK_REVIEW_SCOPE,
-                },
-                "depends_on": [],
-                "completion_criteria": [
-                    "Output contains only facts and evidence visible in this chunk.",
-                    "Important missing or weak evidence is recorded as information gaps.",
-                    "Source citations identify the supporting chunk text or section.",
-                ],
-            }
-            for idx, (task_id, chunk) in enumerate(
-                zip(extract_task_ids, state.document_chunks, strict=True)
-            )
-        ]
-        tasks.extend(
-            analyze_tasks
-            + [
-                {
-                    "id": SYNTHESIZE_REVIEW_TASK_ID,
-                    "kind": TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE,
-                    "title": "Synthesize full-document review",
-                    "description": (
-                        "Produce the final investment document review from the aggregated "
-                        "chunk evidence and analysis results."
-                    ),
-                    "payload": {},
-                    "depends_on": analyze_task_ids,
-                    "completion_criteria": [
-                        "Final review covers extracted evidence from all document chunks.",
-                        "Facts, risks, gaps, boundary notes, and summary are supported by task results.",
-                    ],
-                },
-            ]
-        )
-        todo_plan = TodoExecutionPlan.model_validate(
-            {
-                "tasks": tasks,
-                "summary": (
-                    "Extract lightweight evidence from every document chunk, analyze the "
-                    "evidence by review dimension, then synthesize the full document review."
-                ),
-            }
-        )
-        ensure_valid_todo_plan(todo_plan)
-        return todo_plan
-
-    def execute_review_todo_plan(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if state.todo_plan is None:
-            raise RuntimeError("Document review flow has no To-Do plan to execute.")
-
-        resume_state = self._load_todo_resume_state(state)
-        started_at = perf_counter()
-        _log_review_todo_execution_started(
-            session_id=state.session_id,
-            todo_plan=state.todo_plan,
-            resume_state=resume_state,
-        )
-        runner = self._build_todo_execution_runner(
-            state,
-            resume_state=resume_state,
-        )
-        todo_results = asyncio.run(
-            runner.run(state.todo_plan, resume_state=resume_state)
-        )
-        synthesize_result = _find_succeeded_todo_result(
-            todo_results,
-            SYNTHESIZE_REVIEW_TASK_ID,
-        )
-        _log_review_todo_execution_completed(
-            session_id=state.session_id,
-            todo_results=todo_results,
-            duration_ms=int((perf_counter() - started_at) * 1000),
-            synthesis_produced=synthesize_result is not None,
-        )
-        self._save_todo_resume_state(
-            state=state,
-            todo_results=todo_results,
-            previous_resume_state=resume_state,
-        )
-        update: dict[str, Any] = {"todo_results": todo_results}
-        if synthesize_result is not None:
-            update["output"] = TaskResult(
-                ok=True,
-                task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
-                result=synthesize_result.result,
-            )
-        elif should_use_chunk_review(state):
-            update["output"] = TaskResult(
-                ok=False,
-                task_name=INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name,
-                error=normalize_task_error(
-                    RuntimeError("Chunk-based document review did not produce synthesis."),
-                    stage="output_validation",
-                ),
-            )
-        return update
-
-    def _load_todo_resume_state(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> TodoExecutionResumeState | None:
-        if self.todo_resume_store is None:
-            return None
-
-        if state.session_id is None:
-            return None
-
-        if state.todo_plan is None:
-            raise RuntimeError("Document review flow has no To-Do plan to resume.")
-
-        resume_state = self.todo_resume_store.load_resume_state(
-            session_id=state.session_id,
-            plan=state.todo_plan,
-        )
-        if resume_state is not None:
-            logger.info(
-                "investment_document_review.todo_resume.loaded session_id=%s "
-                "resumed_result_count=%s attempt_count=%s",
-                state.session_id,
-                len(resume_state.results_by_id),
-                len(resume_state.attempts_by_id),
-            )
-        return resume_state
-
-    def _save_todo_resume_state(
-        self,
-        *,
-        state: InvestmentDocumentReviewState,
-        todo_results: list[TodoTaskResult],
-        previous_resume_state: TodoExecutionResumeState | None,
-    ) -> None:
-        if self.todo_resume_store is None:
-            return
-
-        if state.session_id is None:
-            return
-
-        if state.todo_plan is None:
-            raise RuntimeError("Document review flow has no To-Do plan to persist.")
-
-        self.todo_resume_store.save_resume_state(
-            session_id=state.session_id,
-            plan=state.todo_plan,
-            results=todo_results,
-            previous_resume_state=previous_resume_state,
-        )
-        logger.info(
-            "investment_document_review.todo_resume.saved session_id=%s "
-            "saved_result_count=%s",
-            state.session_id,
-            len(todo_results),
-        )
-
-    def _build_todo_execution_runner(
-        self,
-        state: InvestmentDocumentReviewState,
-        *,
-        resume_state: TodoExecutionResumeState | None = None,
-    ) -> TodoExecutionRunner:
-        executed_results_by_id = {result.id: result for result in state.todo_results}
-        if resume_state is not None:
-            executed_results_by_id.update(resume_state.results_by_id)
-
-        async def execute(task) -> TodoTaskResult:
-            result = await self._execute_review_todo_task(
-                state=state,
-                task=task,
-                executed_results_by_id=executed_results_by_id,
-            )
-            executed_results_by_id[result.id] = result
-            return result
-
-        return TodoExecutionRunner(
-            execute,
-            event_handler=_build_review_todo_runner_event_handler(
-                session_id=state.session_id,
-            ),
-        )
-
-    async def _execute_review_todo_task(
-        self,
-        *,
-        state,
-        task,
-        executed_results_by_id: dict[str, TodoTaskResult],
-    ) -> TodoTaskResult:
-        try:
-            spec, payload = self._build_review_todo_task_execution(
-                state=state,
-                task=task,
-                executed_results_by_id=executed_results_by_id,
-            )
-        except RuntimeError as exc:
-            return TodoTaskResult(
-                id=task.id,
-                status=TodoTaskStatus.FAILED,
-                error={
-                    "error_type": "todo_task_payload_not_supported",
-                    "message": str(exc),
-                    "details": {"task_kind": task.kind.value},
-                },
-            )
-
-        result = await asyncio.to_thread(self.executor.run, spec, payload)
-        if result.ok:
-            return TodoTaskResult(
-                id=task.id,
-                status=TodoTaskStatus.SUCCEEDED,
-                result=result.result,
-            )
-
-        return TodoTaskResult(
-            id=task.id,
-            status=TodoTaskStatus.FAILED,
-            error={
-                "error_type": "todo_task_execution_failed",
-                "message": (
-                    result.error.user_safe_message
-                    if result.error is not None
-                    else "The To-Do task failed to run."
-                ),
-                "details": {
-                    "task_name": spec.name,
-                    "task_kind": task.kind.value,
-                    "stage": result.error.stage if result.error is not None else None,
-                    "debug_message": (
-                        result.error.debug_message if result.error is not None else None
-                    ),
-                },
-            },
-        )
-
-    def _build_review_todo_task_execution(
-        self,
-        *,
-        state: InvestmentDocumentReviewState,
-        task,
-        executed_results_by_id: dict[str, TodoTaskResult],
-    ) -> tuple[Any, dict[str, Any]]:
-        if state.document_type is None:
-            raise RuntimeError("Document review flow has no classified document type.")
-
-        if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_EXTRACT:
-            return (
-                INVESTMENT_DOCUMENT_EXTRACT_TASK,
-                self._build_review_todo_extract_payload(state=state, task=task),
-            )
-
-        if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_SYNTHESIZE:
-            return (
-                INVESTMENT_DOCUMENT_SYNTHESIZE_TASK,
-                self._build_review_todo_synthesize_payload(
-                    state=state,
-                    executed_results_by_id=executed_results_by_id,
-                ),
-            )
-
-        if task.kind == TodoTaskKind.INVESTMENT_DOCUMENT_ANALYZE:
-            return (
-                INVESTMENT_DOCUMENT_ANALYZE_TASK,
-                self._build_review_todo_analyze_payload(
-                    state=state,
-                    task=task,
-                    dependency_results=self._build_review_todo_dependency_results(
-                        task=task,
-                        executed_results_by_id=executed_results_by_id,
-                    ),
-                ),
-            )
-
-        raise RuntimeError(f"Unsupported investment document To-Do task kind: {task.kind.value}")
-
-    def _build_review_todo_common_payload(
-        self,
-        *,
-        state: InvestmentDocumentReviewState,
-        task,
-    ) -> dict[str, Any]:
-        return {
-            "task_id": task.id,
-            "task_title": task.title,
-            "task_description": task.description,
-            "completion_criteria": task.completion_criteria,
-            DOCUMENT_TYPE_FIELD: state.document_type,
-            REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
-        }
-
-    def _build_review_todo_extract_payload(
-        self,
-        *,
-        state: InvestmentDocumentReviewState,
-        task,
-    ) -> dict[str, Any]:
-        return InvestmentDocumentReviewExtractInput.model_validate(
-            {
-                **self._build_review_todo_common_payload(state=state, task=task),
-                DOCUMENT_TEXT_FIELD: task.payload.get(
-                    DOCUMENT_TEXT_FIELD,
-                    state.input_payload.get(DOCUMENT_TEXT_FIELD),
-                ),
-                EXTRACT_FOCUS_FIELD: task.payload.get(EXTRACT_FOCUS_FIELD, []),
-                CHUNK_INDEX_FIELD: task.payload.get(CHUNK_INDEX_FIELD),
-                CHUNK_COUNT_FIELD: task.payload.get(CHUNK_COUNT_FIELD),
-                CHUNK_REVIEW_SCOPE_FIELD: task.payload.get(
-                    CHUNK_REVIEW_SCOPE_FIELD,
-                    FULL_DOCUMENT_REVIEW_SCOPE,
-                ),
-            }
-        ).model_dump(exclude_none=True, exclude_defaults=True)
-
-    def _build_review_todo_analyze_payload(
-        self,
-        *,
-        state: InvestmentDocumentReviewState,
-        task,
-        dependency_results: list[TodoTaskResult],
-    ) -> dict[str, Any]:
-        return InvestmentDocumentReviewAnalyzeInput.model_validate(
-            {
-                **self._build_review_todo_common_payload(state=state, task=task),
-                DOCUMENT_TEXT_FIELD: state.input_payload.get(DOCUMENT_TEXT_FIELD),
-                ANALYZE_FOCUS_FIELD: task.payload.get(ANALYZE_FOCUS_FIELD, []),
-                "dependency_results": [result.model_dump() for result in dependency_results],
-            }
-        ).model_dump()
-
-    def _build_review_todo_dependency_results(
-        self,
-        *,
-        task,
-        executed_results_by_id: dict[str, TodoTaskResult],
-    ) -> list[TodoTaskResult]:
-        if not task.depends_on:
-            raise RuntimeError(
-                "Analyze To-Do tasks must depend on at least one upstream task result."
-            )
-
-        dependency_results: list[TodoTaskResult] = []
-        missing_dependency_ids: list[str] = []
-        failed_dependency_ids: list[str] = []
-
-        for dependency_task_id in task.depends_on:
-            dependency_result = executed_results_by_id.get(dependency_task_id)
-            if dependency_result is None:
-                missing_dependency_ids.append(dependency_task_id)
-                continue
-            if dependency_result.status != TodoTaskStatus.SUCCEEDED:
-                failed_dependency_ids.append(dependency_task_id)
-                continue
-            dependency_results.append(dependency_result)
-
-        if missing_dependency_ids:
-            raise RuntimeError(
-                "Analyze To-Do task is missing required dependency results: "
-                + ", ".join(missing_dependency_ids)
-            )
-
-        if failed_dependency_ids:
-            raise RuntimeError(
-                "Analyze To-Do task has non-succeeded dependency results: "
-                + ", ".join(failed_dependency_ids)
-            )
-
-        return dependency_results
-
-    def _build_review_todo_synthesize_payload(
-        self,
-        *,
-        state: InvestmentDocumentReviewState,
-        executed_results_by_id: dict[str, TodoTaskResult],
-    ) -> dict[str, Any]:
-        if state.todo_plan is None:
-            raise RuntimeError("Document review flow has no To-Do plan to synthesize.")
-
-        completed_results = _build_completed_todo_results(
-            state.todo_plan,
-            executed_results_by_id,
-        )
-        return InvestmentDocumentReviewSynthesizeInput.model_validate(
-            {
-                DOCUMENT_TYPE_FIELD: state.document_type,
-                ROUTE_REASON_FIELD: state.route_reason or "",
-                ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
-                REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
-                "todo_plan": state.todo_plan.model_dump(),
-                "todo_results": [result.model_dump() for result in completed_results],
-                "review_summary": _build_review_todo_summary(
-                    todo_plan=state.todo_plan,
-                    completed_results=completed_results,
-                ).model_dump(),
-            }
-        ).model_dump()
-
-    def _build_review_reflection_payload(
-        self,
-        *,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if state.document_type is None:
-            raise RuntimeError("Document review flow has no classified document type.")
-
-        if state.output is None or not state.output.ok:
-            raise RuntimeError("Document review flow has no successful review result.")
-
-        payload: dict[str, Any] = {
-            DOCUMENT_TYPE_FIELD: state.document_type,
-            ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
-            REVIEW_GOAL_FIELD: state.input_payload.get(REVIEW_GOAL_FIELD),
-            REVIEW_RESULT_FIELD: InvestmentDocumentReviewResult.model_validate(
-                state.output.result
-            ).model_dump(mode="json"),
-            CRITERIA_FIELD: INVESTMENT_DOCUMENT_REVIEW_REFLECTION_CRITERIA,
-            MAX_ROUNDS_FIELD: DEFAULT_REFLECTION_MAX_ROUNDS,
-        }
-
-        if state.todo_plan is not None and state.todo_results:
-            review_summary = _build_review_todo_summary(
-                todo_plan=state.todo_plan,
-                completed_results=state.todo_results,
-            )
-            payload.update(
-                {
-                    TODO_PLAN_FIELD: state.todo_plan.model_dump(),
-                    TODO_RESULTS_FIELD: [
-                        result.model_dump() for result in state.todo_results
-                    ],
-                    REVIEW_SUMMARY_FIELD: review_summary.model_dump(),
-                }
-            )
-
-        return InvestmentDocumentReviewReflectionInput.model_validate(
-            payload
-        ).model_dump(exclude_none=True)
-
-    def _build_review_risk_assessment_payload(
-        self,
-        *,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if state.document_type is None:
-            raise RuntimeError("Document review flow has no classified document type.")
-
-        if state.output is None or not state.output.ok:
-            raise RuntimeError("Document review flow has no successful review result.")
-
-        task_status_summary: list[str]
-        review_result = InvestmentDocumentReviewResult.model_validate(
-            state.output.result
-        )
-
-        if state.todo_plan is not None and state.todo_results:
-            review_summary = _build_review_todo_summary(
-                todo_plan=state.todo_plan,
-                completed_results=state.todo_results,
-            )
-            task_status_summary = _build_review_task_status_summary(
-                review_summary=review_summary
-            )
-        else:
-            task_status_summary = ["single_pass_review | succeeded"]
-            if review_result.summary:
-                task_status_summary[0] = (
-                    f"single_pass_review | succeeded | {review_result.summary}"
-                )
-
-        return InvestmentDocumentReviewRiskAssessmentInput.model_validate(
-            {
-                DOCUMENT_TYPE_FIELD: state.document_type,
-                ROUTE_CONFIDENCE_FIELD: state.route_confidence or 0.0,
-                "risk_findings": review_result.risk_findings,
-                "information_gaps": review_result.information_gaps,
-                "boundary_notes": review_result.boundary_notes,
-                "task_status_summary": task_status_summary,
-            }
-        ).model_dump()
-
-    def build_review_todo_plan_payload(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if state.review_payload is None:
-            raise RuntimeError("Document review flow has no review payload to plan.")
-
-        return {
-            DOCUMENT_TEXT_FIELD: state.review_payload.get(DOCUMENT_TEXT_FIELD),
-            DOCUMENT_TYPE_FIELD: state.review_payload.get(DOCUMENT_TYPE_FIELD),
-            EXTRACT_FOCUS_FIELD: state.review_payload.get(EXTRACT_FOCUS_FIELD),
-            ANALYZE_FOCUS_FIELD: state.review_payload.get(ANALYZE_FOCUS_FIELD),
-            REVIEW_GOAL_FIELD: state.review_payload.get(REVIEW_GOAL_FIELD),
-        }
-
-    def build_final_result(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if state.output is None:
-            raise RuntimeError("Document review flow has no review result to finalize.")
-
-        if not state.output.ok:
-            return {"output": state.output}
-
-        document_type = state.document_type
-        if document_type is None:
-            raise RuntimeError(
-                "Document review flow finished without a classified document type."
-            )
-
-        if state.risk_assessment is None:
-            raise RuntimeError(
-                "Document review flow finished without a risk assessment result."
-            )
-        if state.approval_status is None:
-            raise RuntimeError(
-                "Document review flow finished without an approval status."
-            )
-
-        result = TaskResult(
-            ok=True,
-            task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
-            result={
-                ACTION_FIELD: InvestmentDocumentReviewAction.COMPLETE.value,
-                DOCUMENT_TYPE_FIELD: document_type.value,
-                ROUTE_REASON_FIELD: state.route_reason,
-                ROUTE_CONFIDENCE_FIELD: state.route_confidence,
-                REVIEW_FIELD: state.output.result,
-                RISK_ASSESSMENT_FIELD: state.risk_assessment,
-                APPROVAL_FIELD: {
-                    STATUS_FIELD: state.approval_status,
-                    REQUIRED_ROLE_FIELD: state.approval_required_role,
-                },
-            },
-        )
-        return {"output": result}
-
-    def build_pending_approval_result(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        if state.output is None:
-            raise RuntimeError("Document review flow has no review result to finalize.")
-
-        if not state.output.ok:
-            return {"output": state.output}
-
-        document_type = state.document_type
-        if document_type is None:
-            raise RuntimeError(
-                "Document review flow finished without a classified document type."
-            )
-
-        if state.risk_assessment is None:
-            raise RuntimeError(
-                "Document review flow finished without a risk assessment result."
-            )
-        if state.approval_status is None:
-            raise RuntimeError(
-                "Document review flow finished without an approval status."
-            )
-
-        result = TaskResult(
-            ok=True,
-            task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
-            result={
-                ACTION_FIELD: (
-                    InvestmentDocumentReviewAction.PENDING_HUMAN_APPROVAL.value
-                ),
-                DOCUMENT_TYPE_FIELD: document_type.value,
-                ROUTE_REASON_FIELD: state.route_reason,
-                ROUTE_CONFIDENCE_FIELD: state.route_confidence,
-                REVIEW_FIELD: state.output.result,
-                RISK_ASSESSMENT_FIELD: state.risk_assessment,
-                APPROVAL_FIELD: {
-                    STATUS_FIELD: state.approval_status,
-                    REQUIRED_ROLE_FIELD: state.approval_required_role,
-                },
-            },
-        )
-        return {"output": result}
-
-    def build_missing_input_result(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        message = (
-            MISSING_INPUT_MESSAGE
-            if state.missing_fields
-            else CLASSIFICATION_CLARIFICATION_MESSAGE
-        )
-        result = TaskResult(
-            ok=True,
-            task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
-            result={
-                ACTION_FIELD: InvestmentDocumentReviewAction.ASK_FOR_MISSING_INPUT.value,
-                MISSING_FIELDS_FIELD: state.missing_fields,
-                MESSAGE_FIELD: message,
-            },
-        )
-        return {"output": result}
-
-    def build_refusal_result(
-        self,
-        state: InvestmentDocumentReviewState,
-    ) -> dict[str, Any]:
-        result = TaskResult(
-            ok=True,
-            task_name=INVESTMENT_DOCUMENT_REVIEW_TASK_NAME,
-            result={
-                ACTION_FIELD: InvestmentDocumentReviewAction.REFUSE_AND_REDIRECT.value,
-                MESSAGE_FIELD: REFUSAL_MESSAGE,
-            },
-        )
-        return {"output": result}
 
 
 def build_investment_document_review_flow(

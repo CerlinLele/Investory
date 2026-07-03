@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HYG File Upload Dimension-Concurrent Analyze Timeline</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --paper: #fffdf8;
+      --ink: #1f2a2e;
+      --muted: #67757d;
+      --grid: #d8d3c8;
+      --track: #f1ece2;
+      --extract: #2f7d69;
+      --extract-fill: #dff3ec;
+      --analyze: #c97b18;
+      --analyze-fill: #fff0d8;
+      --synth: #2463a6;
+      --synth-fill: #e1eefc;
+      --shadow: 0 18px 42px rgba(32, 42, 45, 0.09);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(47, 125, 105, 0.10), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(36, 99, 166, 0.08), transparent 28%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    main {
+      max-width: 1700px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      line-height: 1.2;
+    }
+
+    .subtitle {
+      margin: 0 0 18px;
+      max-width: 1100px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      padding: 14px 16px;
+      border: 1px solid #e3ddd2;
+      border-radius: 14px;
+      background: rgba(255, 253, 248, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .stat .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .stat .value {
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border: 1px solid #dfd8cc;
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.9);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+    }
+
+    .panel {
+      overflow: auto;
+      border: 1px solid #dfd8cc;
+      border-radius: 18px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 1560px;
+      height: auto;
+    }
+
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .note {
+      padding: 16px 18px;
+      border: 1px solid #e3ddd2;
+      border-radius: 14px;
+      background: rgba(255, 253, 248, 0.92);
+      box-shadow: var(--shadow);
+    }
+
+    .note h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .note p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .lane-bg { fill: var(--track); }
+    .lane-label { fill: var(--ink); font-size: 14px; font-weight: 700; }
+    .axis-label { fill: var(--muted); font-size: 11px; }
+    .grid-line { stroke: var(--grid); stroke-width: 1; }
+    .task-text { fill: var(--ink); font-size: 11px; font-weight: 700; }
+    .task-subtext { fill: var(--muted); font-size: 10px; }
+
+    @media (max-width: 980px) {
+      main { padding: 18px; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .notes { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>HYG File Upload Dimension-Concurrent Analyze Timeline</h1>
+    <p class="subtitle">
+      Timeline reconstructed from the 2026-07-01 reflection run log, after the review framework moved to a YAML-driven dimension list. The analyze stage now fans out into three concurrent per-dimension tasks (risk disclosures completeness, historical performance boundary statements, cost impact on long-term returns) instead of one aggregate analyze task.
+    </p>
+
+    <section class="stats">
+      <div class="stat">
+        <div class="label">Total Duration</div>
+        <div class="value">79.070s</div>
+      </div>
+      <div class="stat">
+        <div class="label">Extract / Analyze Concurrency</div>
+        <div class="value">3 lanes / 3 lanes</div>
+      </div>
+      <div class="stat">
+        <div class="label">Baseline Total (pre-fix)</div>
+        <div class="value">154.366s</div>
+      </div>
+      <div class="stat">
+        <div class="label">Speedup vs Baseline</div>
+        <div class="value">1.95x</div>
+      </div>
+    </section>
+
+    <section class="legend">
+      <div class="legend-item"><span class="dot" style="background: var(--extract-fill); border: 2px solid var(--extract);"></span>Extract task</div>
+      <div class="legend-item"><span class="dot" style="background: var(--analyze-fill); border: 2px solid var(--analyze);"></span>Analyze task (per dimension)</div>
+      <div class="legend-item"><span class="dot" style="background: var(--synth-fill); border: 2px solid var(--synth);"></span>Synthesize task</div>
+      <div class="legend-item"><span class="dot" style="background: #d8d3c8;"></span>5-second grid</div>
+    </section>
+
+    <section class="panel">
+      <svg viewBox="0 0 1650 850" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Timeline diagram">
+        <rect x="150" y="40" width="1430" height="92" rx="14" class="lane-bg" />
+        <rect x="150" y="150" width="1430" height="92" rx="14" class="lane-bg" />
+        <rect x="150" y="260" width="1430" height="92" rx="14" class="lane-bg" />
+        <rect x="150" y="370" width="1430" height="92" rx="14" class="lane-bg" />
+        <rect x="150" y="480" width="1430" height="92" rx="14" class="lane-bg" />
+        <rect x="150" y="590" width="1430" height="92" rx="14" class="lane-bg" />
+        <rect x="150" y="700" width="1430" height="92" rx="14" class="lane-bg" />
+
+        <text x="24" y="64" class="lane-label">Extract lane 1</text>
+        <text x="24" y="86" class="axis-label">independent extract slot</text>
+        <text x="24" y="174" class="lane-label">Extract lane 2</text>
+        <text x="24" y="196" class="axis-label">independent extract slot</text>
+        <text x="24" y="284" class="lane-label">Extract lane 3</text>
+        <text x="24" y="306" class="axis-label">independent extract slot</text>
+        <text x="24" y="394" class="lane-label">Analyze: risk disclosures</text>
+        <text x="24" y="416" class="axis-label">blocked on all 25 extracts</text>
+        <text x="24" y="504" class="lane-label">Analyze: performance boundary</text>
+        <text x="24" y="526" class="axis-label">blocked on all 25 extracts</text>
+        <text x="24" y="614" class="lane-label">Analyze: cost impact</text>
+        <text x="24" y="636" class="axis-label">blocked on all 25 extracts</text>
+        <text x="24" y="724" class="lane-label">Synthesize lane</text>
+        <text x="24" y="746" class="axis-label">blocked on all 3 analyze dims</text>
+
+        <line x1="150.0" y1="30" x2="150.0" y2="812" class="grid-line" />
+        <line x1="239.3" y1="30" x2="239.3" y2="812" class="grid-line" />
+        <line x1="328.6" y1="30" x2="328.6" y2="812" class="grid-line" />
+        <line x1="417.9" y1="30" x2="417.9" y2="812" class="grid-line" />
+        <line x1="507.2" y1="30" x2="507.2" y2="812" class="grid-line" />
+        <line x1="596.5" y1="30" x2="596.5" y2="812" class="grid-line" />
+        <line x1="685.8" y1="30" x2="685.8" y2="812" class="grid-line" />
+        <line x1="775.1" y1="30" x2="775.1" y2="812" class="grid-line" />
+        <line x1="864.4" y1="30" x2="864.4" y2="812" class="grid-line" />
+        <line x1="953.7" y1="30" x2="953.7" y2="812" class="grid-line" />
+        <line x1="1043.0" y1="30" x2="1043.0" y2="812" class="grid-line" />
+        <line x1="1132.3" y1="30" x2="1132.3" y2="812" class="grid-line" />
+        <line x1="1221.6" y1="30" x2="1221.6" y2="812" class="grid-line" />
+        <line x1="1310.9" y1="30" x2="1310.9" y2="812" class="grid-line" />
+        <line x1="1400.2" y1="30" x2="1400.2" y2="812" class="grid-line" />
+        <line x1="1489.5" y1="30" x2="1489.5" y2="812" class="grid-line" />
+        <line x1="1578.8" y1="30" x2="1578.8" y2="812" class="grid-line" />
+
+        <text x="152.0" y="24" class="axis-label">0s</text>
+        <text x="241.3" y="24" class="axis-label">5s</text>
+        <text x="330.6" y="24" class="axis-label">10s</text>
+        <text x="419.9" y="24" class="axis-label">15s</text>
+        <text x="509.2" y="24" class="axis-label">20s</text>
+        <text x="598.5" y="24" class="axis-label">25s</text>
+        <text x="687.8" y="24" class="axis-label">30s</text>
+        <text x="777.1" y="24" class="axis-label">35s</text>
+        <text x="866.4" y="24" class="axis-label">40s</text>
+        <text x="955.7" y="24" class="axis-label">45s</text>
+        <text x="1045.0" y="24" class="axis-label">50s</text>
+        <text x="1134.3" y="24" class="axis-label">55s</text>
+        <text x="1223.6" y="24" class="axis-label">60s</text>
+        <text x="1312.9" y="24" class="axis-label">65s</text>
+        <text x="1402.2" y="24" class="axis-label">70s</text>
+        <text x="1491.5" y="24" class="axis-label">75s</text>
+        <text x="1580.8" y="24" class="axis-label">80s</text>
+
+        <!-- Extract lane 1 -->
+        <rect x="150.0" y="58" width="78.8" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="158.0" y="75" class="task-text">x0001</text>
+        <text x="158.0" y="92" class="task-subtext">0.000s - 4.413s</text>
+
+        <rect x="228.8" y="58" width="111.5" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="236.8" y="75" class="task-text">x0004</text>
+        <text x="236.8" y="92" class="task-subtext">4.413s - 10.655s</text>
+
+        <rect x="340.3" y="58" width="103.6" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="348.3" y="75" class="task-text">x0007</text>
+        <text x="348.3" y="92" class="task-subtext">10.655s - 16.454s</text>
+
+        <rect x="443.9" y="58" width="81.4" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="451.9" y="75" class="task-text">x0010</text>
+        <text x="451.9" y="92" class="task-subtext">16.454s - 21.014s</text>
+
+        <rect x="525.3" y="58" width="89.1" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="533.3" y="75" class="task-text">x0012</text>
+        <text x="533.3" y="92" class="task-subtext">21.014s - 26.002s</text>
+
+        <rect x="614.5" y="58" width="81.5" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="622.5" y="75" class="task-text">x0015</text>
+        <text x="622.5" y="92" class="task-subtext">26.002s - 30.563s</text>
+
+        <rect x="696.1" y="58" width="109.4" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="704.1" y="75" class="task-text">x0018</text>
+        <text x="704.1" y="92" class="task-subtext">30.564s - 36.687s</text>
+
+        <rect x="805.4" y="58" width="95.7" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="813.4" y="75" class="task-text">x0021</text>
+        <text x="813.4" y="92" class="task-subtext">36.688s - 42.046s</text>
+
+        <rect x="901.1" y="58" width="72.9" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="909.1" y="75" class="task-text">x0024</text>
+        <text x="909.1" y="92" class="task-subtext">42.046s - 46.126s</text>
+
+        <!-- Extract lane 2 -->
+        <rect x="150.0" y="168" width="123.2" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="158.0" y="185" class="task-text">x0002</text>
+        <text x="158.0" y="202" class="task-subtext">0.000s - 6.896s</text>
+
+        <rect x="273.2" y="168" width="111.9" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="281.2" y="185" class="task-text">x0005</text>
+        <text x="281.2" y="202" class="task-subtext">6.896s - 13.161s</text>
+
+        <rect x="385.1" y="168" width="181.8" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="393.1" y="185" class="task-text">x0008</text>
+        <text x="393.1" y="202" class="task-subtext">13.162s - 23.341s</text>
+
+        <rect x="567.0" y="168" width="105.8" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="575.0" y="185" class="task-text">x0013</text>
+        <text x="575.0" y="202" class="task-subtext">23.341s - 29.263s</text>
+
+        <rect x="672.8" y="168" width="81.7" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="680.8" y="185" class="task-text">x0017</text>
+        <text x="680.8" y="202" class="task-subtext">29.263s - 33.836s</text>
+
+        <rect x="754.3" y="168" width="79.9" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="762.3" y="185" class="task-text">x0020</text>
+        <text x="762.3" y="202" class="task-subtext">33.836s - 38.311s</text>
+
+        <rect x="834.4" y="168" width="83.7" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="842.4" y="185" class="task-text">x0022</text>
+        <text x="842.4" y="202" class="task-subtext">38.311s - 42.999s</text>
+
+        <rect x="917.9" y="168" width="77.1" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="925.9" y="185" class="task-text">x0025</text>
+        <text x="925.9" y="202" class="task-subtext">42.999s - 47.317s</text>
+
+        <!-- Extract lane 3 -->
+        <rect x="150.0" y="278" width="123.5" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="158.0" y="295" class="task-text">x0003</text>
+        <text x="158.0" y="312" class="task-subtext">0.001s - 6.916s</text>
+
+        <rect x="273.5" y="278" width="121.8" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="281.5" y="295" class="task-text">x0006</text>
+        <text x="281.5" y="312" class="task-subtext">6.916s - 13.737s</text>
+
+        <rect x="395.3" y="278" width="89.3" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="403.3" y="295" class="task-text">x0009</text>
+        <text x="403.3" y="312" class="task-subtext">13.737s - 18.738s</text>
+
+        <rect x="484.8" y="278" width="88.3" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="492.8" y="295" class="task-text">x0011</text>
+        <text x="492.8" y="312" class="task-subtext">18.738s - 23.684s</text>
+
+        <rect x="573.0" y="278" width="92.9" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="581.0" y="295" class="task-text">x0014</text>
+        <text x="581.0" y="312" class="task-subtext">23.684s - 28.884s</text>
+
+        <rect x="665.9" y="278" width="82.8" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="673.9" y="295" class="task-text">x0016</text>
+        <text x="673.9" y="312" class="task-subtext">28.884s - 33.518s</text>
+
+        <rect x="748.6" y="278" width="89.7" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="756.6" y="295" class="task-text">x0019</text>
+        <text x="756.6" y="312" class="task-subtext">33.518s - 38.539s</text>
+
+        <rect x="838.3" y="278" width="97.3" height="46" rx="10" fill="var(--extract-fill)" stroke="var(--extract)" stroke-width="2" />
+        <text x="846.3" y="295" class="task-text">x0023</text>
+        <text x="846.3" y="312" class="task-subtext">38.540s - 43.985s</text>
+
+        <!-- Analyze dimension 1: risk disclosures completeness -->
+        <rect x="995.1" y="388" width="211.8" height="46" rx="10" fill="var(--analyze-fill)" stroke="var(--analyze)" stroke-width="2" />
+        <text x="1003.1" y="405" class="task-text">analyze_risk_disclosures_completeness</text>
+        <text x="1003.1" y="422" class="task-subtext">47.317s - 59.176s</text>
+
+        <!-- Analyze dimension 2: historical performance boundary statements -->
+        <rect x="995.1" y="498" width="192.9" height="46" rx="10" fill="var(--analyze-fill)" stroke="var(--analyze)" stroke-width="2" />
+        <text x="1003.1" y="515" class="task-text">analyze_historical_performance_boundary_statements</text>
+        <text x="1003.1" y="532" class="task-subtext">47.318s - 58.119s</text>
+
+        <!-- Analyze dimension 3: cost impact on long-term returns -->
+        <rect x="995.1" y="608" width="148.4" height="46" rx="10" fill="var(--analyze-fill)" stroke="var(--analyze)" stroke-width="2" />
+        <text x="1003.1" y="625" class="task-text">analyze_cost_impact_on_long_term_returns</text>
+        <text x="1003.1" y="642" class="task-subtext">47.318s - 55.629s</text>
+
+        <!-- Synthesize -->
+        <rect x="1206.9" y="718" width="355.3" height="46" rx="10" fill="var(--synth-fill)" stroke="var(--synth)" stroke-width="2" />
+        <text x="1214.9" y="735" class="task-text">synthesize</text>
+        <text x="1214.9" y="752" class="task-subtext">59.177s - 79.068s</text>
+      </svg>
+    </section>
+
+    <section class="notes">
+      <article class="note">
+        <h2>What changed</h2>
+        <p>
+          The review framework now loads <code>analyze_focus</code> per document type from <code>config/review_frameworks.yaml</code>. For the ETF factsheet type this produces 3 dimensions (risk disclosures completeness, historical performance boundary statements, cost impact on long-term returns), so the plan fans out into 3 concurrent analyze tasks instead of 1 aggregate analyze task. Task count grew from 27 to 29 (25 extract + 3 analyze + 1 synthesize).
+        </p>
+      </article>
+      <article class="note">
+        <h2>What stayed the same</h2>
+        <p>
+          The extract stage is unchanged: 25 chunks, 3 concurrent slots, same fan-out pattern and roughly the same wall-clock time (46.4s baseline fix vs 47.3s here). All 3 analyze dimension tasks still depend on every extract task, and synthesize still depends on all analyze tasks before it can run.
+        </p>
+      </article>
+      <article class="note">
+        <h2>Main trade-off</h2>
+        <p>
+          Total runtime is 79.070s, slightly slower than the 70.022s single-aggregate-analyze rerun, even though analyze itself is now concurrent. The slowest analyze dimension (11.859s) is close to the old single aggregate analyze (9.494s), and synthesize grew from 14.079s to 19.891s because it now consolidates 3 dimension-specific analyses instead of 1. The dimension split trades a bit of throughput for more targeted, per-dimension risk analysis.
+        </p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -4,6 +4,8 @@ from threading import Lock
 from time import perf_counter, sleep
 
 import investory.agent_core.runtime.flow.investment_document_review.document_review_flow as document_review_flow_module
+from investory.agent_core.runtime.flow.investment_document_review.document_review_todo import plan_builder as todo_plan_builder
+from investory.agent_core.runtime.flow.investment_document_review.document_review_todo import payload as todo_payload
 from investory.agent_core.contracts.investment_document_review_state import (
     ANALYZE_FOCUS_FIELD,
     DOCUMENT_TEXT_FIELD,
@@ -564,9 +566,9 @@ def test_document_review_flow_routes_only_multi_chunk_documents_to_chunk_review(
     )
 
     assert should_use_chunk_review(single_chunk_state) is False
-    assert flow.route_after_review_framework(single_chunk_state) == FULL_DOCUMENT_REVIEW_SCOPE
+    assert flow.nodes.route_after_review_framework(single_chunk_state) == FULL_DOCUMENT_REVIEW_SCOPE
     assert should_use_chunk_review(multi_chunk_state) is True
-    assert flow.route_after_review_framework(multi_chunk_state) == CHUNK_REVIEW_SCOPE
+    assert flow.nodes.route_after_review_framework(multi_chunk_state) == CHUNK_REVIEW_SCOPE
 
 
 def test_document_review_flow_uses_chunk_todo_path_for_multi_chunk_document() -> None:
@@ -1078,7 +1080,7 @@ def test_generate_review_todo_plan_node_builds_plan_without_executing_tasks() ->
         "unexpected_field": "not part of plan input",
     }
 
-    update = flow.generate_review_todo_plan(
+    update = flow.nodes.generate_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: review_payload[DOCUMENT_TEXT_FIELD]},
             review_payload=review_payload,
@@ -1123,13 +1125,13 @@ def test_generate_review_todo_plan_accepts_supported_document_type_frameworks() 
             DOCUMENT_TEXT_FIELD: f"{document_type.value} review excerpt.",
             REVIEW_GOAL_FIELD: "Review major risks and information gaps.",
         }
-        framework_update = flow.build_review_framework(
+        framework_update = flow.nodes.build_review_framework(
             InvestmentDocumentReviewState(
                 input_payload=input_payload,
                 document_type=document_type,
             )
         )
-        update = flow.generate_review_todo_plan(
+        update = flow.nodes.generate_review_todo_plan(
             InvestmentDocumentReviewState(
                 input_payload=input_payload,
                 document_type=document_type,
@@ -1169,7 +1171,7 @@ def test_generate_review_todo_plan_builds_dimension_analyze_fan_out_for_multi_ch
         ),
     )
 
-    update = flow.generate_review_todo_plan(
+    update = flow.nodes.generate_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={
                 DOCUMENT_TEXT_FIELD: "Chunked ETF factsheet excerpt.",
@@ -1246,7 +1248,7 @@ def test_generate_review_todo_plan_uses_fallback_analyze_task_when_no_dimension_
         ),
     )
 
-    update = flow.generate_review_todo_plan(
+    update = flow.nodes.generate_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "Chunked ETF factsheet excerpt."},
             document_type=InvestmentDocumentType.ETF_FACTSHEET,
@@ -1290,9 +1292,7 @@ def test_generate_review_todo_plan_returns_error_for_invalid_chunk_plan(monkeypa
         ),
     )
 
-    monkeypatch.setattr(
-        document_review_flow_module,
-        "_build_chunk_review_analyze_tasks",
+    monkeypatch.setattr(todo_plan_builder, "_build_chunk_review_analyze_tasks",
         lambda **_: [
             {
                 "id": "analyze_duplicate",
@@ -1315,7 +1315,7 @@ def test_generate_review_todo_plan_returns_error_for_invalid_chunk_plan(monkeypa
         ],
     )
 
-    update = flow.generate_review_todo_plan(
+    update = flow.nodes.generate_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "Chunked ETF factsheet excerpt."},
             document_type=InvestmentDocumentType.ETF_FACTSHEET,
@@ -1359,11 +1359,11 @@ def test_generate_review_todo_plan_logs_plan_summary_and_tasks(caplog) -> None:
     }
 
     with caplog.at_level(logging.DEBUG, logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow"):
-        update = flow.generate_review_todo_plan(
+        update = flow.nodes.generate_review_todo_plan(
             InvestmentDocumentReviewState(
                 input_payload=input_payload,
                 document_type=InvestmentDocumentType.ETF_FACTSHEET,
-                review_payload=flow.build_review_framework(
+                review_payload=flow.nodes.build_review_framework(
                     InvestmentDocumentReviewState(
                         input_payload=input_payload,
                         document_type=InvestmentDocumentType.ETF_FACTSHEET,
@@ -1426,7 +1426,7 @@ def test_reflect_review_output_records_metadata_and_logs_completion(caplog) -> N
         logging.INFO,
         logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow",
     ):
-        update = flow.reflect_review_output(
+        update = flow.nodes.reflect_review_output(
             InvestmentDocumentReviewState(
                 session_id="session-reflection-log",
                 input_payload={
@@ -1509,7 +1509,7 @@ def test_reflect_review_output_logs_failed_reflection_task(caplog) -> None:
         logging.INFO,
         logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow",
     ):
-        update = flow.reflect_review_output(
+        update = flow.nodes.reflect_review_output(
             InvestmentDocumentReviewState(
                 session_id="session-reflection-failed",
                 input_payload={DOCUMENT_TEXT_FIELD: "Failure text should not leak."},
@@ -1558,7 +1558,7 @@ def test_generate_review_todo_plan_requires_review_payload() -> None:
     )
 
     try:
-        flow.generate_review_todo_plan(
+        flow.nodes.generate_review_todo_plan(
             InvestmentDocumentReviewState(
                 input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."}
             )
@@ -1602,7 +1602,7 @@ def test_generate_review_todo_plan_returns_error_for_invalid_plan() -> None:
         ),
     )
 
-    update = flow.generate_review_todo_plan(
+    update = flow.nodes.generate_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
             review_payload={
@@ -1655,7 +1655,7 @@ def test_execute_review_todo_plan_uses_todo_execution_runner() -> None:
     runner = RecordingTodoRunner()
     flow = RunnerBackedReviewFlow(runner)
 
-    update = flow.execute_review_todo_plan(
+    update = flow.nodes.execute_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
             todo_plan=todo_plan,
@@ -1724,7 +1724,7 @@ def test_execute_review_todo_plan_logs_runner_lifecycle(caplog) -> None:
         logging.DEBUG,
         logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow",
     ):
-        update = flow.execute_review_todo_plan(
+        update = flow.nodes.execute_review_todo_plan(
             InvestmentDocumentReviewState(
                 session_id="session-lifecycle-log",
                 input_payload={
@@ -1815,7 +1815,7 @@ def test_execute_review_todo_plan_loads_and_saves_resume_state_slot(caplog) -> N
         logging.INFO,
         logger="investory.agent_core.runtime.flow.investment_document_review.document_review_flow",
     ):
-        update = flow.execute_review_todo_plan(
+        update = flow.nodes.execute_review_todo_plan(
             InvestmentDocumentReviewState(
                 session_id="session-1",
                 input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
@@ -1938,7 +1938,7 @@ def test_execute_review_todo_plan_includes_resumed_completed_results_in_synthesi
     )
     todo_plan = resume_state.plan
 
-    update = flow.execute_review_todo_plan(
+    update = flow.nodes.execute_review_todo_plan(
         InvestmentDocumentReviewState(
             session_id="session-2",
             input_payload={
@@ -2010,7 +2010,7 @@ def test_execute_review_todo_plan_requires_todo_plan() -> None:
     flow = RunnerBackedReviewFlow(runner)
 
     try:
-        flow.execute_review_todo_plan(
+        flow.nodes.execute_review_todo_plan(
             InvestmentDocumentReviewState(
                 input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."}
             )
@@ -2064,7 +2064,7 @@ def test_execute_review_todo_plan_dispatches_extract_tasks_through_executor() ->
         }
     )
 
-    update = flow.execute_review_todo_plan(
+    update = flow.nodes.execute_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={
                 DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
@@ -2161,7 +2161,7 @@ def test_execute_review_todo_plan_dispatches_synthesize_tasks_through_executor()
         )
     ]
 
-    update = flow.execute_review_todo_plan(
+    update = flow.nodes.execute_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={
                 DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
@@ -2310,7 +2310,7 @@ def test_build_review_todo_synthesize_payload_uses_only_completed_todo_results()
         status=TodoTaskStatus.PENDING,
     )
 
-    payload = flow._build_review_todo_synthesize_payload(
+    payload = todo_payload.build_review_todo_synthesize_payload(
         state=InvestmentDocumentReviewState(
             input_payload={REVIEW_GOAL_FIELD: "Summarize completed review work."},
             document_type=InvestmentDocumentType.ETF_FACTSHEET,
@@ -2433,7 +2433,7 @@ def test_build_review_risk_assessment_payload_uses_reflected_review_and_todo_sta
         error={"message": "Fee disclosure analysis failed."},
     )
 
-    payload = flow._build_review_risk_assessment_payload(
+    payload = flow.nodes._build_review_risk_assessment_payload(
         state=InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "This should not be used directly."},
             document_type=InvestmentDocumentType.ETF_FACTSHEET,
@@ -2494,7 +2494,7 @@ def test_assess_review_risk_uses_single_pass_review_output_without_document_text
         ),
     )
 
-    update = flow.assess_review_risk(
+    update = flow.nodes.assess_review_risk(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "Raw document text should not be forwarded."},
             document_type=InvestmentDocumentType.ETF_FACTSHEET,
@@ -2572,7 +2572,7 @@ def test_build_final_result_preserves_route_metadata_for_synthesized_review() ->
         "learning_next_steps": [],
     }
 
-    update = flow.build_final_result(
+    update = flow.nodes.build_final_result(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
             document_type=InvestmentDocumentType.ETF_FACTSHEET,
@@ -2645,7 +2645,7 @@ def test_build_pending_approval_result_returns_pending_action_and_approval_field
         "summary": "The factsheet omits benchmark methodology details.",
     }
 
-    update = flow.build_pending_approval_result(
+    update = flow.nodes.build_pending_approval_result(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
             document_type=InvestmentDocumentType.ETF_FACTSHEET,
@@ -2717,7 +2717,7 @@ def test_build_pending_approval_result_does_not_require_todo_resume_to_rebuild_r
     )
     decided_at = datetime(2026, 6, 12, 10, 30, tzinfo=timezone.utc)
 
-    update = flow.build_pending_approval_result(
+    update = flow.nodes.build_pending_approval_result(
         InvestmentDocumentReviewState(
             session_id="session-pending-approval",
             input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
@@ -2770,7 +2770,7 @@ def test_route_after_risk_assessment_returns_pending_route_for_manual_review() -
         ),
     )
 
-    route = flow.route_after_risk_assessment(
+    route = flow.nodes.route_after_risk_assessment(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
             output=TaskResult(
@@ -2828,7 +2828,7 @@ def test_build_review_todo_analyze_payload_includes_dependency_results() -> None
         )
     ]
 
-    payload = flow._build_review_todo_analyze_payload(
+    payload = todo_payload.build_review_todo_analyze_payload(
         state=InvestmentDocumentReviewState(
             input_payload={
                 DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
@@ -2882,7 +2882,7 @@ def test_execute_review_todo_plan_returns_failed_result_for_analyze_tasks_withou
         }
     )
 
-    update = flow.execute_review_todo_plan(
+    update = flow.nodes.execute_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt."},
             document_type=InvestmentDocumentType.ETF_FACTSHEET,
@@ -2981,7 +2981,7 @@ def test_execute_review_todo_plan_dispatches_analyze_tasks_with_dependency_resul
         }
     )
 
-    update = flow.execute_review_todo_plan(
+    update = flow.nodes.execute_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={
                 DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",
@@ -3124,7 +3124,7 @@ def test_execute_review_todo_plan_runs_independent_extract_tasks_concurrently() 
     )
 
     started_at = perf_counter()
-    update = flow.execute_review_todo_plan(
+    update = flow.nodes.execute_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={
                 DOCUMENT_TEXT_FIELD: "ETF factsheet excerpt split into several chunks.",
@@ -3233,10 +3233,10 @@ def test_execute_review_todo_plan_runs_flow_generated_chunk_plan_concurrently() 
         },
         document_chunks=["chunk 1", "chunk 2", "chunk 3"],
     )
-    todo_plan = flow.generate_review_todo_plan(state)["todo_plan"]
+    todo_plan = flow.nodes.generate_review_todo_plan(state)["todo_plan"]
 
     started_at = perf_counter()
-    update = flow.execute_review_todo_plan(
+    update = flow.nodes.execute_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload=state.input_payload,
             document_type=state.document_type,
@@ -3341,7 +3341,7 @@ def test_execute_review_todo_plan_does_not_treat_prior_results_as_resume_state()
         },
     )
 
-    update = flow.execute_review_todo_plan(
+    update = flow.nodes.execute_review_todo_plan(
         InvestmentDocumentReviewState(
             input_payload={
                 DOCUMENT_TEXT_FIELD: "The ETF factsheet lists a 0.10% management fee.",

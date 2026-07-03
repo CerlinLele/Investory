@@ -1,0 +1,96 @@
+{
+    "ok": true,
+    "task_name": "investment_document_review",
+    "session_id": "apifox-hyg-file-upload",
+    "result": {
+        "action": "pending_human_approval",
+        "document_type": "etf_factsheet",
+        "route_reason": "The excerpt explicitly says 'Fact Sheet' for the iShares iBoxx $ High Yield Corporate Bond ETF and describes fund facts, benchmark, rating, and performance information typical of an ETF factsheet.",
+        "route_confidence": 0.99,
+        "review": {
+            "document_type": "etf_factsheet",
+            "extracted_facts": [
+                "This is a fact sheet for the iShares iBoxx $ High Yield Corporate Bond ETF (HYG), dated March 31, 2026.",
+                "The fund seeks to track the Markit iBoxx USD Liquid High Yield Index and invest in U.S. dollar-denominated high yield corporate bonds.",
+                "The fund is classified as Fixed Income and is described as exposure to non-investment grade corporate credit.",
+                "The fund launch date is 04/04/2007, distribution frequency is monthly, the exchange is NYSE Arca, and the CUSIP is 464288513.",
+                "Net assets are listed as $16,378.81M and shares outstanding as 206,400,000.",
+                "The fund expense ratio and management fee are both shown as 0.49%; Acquired Fund Fees and Expenses and Other Expenses are shown as 0.00%.",
+                "The document shows a 30 Day SEC Yield of 6.70%.",
+                "Calendar year performance is shown for 2021 through 2025, with NAV returns of 4.12, -11.37, 12.41, 7.70, and 8.56, and market price returns of 3.75, -10.99, 11.53, 7.97, and 8.60.",
+                "Annualized performance is shown for NAV, market price, and benchmark across since inception, 1-year, 3-year, 5-year, and 10-year periods.",
+                "The annualized performance table shows benchmark returns of 7.13 since inception, 8.41 for 1-year, 4.11 for 3-year, 5.62 for 5-year, and 5.46 for 10-year.",
+                "Portfolio metrics shown include Equity Beta (3y) 0.30, Weighted Avg Maturity 3.82 years, Effective Duration 3.02 years, Standard Deviation (3y) 4.57%, Convexity -0.15, and Number of Holdings 1,321.",
+                "Visible top holdings include BLK CSH FND TREASURY SL AGENCY Fund, 1261229 BC LTD 144A, QUIKRETE HOLDINGS INC 144A, SV RNO PROPERTY OWNER 1 LLC 144A, ASURION LLC 144A, CLOUD SOFTWARE GROUP INC 144A, ECHOSTAR CORP, DISH NETWORK CORP 144A, and WULF COMPUTE LLC 144A.",
+                "A maturity breakdown is shown, with the largest visible bucket at 3-5 years (40.36%).",
+                "The document shows sector and credit-quality breakdowns, including BB Rated 56.87%, B Rated 29.96%, and CCC Rated 10.47%.",
+                "The document states that holdings and allocations are subject to change.",
+                "The document states that ratings come from S&P, Moody’s, and Fitch, are mapped to S&P major rating categories, and use the median rating when all three agencies are available.",
+                "The document defines below-investment-grade as BB and below, and says unrated securities do not necessarily indicate low quality.",
+                "The document explains that ETF shares trade at market price, not NAV, and are not individually redeemed from the fund.",
+                "The document says brokerage commissions, if applicable, will reduce returns.",
+                "The document states that market price returns changed calculation methods on 8/10/20 and that earlier returns used the midpoint of the bid/ask spread at 4:00 PM ET.",
+                "The document says the performance quoted represents past performance and does not guarantee future results.",
+                "The document says current performance may be lower or higher than quoted performance, and that recent performance data may be obtained via iShares or BlackRock websites.",
+                "The document includes Morningstar rating information: 3 stars for 3-year, 5-year, and 10-year periods, rated against 581, 538, and 437 High Yield Bond Funds, respectively.",
+                "The document includes general disclosure language that investing involves risk, including possible loss of principal.",
+                "The document includes index-disclosure language stating that index returns are illustrative, do not reflect management fees or expenses, and that indexes are unmanaged and not directly investable.",
+                "The document identifies BlackRock Investments, LLC as the distributor and says AFFE may come from other pooled vehicles and are included in total returns.",
+                "The document includes standard branding, contact, and legal disclosures, including 1-800-474-2737 and ISHARES.COM."
+            ],
+            "risk_findings": [
+                "High-yield/non-investment-grade debt is explicitly described as carrying greater market fluctuations, default risk, and possible loss of income and principal.",
+                "Fixed income risks highlighted in the document include interest-rate risk and credit risk; the document says bond values typically decline when rates rise.",
+                "ETF-specific trading risks are disclosed: shares trade at market price rather than NAV, are not individually redeemed, and brokerage commissions may reduce returns.",
+                "The document repeatedly states that past performance does not guarantee future results and that current performance may differ from quoted figures.",
+                "Some disclosure language is truncated in the provided excerpts, which limits completeness of the risk and performance wording.",
+                "The fund’s 0.49% expense ratio/management fee creates an ongoing cost drag, but the excerpts do not quantify total cost impact over time.",
+                "The document shows a heavy exposure to below-investment-grade ratings, which is consistent with the fund’s stated high-yield risk profile.",
+                "Morningstar ratings are share-class specific and based on a risk-adjusted methodology, so they should not be generalized beyond the cited share classes.",
+                "The excerpts do not provide a full benchmark methodology or tracking-error discussion, limiting interpretation of performance comparisons."
+            ],
+            "information_gaps": [
+                "The full fee table and any additional cost details beyond the 0.49% expense ratio/management fee are not shown.",
+                "The excerpts do not provide a complete, continuous risk-disclosure section from one location in the document.",
+                "The full historical performance narrative and complete performance-disclosure wording are not visible in one place, and some text is truncated.",
+                "The relationship between the benchmark, holdings, and tracking approach is not fully explained in the extracted excerpts.",
+                "No tracking error, tracking difference, or replication-method disclosure is visible.",
+                "The meaning of some partial allocation snippets and certain truncated glossary definitions cannot be fully confirmed from the provided text.",
+                "No complete explanation is shown for how the hypothetical $10,000 chart should be interpreted beyond its stated assumptions.",
+                "No peer-comparison analysis or quantification of how the fund’s fee level compares with alternatives is provided.",
+                "No complete continuation of the Acquired Fund Fees and Expenses definition is visible.",
+                "The excerpts do not show a single consolidated breakdown connecting yield, costs, holdings, and benchmark behavior."
+            ],
+            "boundary_notes": [
+                "This review is based only on the provided To-Do task results and the review summary; no outside information was used.",
+                "Facts and risks are included only when supported by successful extraction/analyze tasks.",
+                "Truncated or partial source text is treated as an information gap rather than completed from outside sources.",
+                "This is an educational document review, not investment advice, and does not include buy/sell/hold, timing, suitability, allocation, or return forecasts.",
+                "Where performance or risk statements are split across chunks, the limitation is noted rather than inferred away."
+            ],
+            "summary": "The factsheet provides solid basic coverage of the ETF’s identity, benchmark, fee level, yield metric, portfolio characteristics, holdings, and historical performance. It also discloses key high-yield, interest-rate, credit, and ETF trading risks, plus standard past-performance limitations. The main limitations are incomplete or truncated disclosure text in places and the absence of a fully consolidated explanation linking fees, tracking, and performance.",
+            "learning_next_steps": [
+                "Review how expense ratio, SEC yield, and market-price returns are different concepts in ETF factsheets.",
+                "Compare the document’s risk disclosures with its portfolio credit-quality and maturity breakdowns to understand why high-yield bond funds carry specific risks.",
+                "Look for benchmark methodology and tracking-related disclosures in a full prospectus if you want to study how funds describe index tracking."
+            ]
+        },
+        "risk_assessment": {
+            "overall_risk": "medium",
+            "risk_reason": "The factsheet shows clear, standard high-yield bond and ETF trading risk disclosures, plus past-performance limitations and a visible 0.49% expense ratio. However, some disclosure text is truncated and the risk/performance narrative is fragmented, with gaps in full fee, benchmark, and tracking detail.",
+            "critical_issues": [
+                "Truncated and fragmented disclosure text limits completeness of the risk and performance wording.",
+                "No full tracking-error, tracking-difference, or replication-method disclosure is visible.",
+                "The complete fee table and some cost details beyond the 0.49% expense ratio are not shown."
+            ],
+            "approval_status": "pending_human_approval",
+            "required_role": "human reviewer",
+            "auto_proceed": false
+        },
+        "approval": {
+            "status": "pending_human_approval",
+            "required_role": "human reviewer"
+        }
+    },
+    "error": null
+}
