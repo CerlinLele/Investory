@@ -220,7 +220,7 @@ def test_investment_document_review_endpoint_runs_complete_review_through_execut
     )
     assert body["result"][ROUTE_CONFIDENCE_FIELD] == 0.91
     assert body["result"][REVIEW_FIELD] == _review_result(
-        summary=f"Handled by {INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name}."
+        summary=f"Handled by {INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name}."
     )
     assert body["result"][RISK_ASSESSMENT_FIELD] == {
         "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
@@ -237,10 +237,8 @@ def test_investment_document_review_endpoint_runs_complete_review_through_execut
         REQUIRED_ROLE_FIELD: None,
     }
     call_names = [name for name, _ in executor.calls]
-    assert call_names.count("investment_document_extract") == 2
-    assert call_names.count("investment_document_analyze") >= 1
     assert call_names[-3:] == [
-        "investment_document_synthesize",
+        "investment_document_review_single_pass",
         "investment_document_review_reflection",
         "investment_document_risk_assessment",
     ]
