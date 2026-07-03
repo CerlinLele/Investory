@@ -220,7 +220,7 @@ def test_investment_document_review_endpoint_runs_complete_review_through_execut
     )
     assert body["result"][ROUTE_CONFIDENCE_FIELD] == 0.91
     assert body["result"][REVIEW_FIELD] == _review_result(
-        summary=f"Handled by {INVESTMENT_DOCUMENT_SYNTHESIZE_TASK.name}."
+        summary=f"Handled by {INVESTMENT_DOCUMENT_REVIEW_SINGLE_PASS_TASK.name}."
     )
     assert body["result"][RISK_ASSESSMENT_FIELD] == {
         "overall_risk": InvestmentDocumentReviewRiskLevel.LOW.value,
@@ -237,10 +237,8 @@ def test_investment_document_review_endpoint_runs_complete_review_through_execut
         REQUIRED_ROLE_FIELD: None,
     }
     call_names = [name for name, _ in executor.calls]
-    assert call_names.count("investment_document_extract") == 2
-    assert call_names.count("investment_document_analyze") >= 1
     assert call_names[-3:] == [
-        "investment_document_synthesize",
+        "investment_document_review_single_pass",
         "investment_document_review_reflection",
         "investment_document_risk_assessment",
     ]
@@ -514,4 +512,62 @@ def test_investment_document_review_file_endpoint_runs_flow_without_event_loop_e
             },
             "session-file-1",
         )
+    ]
+
+
+def test_investment_document_review_endpoint_uses_chunked_review_for_large_documents():
+    """Test that large documents trigger chunked review with extract/analyze/synthesize tasks."""
+    executor = FakeExecutor()
+    # Create a document large enough to trigger chunking (> 1000 chars)
+    large_document = "Fee structure: " + "detailed fee information. " * 100
+    payload = {
+        "document_text": large_document,
+        "document_type_hint": "etf_factsheet",
+    }
+    router = FakeRouter(
+        InvestmentDocumentReviewRouteDecision(
+            document_type=InvestmentDocumentType.ETF_FACTSHEET,
+            confidence=0.95,
+            reason="Clear ETF factsheet with comprehensive fee disclosure.",
+        )
+    )
+    client = _client_with_flow(
+        InvestmentDocumentReviewFlow(executor=executor, llm_router=router)
+    )
+
+    response = client.post(
+        INVESTMENT_DOCUMENT_REVIEW_ROUTE,
+        json={"payload": payload, "session_id": "session-chunked"},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["ok"] is True
+    assert body["task_name"] == INVESTMENT_DOCUMENT_REVIEW_TASK_NAME
+    assert body["session_id"] == "session-chunked"
+    assert body["error"] is None
+    assert body["result"][ACTION_FIELD] == "complete"
+    assert body["result"][DOCUMENT_TYPE_FIELD] == "etf_factsheet"
+
+    # Verify the chunked review path was taken
+    call_names = [name for name, _ in executor.calls]
+
+    # Should have extract tasks (one per chunk)
+    extract_count = call_names.count("investment_document_extract")
+    assert extract_count >= 2, "Chunked review should call extract for each chunk"
+
+    # Should have analyze tasks
+    analyze_count = call_names.count("investment_document_analyze")
+    assert analyze_count >= 1, "Chunked review should call analyze"
+
+    # Should have synthesize task (aggregates chunk results)
+    assert "investment_document_synthesize" in call_names, (
+        "Chunked review should synthesize results from multiple chunks"
+    )
+
+    # Final sequence should be synthesize → reflection → risk assessment
+    assert call_names[-3:] == [
+        "investment_document_synthesize",
+        "investment_document_review_reflection",
+        "investment_document_risk_assessment",
     ]
