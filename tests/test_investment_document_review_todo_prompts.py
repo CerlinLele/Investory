@@ -88,6 +88,24 @@ def test_investment_document_extract_prompt_builds_messages() -> None:
     assert "extract_fees" in messages[1].content
 
 
+def test_investment_document_extract_prompt_includes_visual_only_redundancy_rule() -> None:
+    messages = build_messages(
+        INVESTMENT_DOCUMENT_EXTRACT_TASK,
+        {
+            "task_id": "extract_performance",
+            "task_title": "Extract performance metrics",
+            "task_description": "Extract performance chart data.",
+            "completion_criteria": ["Performance data is cited."],
+            "document_type": InvestmentDocumentType.ETF_FACTSHEET,
+            "document_text": "The $10,000 growth chart shows annual returns.",
+            "extract_focus": ["performance"],
+        },
+    )
+
+    assert len(messages) == 2
+    assert "visual-only representation" in messages[1].content
+
+
 def test_investment_document_analyze_prompt_builds_messages() -> None:
     messages = build_messages(
         INVESTMENT_DOCUMENT_ANALYZE_TASK,

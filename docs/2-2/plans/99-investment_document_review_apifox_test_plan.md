@@ -32,11 +32,15 @@ Chunk 路径的 To-Do plan 结构固定为：
 
 ```
 extract_chunk_0001  \
-extract_chunk_0002   ├─ 所有 chunk extract 任务
+extract_chunk_0002   ├─ 所有 chunk extract 任务（并发执行）
 ...                 /
-  -> analyze_aggregated_chunk_evidence
+  -> analyze_<dimension_1>  \
+     analyze_<dimension_2>   ├─ 按 review framework 的 analyze_focus 维度并发生成
+     ...                    /
   -> synthesize_full_document_review
 ```
+
+`analyze_focus` 维度来自 `config/review_frameworks.yaml`，按 `document_type` 区分（例如 `etf_factsheet` 当前是 `risk disclosures completeness` / `historical performance boundary statements` / `cost impact on long-term returns` 三个维度）。每个维度生成一个独立的 `analyze` task，这些 task 的 `depends_on` 都是全部 extract task id，因此会被 runner 分到同一层并发执行。若某个 `document_type` 的 `analyze_focus` 为空或全部内容清洗后为空，才会回退成单一的 `analyze_aggregated_chunk_evidence` 聚合任务。
 
 两个公开 endpoint：
 
@@ -84,8 +88,8 @@ GET http://127.0.0.1:8000/health
 
 按场景看日志时可以重点关注：
 
-- Case 3 短文本 chunk review：通常能看到 `task_count=3`，以及一条 extract、一条 analyze、一条 synthesize 的生命周期日志。
-- Case 5 多 chunk review：通常能看到多个 `extract_chunk_000x` 任务先执行，再进入聚合 analyze 和最终 synthesize。
+- Case 3 短文本 chunk review：`task_count` 不再固定是 `3`，而是 `1 + analyze_focus 维度数 + 1`。以 `etf_factsheet`（当前 3 个维度）为例，即使只有 1 个 extract chunk，也会看到 `task_count=5`：一条 extract、三条并发的 analyze（按维度区分 `task_id`）、一条 synthesize。
+- Case 5 多 chunk review：通常能看到多个 `extract_chunk_000x` 任务先并发执行，再进入多个按维度区分的 `analyze_*` 任务（同样并发，`depends_on` 都是全部 extract task id），最后是 synthesize。若某个 document_type 的 `analyze_focus` 为空，会回退成单一的 `analyze_aggregated_chunk_evidence`。
 - 失败场景：重点看 `investment_document_review.todo_task.failed` 里的 `task_id`、`task_kind`、`error_type`、`stage`。
 - resume 场景：如果后续接入 resume store，重点看 `todo_resume.loaded` 和 `todo_resume.saved` 里的结果数量。
 
